@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: fincontrol-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-fincontrol}
+      POSTGRES_USER: ${DB_USER:-fincontrol}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fincontrol_local}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5434}:5432"
+    volumes:
+      - fincontrol_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-fincontrol} -d ${DB_NAME:-fincontrol}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  fincontrol_postgres_data:
+
