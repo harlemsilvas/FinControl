@@ -2,9 +2,18 @@
 
 **Código:** DOC-11  
 **Título:** Status do Projeto, Ordem das Fases e Instruções para Continuidade no Codex  
-**Versão:** 0.1  
+**Versão:** 0.2
 **Status:** Aprovado para início da implementação  
 **Data:** 16/07/2026  
+
+## Atualização de execução — 16/07/2026
+
+- Fases 1 e 2 concluídas e documentadas em docs/PHASE-1-2-VALIDATION.md.
+- Fase 3 concluída pelos scripts verify_database.sql e test_financial_flow.sql.
+- Fase 4, fundação técnica do backend, concluída e documentada em docs/PHASE-4-BACKEND-FOUNDATION.md.
+- API Node.js 22, TypeScript e Fastify criada em apps/api.
+- Health checks, conexão PostgreSQL, configuração, logs, erros, testes e build aprovados.
+- Próxima fase oficial: Fase 5 — Autenticação e autorização.
 
 ---
 
