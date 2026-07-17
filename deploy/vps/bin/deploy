@@ -181,7 +181,9 @@ as_fincontrol "$NPM_BIN" ci
 echo "Running checks"
 as_fincontrol "$NPM_BIN" run typecheck
 as_fincontrol "$NPM_BIN" test
-as_fincontrol "$NPM_BIN" run build
+as_fincontrol "$NPM_BIN" run build --workspace @fincontrol/api
+as_fincontrol env VITE_BASE_PATH=/fincontrol/ VITE_API_URL=/fincontrol \
+  "$NPM_BIN" run build --workspace @fincontrol/web
 
 echo "Applying database migrations"
 apply_migrations
