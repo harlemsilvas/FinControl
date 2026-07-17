@@ -12,6 +12,8 @@ DB_NAME="fincontrol"
 DB_USER="fincontrol_app"
 API_HEALTH_URL="http://127.0.0.1:3102/health/ready"
 WEB_HEALTH_URL="https://hrmmotos.com.br/fincontrol/"
+HEALTH_RETRIES=30
+HEALTH_INTERVAL_SECONDS=2
 
 deploy_ref="${1:-}"
 
@@ -41,6 +43,23 @@ load_app_env() {
 psql_app() {
   docker exec -i -e PGPASSWORD="$DB_PASSWORD" "$POSTGRES_CONTAINER" \
     psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" "$@"
+}
+
+wait_for_url() {
+  local url="$1"
+  local label="$2"
+  local attempt
+
+  for attempt in $(seq 1 "$HEALTH_RETRIES"); do
+    if curl -fsS "$url" >/dev/null; then
+      echo "$label is healthy"
+      return 0
+    fi
+    echo "Waiting for $label ($attempt/$HEALTH_RETRIES)"
+    sleep "$HEALTH_INTERVAL_SECONDS"
+  done
+
+  return 1
 }
 
 register_existing_migration_if_needed() {
@@ -188,7 +207,7 @@ fi
 as_fincontrol env PM2_HOME="$PM2_HOME_DIR" "$PM2_BIN" save
 
 echo "Validating deployment"
-if ! curl -fsS "$API_HEALTH_URL" >/dev/null; then
+if ! wait_for_url "$API_HEALTH_URL" "API"; then
   echo "API health check failed. Rolling symlinks back." >&2
   [[ -n "$previous_api_target" ]] && ln -sfn "$previous_api_target" "$APP_ROOT/current"
   [[ -n "$previous_web_target" ]] && ln -sfn "$previous_web_target" "$WEB_ROOT/current"
@@ -196,7 +215,13 @@ if ! curl -fsS "$API_HEALTH_URL" >/dev/null; then
   exit 1
 fi
 
-curl -fsSI "$WEB_HEALTH_URL" >/dev/null
+if ! wait_for_url "$WEB_HEALTH_URL" "Frontend"; then
+  echo "Frontend health check failed. Rolling symlinks back." >&2
+  [[ -n "$previous_api_target" ]] && ln -sfn "$previous_api_target" "$APP_ROOT/current"
+  [[ -n "$previous_web_target" ]] && ln -sfn "$previous_web_target" "$WEB_ROOT/current"
+  as_fincontrol env PM2_HOME="$PM2_HOME_DIR" "$PM2_BIN" reload "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api --update-env || true
+  exit 1
+fi
 
 echo "$short_sha" > "$APP_ROOT/shared/current-release"
 echo "Deploy completed: $short_sha"
