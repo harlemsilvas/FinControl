@@ -40,7 +40,7 @@ jobs:
         env:
           POSTGRES_DB: fincontrol
           POSTGRES_USER: fincontrol
-          POSTGRES_PASSWORD: fincontrol_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: >-
@@ -54,7 +54,7 @@ jobs:
       DB_PORT: 5432
       DB_NAME: fincontrol
       DB_USER: fincontrol
-      DB_PASSWORD: fincontrol_ci
+      DB_PASSWORD: ${{ github.run_id }}
       DB_POOL_MAX: 5
       DB_IDLE_TIMEOUT_MS: 30000
       DB_CONNECTION_TIMEOUT_MS: 5000
@@ -63,7 +63,6 @@ jobs:
       AUTH_REFRESH_TOKEN_TTL_DAYS: 30
       AUTH_ISSUER: fincontrol-api
       AUTH_AUDIENCE: fincontrol
-      PGPASSWORD: fincontrol_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
