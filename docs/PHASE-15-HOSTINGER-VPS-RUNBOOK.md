@@ -10,6 +10,9 @@
 - Node.js 20.20.2 global, incompatível com o requisito Node.js 22 do projeto;
 - npm 11.18.0;
 - PM2 6.0.14;
+- Node.js, npm e PM2 globais instalados em `/usr/bin`; PM2 localizado em `/usr/lib/node_modules/pm2/bin/pm2`;
+- existem daemons PM2 independentes para `harlem`, `motopecas`, `representacao`, `socialbot` e `whatsapp`;
+- será criado um daemon independente `pm2-fincontrol.service`, executado como `fincontrol` e com `PM2_HOME=/opt/fincontrol/.pm2`;
 - Docker 29.1.3 e Docker Compose 5.1.2;
 - Nginx 1.30.3 e Git 2.43.0;
 - usuários `deploy` e `fincontrol` criados;
@@ -19,7 +22,7 @@
 - porta reservada para o PostgreSQL FinControl: `127.0.0.1:5434`;
 - porta candidata para a API FinControl: `127.0.0.1:3102`, pendente de validação final do PM2/Nginx.
 
-O Node.js global não será alterado até identificar como as aplicações existentes são iniciadas. A preferência é instalar Node.js 22 isolado para o FinControl e informar seu caminho como `interpreter` no PM2.
+O Node.js global não será alterado. Será instalado Node.js 22 isolado para o FinControl e seu caminho será informado como `interpreter` no PM2. O daemon PM2 do usuário `fincontrol` permanece separado dos cinco daemons existentes.
 
 ## 1. Arquitetura aprovada
 
@@ -52,7 +55,10 @@ O Node.js global não será alterado até identificar como as aplicações exist
 └── current -> /opt/fincontrol/releases/<versao-atual>
 
 /var/www/hrmmotos.com.br/
-└── fincontrol -> /opt/fincontrol/current/apps/web/dist
+└── fincontrol/
+    ├── releases/
+    │   └── <commit-ou-versao>/
+    └── current -> releases/<versao-atual>
 
 /etc/nginx/
 ├── sites-available/hrmmotos.com.br
@@ -189,7 +195,7 @@ sudo mkdir -p \
   /opt/fincontrol/releases \
   /opt/fincontrol/shared/uploads \
   /opt/fincontrol/shared/backups \
-  /var/www/hrmmotos.com.br
+  /var/www/hrmmotos.com.br/fincontrol/releases
 
 sudo chown -R fincontrol:fincontrol /opt/fincontrol
 sudo chmod 750 /opt/fincontrol
@@ -198,7 +204,7 @@ sudo chmod 750 /opt/fincontrol/shared/uploads
 sudo chmod 750 /opt/fincontrol/shared/backups
 ```
 
-As permissões de leitura do frontend pelo Nginx serão definidas durante a criação do virtual host.
+O frontend compilado será copiado para `/var/www/hrmmotos.com.br/fincontrol/releases`; o Nginx não receberá acesso ao código, à chave Git ou aos segredos em `/opt/fincontrol`.
 
 ## 9. Criar Deploy Key do GitHub
 
@@ -321,6 +327,14 @@ Antes do primeiro deploy, o frontend deve ser adaptado de `/` para `/fincontrol/
 - garantir fallback da SPA para `/fincontrol/index.html`;
 - redirecionar `/fincontrol` para `/fincontrol/`.
 
+O suporte configurável foi implementado com `VITE_BASE_PATH` e `VITE_API_URL`. O build da VPS deverá usar:
+
+```bash
+VITE_BASE_PATH=/fincontrol/ \
+VITE_API_URL=/fincontrol \
+npm run build --workspace @fincontrol/web
+```
+
 Rotas esperadas:
 
 ```text
@@ -349,6 +363,8 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+O snippet versionado `deploy/vps/nginx/fincontrol.locations.conf` foi preparado para inclusão somente dentro do bloco HTTPS ativo de `/etc/nginx/sites-available/hrmmotos.com.br`. O bloco HTTP de domínios existente já redireciona caminhos para HTTPS; o bloco HTTP por IP não publicará o FinControl.
+
 Referência: [Hostinger — Nginx reverse proxy](https://www.hostinger.com/uk/tutorials/how-to-set-up-nginx-reverse-proxy).
 
 ## 14. Processo PM2
@@ -363,7 +379,7 @@ Será criado um arquivo `ecosystem.config.cjs` versionado ou instalado no releas
 - reinício automático, limites de memória e rotação de logs;
 - API vinculada exclusivamente a `127.0.0.1` e porta sem conflito.
 
-O PM2 deve ser executado pelo usuário operacional definido após o inventário. Comandos previstos:
+O PM2 será executado pelo usuário `fincontrol`, seguindo o padrão de um daemon por usuário já existente na VPS. Comandos previstos:
 
 ```bash
 pm2 start ecosystem.config.cjs --only fincontrol-api
@@ -372,7 +388,7 @@ pm2 status
 pm2 logs fincontrol-api --lines 100
 ```
 
-O `pm2 startup` deve reutilizar o padrão já configurado na VPS; não criar uma segunda inicialização sem revisar o serviço existente.
+Será criado um novo serviço `pm2-fincontrol.service` com home `/opt/fincontrol`, sem modificar `pm2-harlem.service` ou os serviços dos demais sistemas. O arquivo `ecosystem.config.cjs` apontará explicitamente para o binário Node.js 22 isolado.
 
 ## 15. Deploy e rollback
 
@@ -431,9 +447,6 @@ A chave usada pelo GitHub Actions para entrar como `deploy` é diferente da Depl
 - configuração atual do virtual host `hrmmotos.com.br`, sem chaves privadas;
 - situação atual do DNS e SSL;
 - confirmação de que o repositório GitHub continuará privado ou público.
-- usuário Unix que atualmente executa os processos PM2;
-- configuração PM2 atual e nomes dos processos, sem variáveis ou segredos;
-- origem e caminho real dos binários Node.js e PM2;
 - confirmação final de que a porta 3102 pode ser reservada;
 
 Nunca enviar senhas, chave SSH privada, `.env`, chave privada TLS ou dump de produção pela conversa.

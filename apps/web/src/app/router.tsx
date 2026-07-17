@@ -9,6 +9,7 @@ import { resources } from '../master-data/resources';
 import { PayablesListPage } from '../payables/payables-list-page';
 import { PayableFormPage } from '../payables/payable-form-page';
 import { AgendaPage } from '../intelligence/agenda-page';
+import { environment } from '../config/environment';
 
 export const router=createBrowserRouter([
   {path:'/login',element:<LoginPage/>},
@@ -21,4 +22,4 @@ export const router=createBrowserRouter([
     ...Object.entries(resources).map(([path,config])=>({path,element:<MasterDataPage config={config}/>})),
     {path:'*',element:<NotFoundPage/>},
   ]}]},
-]);
+],{basename:environment.VITE_BASE_PATH.replace(/\/$/,'')||'/'});
