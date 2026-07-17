@@ -21,6 +21,26 @@ No canto inferior esquerdo deve aparecer `WSL: Ubuntu`. Não abra o projeto por
 - conexão local: `127.0.0.1:5434`;
 - segredos locais: `.env`, nunca versionado.
 
+## Docker local
+
+Use a integração WSL do Docker Desktop; não instale outro daemon Docker dentro do Ubuntu.
+
+Para o desenvolvimento diário, mantenha apenas o PostgreSQL em container:
+
+```bash
+docker compose up -d postgres
+npm run dev:api
+npm run dev:web
+```
+
+Para validar as imagens da aplicação completa:
+
+```bash
+docker compose --profile app up -d --build
+```
+
+Nesse modo, acesse `http://127.0.0.1:8080`. A VPS usará Node.js e Nginx nativos; consulte `docs/PHASE-13-LOCAL-CONTAINERS.md`.
+
 Para reinstalar ou validar o Node.js 22:
 
 ```bash
