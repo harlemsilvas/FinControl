@@ -78,8 +78,9 @@ const resources: RouteResource[] = [
       accountType: 'account_type', pixKey: 'pix_key', isDefault: 'is_default' } },
 ];
 
+const activeQuery = z.union([z.boolean(), z.enum(['true', 'false'])]).transform((value) => value === true || value === 'true');
 const listQuery = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  search: z.string().trim().min(1).max(100).optional(), active: z.enum(['true', 'false']).transform((value) => value === 'true').optional() });
+  search: z.string().trim().min(1).max(100).optional(), active: activeQuery.optional() });
 const idParams = z.object({ id: uuid });
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
