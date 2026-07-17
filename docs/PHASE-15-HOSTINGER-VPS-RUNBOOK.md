@@ -4,6 +4,23 @@
 **Domínio:** `https://hrmmotos.com.br/fincontrol/`
 **Modelo:** PostgreSQL em Docker; API nativa sob PM2; frontend estático sob Nginx
 
+## Inventário confirmado em 17/07/2026
+
+- Ubuntu 24.04.4 LTS;
+- Node.js 20.20.2 global, incompatível com o requisito Node.js 22 do projeto;
+- npm 11.18.0;
+- PM2 6.0.14;
+- Docker 29.1.3 e Docker Compose 5.1.2;
+- Nginx 1.30.3 e Git 2.43.0;
+- usuários `deploy` e `fincontrol` criados;
+- `/opt/fincontrol` pertence a `fincontrol:fincontrol` com modo 750;
+- portas PostgreSQL existentes: 5432, 5433 e 55432;
+- portas Node.js existentes: 3001, 3101, 5000, 5001 e 31827;
+- porta reservada para o PostgreSQL FinControl: `127.0.0.1:5434`;
+- porta candidata para a API FinControl: `127.0.0.1:3102`, pendente de validação final do PM2/Nginx.
+
+O Node.js global não será alterado até identificar como as aplicações existentes são iniciadas. A preferência é instalar Node.js 22 isolado para o FinControl e informar seu caminho como `interpreter` no PM2.
+
 ## 1. Arquitetura aprovada
 
 - `deploy`: usuário administrativo, acessado por SSH e autorizado a usar `sudo`.
@@ -212,13 +229,21 @@ Antes do clone, cadastrar o host do GitHub em `known_hosts` e conferir a impress
 
 ## 10. Criar o Compose dedicado do PostgreSQL
 
-O arquivo `/opt/fincontrol/infra/postgres/compose.yaml` será criado após confirmar containers, redes, portas e convenções existentes. Requisitos obrigatórios:
+O modelo versionado está em `deploy/vps/postgres/compose.yaml` e deverá ser instalado em `/opt/fincontrol/infra/postgres/compose.yaml`. Ele usa:
+
+- projeto Compose `fincontrol`;
+- container `fincontrol_postgres`;
+- rede `fincontrol_backend`;
+- volume persistente `fincontrol_postgres_data`;
+- bind `127.0.0.1:5434:5432`.
+
+Requisitos obrigatórios:
 
 - imagem PostgreSQL 17 Alpine fixada;
 - nome de projeto e container exclusivos;
 - volume nomeado exclusivo e persistente;
 - bind somente em `127.0.0.1`;
-- porta externa sem conflito, preferencialmente 5434 se estiver livre;
+- porta externa 5434, confirmada como livre no inventário;
 - health check com `pg_isready`;
 - `restart: unless-stopped`;
 - credenciais lidas de `.env` com permissão 600;
@@ -262,7 +287,7 @@ API_PORT=3000
 LOG_LEVEL=info
 
 DB_HOST=127.0.0.1
-DB_PORT=PORTA_LOCAL_DO_CONTAINER
+DB_PORT=5434
 DB_NAME=fincontrol
 DB_USER=fincontrol_app
 DB_PASSWORD=SENHA_FORTE
@@ -397,7 +422,7 @@ A chave usada pelo GitHub Actions para entrar como `deploy` é diferente da Depl
 13. Configurar o environment `production` no GitHub.
 14. Habilitar o deploy controlado da Fase 14.
 
-## 18. Informações necessárias antes da execução assistida
+## 18. Informações ainda necessárias antes da execução assistida
 
 - IP ou hostname SSH da VPS;
 - versão do Ubuntu;
@@ -406,9 +431,9 @@ A chave usada pelo GitHub Actions para entrar como `deploy` é diferente da Depl
 - configuração atual do virtual host `hrmmotos.com.br`, sem chaves privadas;
 - situação atual do DNS e SSL;
 - confirmação de que o repositório GitHub continuará privado ou público.
-- versões de Node.js, npm, PM2, Docker e Docker Compose;
-- saída sanitizada de containers, redes e portas em uso;
 - usuário Unix que atualmente executa os processos PM2;
 - configuração PM2 atual e nomes dos processos, sem variáveis ou segredos;
+- origem e caminho real dos binários Node.js e PM2;
+- confirmação final de que a porta 3102 pode ser reservada;
 
 Nunca enviar senhas, chave SSH privada, `.env`, chave privada TLS ou dump de produção pela conversa.

@@ -1,0 +1,34 @@
+name: fincontrol
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: fincontrol_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fincontrol}
+      POSTGRES_USER: ${POSTGRES_USER:-fincontrol_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "127.0.0.1:${FINCONTROL_DB_PORT:-5434}:5432"
+    volumes:
+      - fincontrol_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fincontrol_backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  fincontrol_backend:
+    name: fincontrol_backend
+    driver: bridge
+
+volumes:
+  fincontrol_postgres_data:
+    name: fincontrol_postgres_data
