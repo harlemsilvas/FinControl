@@ -1,7 +1,25 @@
 # Fase 16 — Deploy controlado pela VPS e GitHub Actions
 
-**Status:** preparado para instalacao assistida
+**Status:** deploy controlado manual validado na VPS
 **Objetivo:** substituir o deploy manual por um fluxo reproduzivel, acionado manualmente e com rollback.
+
+## Estado validado em 17/07/2026
+
+- Plano de controle instalado na VPS em `/opt/fincontrol/bin` e `/opt/fincontrol/shared/ecosystem.config.cjs`.
+- Deploy controlado executado com sucesso usando `/opt/fincontrol/bin/deploy`.
+- Release publicado: `14bd734`.
+- Symlink da API: `/opt/fincontrol/current -> /opt/fincontrol/releases/14bd734...`.
+- Symlink do frontend: `/var/www/hrmmotos.com.br/fincontrol/current -> /var/www/hrmmotos.com.br/fincontrol/releases/14bd734...`.
+- Health local validado em `http://127.0.0.1:3102/health/ready`.
+- Frontend validado em `https://hrmmotos.com.br/fincontrol/`.
+- Swagger UI validado em `https://hrmmotos.com.br/fincontrol/docs/`.
+- Build do frontend validado com assets em `/fincontrol/assets/...`.
+
+Correcoes incorporadas durante a validacao:
+
+- `deploy` aguarda o health da API/frontend antes de considerar falha.
+- `deploy` builda a web com `VITE_BASE_PATH=/fincontrol/` e `VITE_API_URL=/fincontrol`.
+- API de cadastros aceita `active` como boolean ou string para compatibilidade com o frontend.
 
 ## Artefatos versionados
 
@@ -76,6 +94,8 @@ Criar o environment `production` no GitHub e cadastrar:
 - `VPS_KNOWN_HOSTS`
 
 O workflow exige execucao manual e `confirmation=DEPLOY`.
+
+Essa e a principal pendencia apos o deploy controlado manual validado.
 
 ## Observacoes operacionais
 

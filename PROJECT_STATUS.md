@@ -1,10 +1,10 @@
 # FinControl — Documento de Continuidade do Desenvolvimento
 
-**Código:** DOC-11  
-**Título:** Status do Projeto, Ordem das Fases e Instruções para Continuidade no Codex  
-**Versão:** 0.2
-**Status:** Aprovado para início da implementação  
-**Data:** 16/07/2026  
+**Código:** DOC-11
+**Título:** Status do Projeto, Ordem das Fases e Instruções para Continuidade no Codex
+**Versão:** 0.3
+**Status:** VPS operacional com deploy controlado manual validado
+**Data:** 17/07/2026
 
 ## Atualização de execução — 17/07/2026
 
@@ -27,9 +27,11 @@
 - Fase 15, provisionamento inicial da VPS Hostinger, executada parcialmente com sucesso e documentada em docs/PHASE-15-HOSTINGER-VPS-RUNBOOK.md.
 - Deploy manual inicial validado em `https://hrmmotos.com.br/fincontrol/` com PostgreSQL 17 em Docker, API Node.js 22 sob PM2 e frontend estático sob Nginx.
 - Login do Operador Master validado após aplicação das migrations de autenticação e permissões.
-- Documentação interativa da API iniciada com Swagger UI/OpenAPI, planejada para publicação em `/fincontrol/docs/`.
-- Fase 16 preparada localmente com scripts versionados de deploy, rollback, instalação do plano de controle e serviço `pm2-fincontrol`.
-- Próxima etapa oficial: instalar o plano de controle na VPS, testar `/opt/fincontrol/bin/deploy` manualmente e habilitar o environment `production` no GitHub.
+- Documentação interativa da API publicada com Swagger UI/OpenAPI em `https://hrmmotos.com.br/fincontrol/docs/`.
+- Fase 16, deploy controlado manual na VPS, validada com `/opt/fincontrol/bin/deploy`.
+- Release atual em produção: `14bd734` (`/opt/fincontrol/releases/14bd734...` e `/var/www/hrmmotos.com.br/fincontrol/releases/14bd734...`).
+- Correções pós-deploy aplicadas: health check com espera no deploy, filtro `active` aceitando boolean/string e build do frontend com `VITE_BASE_PATH=/fincontrol/`.
+- Próxima etapa oficial: configurar o environment `production` no GitHub e executar o workflow `Deploy VPS Native` apontando para um commit validado.
 
 ---
 
