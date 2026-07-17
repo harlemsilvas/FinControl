@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/fincontrol"
+WEB_ROOT="/var/www/hrmmotos.com.br/fincontrol"
+PM2_HOME_DIR="$APP_ROOT/.pm2"
+PM2_BIN="/usr/bin/pm2"
+
+target="${1:-}"
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "This script must run as root through sudo." >&2
+  exit 1
+fi
+
+if [[ -z "$target" || ! "$target" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Usage: rollback <release-name>" >&2
+  echo "Available releases:" >&2
+  find "$APP_ROOT/releases" -mindepth 1 -maxdepth 1 -type d -printf '  %f\n' | sort >&2
+  exit 2
+fi
+
+api_release="$APP_ROOT/releases/$target"
+web_release="$WEB_ROOT/releases/$target"
+
+if [[ ! -d "$api_release" ]]; then
+  echo "API release not found: $api_release" >&2
+  exit 1
+fi
+
+if [[ ! -d "$web_release" ]]; then
+  echo "Web release not found: $web_release" >&2
+  exit 1
+fi
+
+ln -sfn "$api_release" "$APP_ROOT/current"
+chown -h fincontrol:fincontrol "$APP_ROOT/current"
+ln -sfn "$web_release" "$WEB_ROOT/current"
+chown -h www-data:www-data "$WEB_ROOT/current"
+
+sudo -u fincontrol -H env PATH="$APP_ROOT/.local/bin:$PATH" PM2_HOME="$PM2_HOME_DIR" \
+  "$PM2_BIN" reload "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api --update-env
+sudo -u fincontrol -H env PATH="$APP_ROOT/.local/bin:$PATH" PM2_HOME="$PM2_HOME_DIR" \
+  "$PM2_BIN" save
+
+curl -fsS http://127.0.0.1:3102/health/ready >/dev/null
+echo "$target" > "$APP_ROOT/shared/current-release"
+echo "Rollback completed: $target"

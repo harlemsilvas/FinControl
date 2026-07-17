@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/fincontrol"
+REPO_URL="git@github.com:harlemsilvas/FinControl.git"
+NPM_BIN="$APP_ROOT/.local/bin/npm"
+PM2_BIN="/usr/bin/pm2"
+PM2_HOME_DIR="$APP_ROOT/.pm2"
+WEB_ROOT="/var/www/hrmmotos.com.br/fincontrol"
+POSTGRES_CONTAINER="fincontrol_postgres"
+DB_NAME="fincontrol"
+DB_USER="fincontrol_app"
+API_HEALTH_URL="http://127.0.0.1:3102/health/ready"
+WEB_HEALTH_URL="https://hrmmotos.com.br/fincontrol/"
+
+deploy_ref="${1:-}"
+
+if [[ -z "$deploy_ref" || ! "$deploy_ref" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+  echo "Usage: deploy <git-ref-or-commit>" >&2
+  exit 2
+fi
+
+require_root() {
+  if [[ "$(id -u)" -ne 0 ]]; then
+    echo "This script must run as root through sudo." >&2
+    exit 1
+  fi
+}
+
+as_fincontrol() {
+  sudo -u fincontrol -H env PATH="$APP_ROOT/.local/bin:$PATH" "$@"
+}
+
+load_app_env() {
+  set -a
+  # shellcheck disable=SC1091
+  . "$APP_ROOT/shared/.env"
+  set +a
+}
+
+psql_app() {
+  docker exec -i -e PGPASSWORD="$DB_PASSWORD" "$POSTGRES_CONTAINER" \
+    psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" "$@"
+}
+
+register_existing_migration_if_needed() {
+  local version="$1"
+  local description="$2"
+  local marker_sql="$3"
+
+  if psql_app -Atc "SELECT 1 FROM administracao.schema_versions WHERE version = '$version'" | grep -qx '1'; then
+    return 0
+  fi
+
+  if [[ "$(psql_app -Atc "$marker_sql")" == "t" ]]; then
+    psql_app -c "INSERT INTO administracao.schema_versions(version, description, checksum) VALUES ('$version', '$description', 'baseline-existing') ON CONFLICT DO NOTHING;"
+  fi
+}
+
+baseline_existing_migrations() {
+  if [[ "$(psql_app -Atc "SELECT to_regclass('administracao.schema_versions') IS NOT NULL")" != "t" ]]; then
+    return 0
+  fi
+
+  register_existing_migration_if_needed "202607162000" "core_enable_extensions" "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto')"
+  register_existing_migration_if_needed "202607162010" "core_create_schemas" "SELECT to_regnamespace('financeiro') IS NOT NULL"
+  register_existing_migration_if_needed "202607162020" "administracao_create_updated_at_function" "SELECT to_regprocedure('administracao.set_updated_at()') IS NOT NULL"
+  register_existing_migration_if_needed "202607162030" "financeiro_create_status_tables" "SELECT to_regclass('financeiro.payable_title_statuses') IS NOT NULL"
+  register_existing_migration_if_needed "202607162040" "administracao_create_audit_events" "SELECT to_regclass('administracao.audit_events') IS NOT NULL"
+  register_existing_migration_if_needed "202607162050" "financeiro_seed_status_tables" "SELECT EXISTS (SELECT 1 FROM financeiro.payable_title_statuses WHERE code = 'OPEN')"
+  register_existing_migration_if_needed "202607162100" "administracao_create_users_and_roles" "SELECT to_regclass('administracao.users') IS NOT NULL"
+  register_existing_migration_if_needed "202607162110" "administracao_seed_roles_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.roles WHERE code = 'MASTER')"
+  register_existing_migration_if_needed "202607162120" "cadastros_create_master_data" "SELECT to_regclass('cadastros.suppliers') IS NOT NULL"
+  register_existing_migration_if_needed "202607162130" "cadastros_seed_master_data" "SELECT EXISTS (SELECT 1 FROM cadastros.payment_methods WHERE code = 'PIX')"
+  register_existing_migration_if_needed "202607162140" "tesouraria_create_banks_accounts" "SELECT to_regclass('tesouraria.bank_accounts') IS NOT NULL"
+  register_existing_migration_if_needed "202607162150" "financeiro_create_payable_titles" "SELECT to_regclass('financeiro.payable_titles') IS NOT NULL"
+  register_existing_migration_if_needed "202607162160" "financeiro_create_installments" "SELECT to_regclass('financeiro.payable_installments') IS NOT NULL"
+  register_existing_migration_if_needed "202607162170" "financeiro_create_tags_attachments" "SELECT to_regclass('financeiro.attachments') IS NOT NULL"
+  register_existing_migration_if_needed "202607162180" "financeiro_create_approvals" "SELECT to_regclass('financeiro.approvals') IS NOT NULL"
+  register_existing_migration_if_needed "202607162190" "financeiro_create_payment_batches" "SELECT to_regclass('financeiro.payment_batches') IS NOT NULL"
+  register_existing_migration_if_needed "202607162200" "financeiro_create_payments_reversals" "SELECT to_regclass('financeiro.payments') IS NOT NULL"
+  register_existing_migration_if_needed "202607162210" "financeiro_create_xml_imports" "SELECT to_regclass('financeiro.xml_imports') IS NOT NULL"
+  register_existing_migration_if_needed "202607162220" "financeiro_create_balance_functions" "SELECT to_regprocedure('financeiro.recalculate_installment_balance(uuid)') IS NOT NULL"
+  register_existing_migration_if_needed "202607162230" "financeiro_create_soft_delete_procedures" "SELECT to_regprocedure('financeiro.soft_delete_payable_title(uuid,uuid)') IS NOT NULL"
+  register_existing_migration_if_needed "202607162240" "financeiro_create_views" "SELECT to_regclass('financeiro.v_payable_title_balances') IS NOT NULL"
+  register_existing_migration_if_needed "202607162250" "financeiro_create_maintenance_log" "SELECT to_regclass('administracao.maintenance_operations') IS NOT NULL"
+  register_existing_migration_if_needed "202607162260" "financeiro_create_validation_functions" "SELECT to_regprocedure('financeiro.find_possible_duplicate_titles(uuid,character varying,character varying)') IS NOT NULL"
+  register_existing_migration_if_needed "202607162270" "core_grants_template" "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fincontrol_app')"
+  register_existing_migration_if_needed "202607162280" "core_schema_version" "SELECT to_regclass('administracao.schema_versions') IS NOT NULL"
+  register_existing_migration_if_needed "202607162290" "administracao_create_auth_sessions" "SELECT to_regclass('administracao.auth_sessions') IS NOT NULL"
+  register_existing_migration_if_needed "202607162300" "administracao_seed_master_data_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'MASTER_DATA_VIEW')"
+  register_existing_migration_if_needed "202607162310" "financeiro_phase_7_permissions_and_title_balance" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'PAYABLE_TITLE_VIEW')"
+}
+
+apply_migrations() {
+  "$release_dir/scripts/validate-migrations.sh"
+
+  first_schema_version="$release_dir/database/migrations/202607162280_core_schema_version.sql"
+  if [[ "$(psql_app -Atc "SELECT to_regclass('administracao.schema_versions') IS NOT NULL")" != "t" ]]; then
+    psql_app < "$first_schema_version"
+  fi
+
+  baseline_existing_migrations
+
+  while IFS= read -r -d '' migration; do
+    local filename version description checksum applied
+    filename="$(basename "$migration")"
+    version="${filename%%_*}"
+    description="${filename%.sql}"
+    description="${description#${version}_}"
+    checksum="$(sha256sum "$migration" | awk '{print $1}')"
+    applied="$(psql_app -Atc "SELECT checksum FROM administracao.schema_versions WHERE version = '$version'")"
+
+    if [[ -n "$applied" ]]; then
+      if [[ "$applied" != "$checksum" && "$applied" != "baseline-existing" ]]; then
+        echo "Migration checksum mismatch for $filename" >&2
+        exit 1
+      fi
+      echo "Skipping already applied migration $filename"
+      continue
+    fi
+
+    echo "Applying migration $filename"
+    psql_app < "$migration"
+    psql_app -c "INSERT INTO administracao.schema_versions(version, description, checksum) VALUES ('$version', '$description', '$checksum');"
+  done < <(find "$release_dir/database/migrations" -maxdepth 1 -type f -name '*.sql' -print0 | sort -z)
+}
+
+require_root
+load_app_env
+
+mkdir -p "$APP_ROOT/releases" "$WEB_ROOT/releases"
+chown -R fincontrol:fincontrol "$APP_ROOT/releases"
+
+work_dir="$(mktemp -d)"
+chown fincontrol:fincontrol "$work_dir"
+trap 'rm -rf "$work_dir"' EXIT
+
+echo "Resolving $deploy_ref"
+as_fincontrol git clone --no-checkout "$REPO_URL" "$work_dir/repo"
+commit_sha="$(as_fincontrol git -C "$work_dir/repo" rev-parse "$deploy_ref^{commit}")"
+short_sha="${commit_sha:0:12}"
+release_dir="$APP_ROOT/releases/$short_sha"
+web_release_dir="$WEB_ROOT/releases/$short_sha"
+previous_api_target="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
+previous_web_target="$(readlink -f "$WEB_ROOT/current" 2>/dev/null || true)"
+
+if [[ -e "$release_dir" ]]; then
+  echo "Release $short_sha already exists. Reusing it."
+else
+  echo "Creating release $short_sha"
+  as_fincontrol git -C "$work_dir/repo" checkout --detach "$commit_sha"
+  mkdir -p "$release_dir"
+  rsync -a --delete --exclude '.git' "$work_dir/repo/" "$release_dir/"
+  chown -R fincontrol:fincontrol "$release_dir"
+fi
+
+echo "Installing dependencies"
+cd "$release_dir"
+as_fincontrol "$NPM_BIN" ci
+
+echo "Running checks"
+as_fincontrol "$NPM_BIN" run typecheck
+as_fincontrol "$NPM_BIN" test
+as_fincontrol "$NPM_BIN" run build
+
+echo "Applying database migrations"
+apply_migrations
+
+echo "Verifying database"
+psql_app < "$release_dir/database/scripts/verify_database.sql"
+
+echo "Publishing release symlinks"
+ln -sfn "$release_dir" "$APP_ROOT/current"
+chown -h fincontrol:fincontrol "$APP_ROOT/current"
+
+mkdir -p "$web_release_dir"
+rsync -a --delete "$release_dir/apps/web/dist/" "$web_release_dir/"
+ln -sfn "$web_release_dir" "$WEB_ROOT/current"
+chown -R www-data:www-data "$WEB_ROOT"
+
+echo "Updating PM2"
+if as_fincontrol env PM2_HOME="$PM2_HOME_DIR" "$PM2_BIN" describe fincontrol-api >/dev/null 2>&1; then
+  as_fincontrol env PM2_HOME="$PM2_HOME_DIR" "$PM2_BIN" reload "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api --update-env
+else
+  as_fincontrol env PM2_HOME="$PM2_HOME_DIR" "$PM2_BIN" start "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api
+fi
+as_fincontrol env PM2_HOME="$PM2_HOME_DIR" "$PM2_BIN" save
+
+echo "Validating deployment"
+if ! curl -fsS "$API_HEALTH_URL" >/dev/null; then
+  echo "API health check failed. Rolling symlinks back." >&2
+  [[ -n "$previous_api_target" ]] && ln -sfn "$previous_api_target" "$APP_ROOT/current"
+  [[ -n "$previous_web_target" ]] && ln -sfn "$previous_web_target" "$WEB_ROOT/current"
+  as_fincontrol env PM2_HOME="$PM2_HOME_DIR" "$PM2_BIN" reload "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api --update-env || true
+  exit 1
+fi
+
+curl -fsSI "$WEB_HEALTH_URL" >/dev/null
+
+echo "$short_sha" > "$APP_ROOT/shared/current-release"
+echo "Deploy completed: $short_sha"

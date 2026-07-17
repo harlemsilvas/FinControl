@@ -1,8 +1,28 @@
 # Fase 15 — Runbook de provisionamento da VPS Hostinger
 
-**Status:** aguardando execução
+**Status:** provisionamento inicial manual validado; deploy controlado pendente
 **Domínio:** `https://hrmmotos.com.br/fincontrol/`
 **Modelo:** PostgreSQL em Docker; API nativa sob PM2; frontend estático sob Nginx
+
+## Execução validada em 17/07/2026
+
+- PostgreSQL 17 Alpine subiu em Docker como `fincontrol_postgres`, com health check saudável e bind local `127.0.0.1:5434->5432`.
+- Node.js 22 foi instalado isolado para o usuário de serviço `fincontrol` em `/opt/fincontrol/.local/bin`.
+- Release manual `40639cb` foi publicado em `/opt/fincontrol/releases/40639cb`.
+- Symlink da API apontado para `/opt/fincontrol/current`.
+- Frontend buildado com `VITE_BASE_PATH=/fincontrol/` e `VITE_API_URL=/fincontrol`, publicado em `/var/www/hrmmotos.com.br/fincontrol/current`.
+- Nginx validado e recarregado com os locations de `/fincontrol`.
+- API subiu sob PM2 como `fincontrol-api`, escutando somente em `127.0.0.1:3102`.
+- Operador Master `master@example.com` criado pelo comando `bootstrap-master`.
+- Login web validado em `https://hrmmotos.com.br/fincontrol/`.
+
+Pendências antes de considerar a Fase 15 totalmente encerrada:
+
+- criar e validar `/opt/fincontrol/bin/deploy`;
+- criar e validar rollback manual;
+- confirmar/criar `pm2-fincontrol.service` para sobrevivência a reboot;
+- configurar o environment `production` no GitHub;
+- habilitar e testar o workflow `Deploy VPS Native`.
 
 ## Inventário confirmado em 17/07/2026
 
@@ -20,7 +40,7 @@
 - portas PostgreSQL existentes: 5432, 5433 e 55432;
 - portas Node.js existentes: 3001, 3101, 5000, 5001 e 31827;
 - porta reservada para o PostgreSQL FinControl: `127.0.0.1:5434`;
-- porta candidata para a API FinControl: `127.0.0.1:3102`, pendente de validação final do PM2/Nginx.
+- porta validada para a API FinControl: `127.0.0.1:3102`.
 
 O Node.js global não será alterado. Será instalado Node.js 22 isolado para o FinControl e seu caminho será informado como `interpreter` no PM2. O daemon PM2 do usuário `fincontrol` permanece separado dos cinco daemons existentes.
 
@@ -28,7 +48,7 @@ O Node.js global não será alterado. Será instalado Node.js 22 isolado para o 
 
 - `deploy`: usuário administrativo, acessado por SSH e autorizado a usar `sudo`.
 - `fincontrol`: usuário de serviço sem login, responsável pela aplicação.
-- API Node.js em uma porta local ainda a confirmar, sem exposição pública direta, gerenciada pelo PM2.
+- API Node.js em `127.0.0.1:3102`, sem exposição pública direta, gerenciada pelo PM2.
 - Frontend estático servido pelo Nginx.
 - PostgreSQL 17 em container Docker, com volume persistente e porta publicada somente em `127.0.0.1`.
 - Nginx publica frontend e API sob `/fincontrol`.
@@ -289,7 +309,7 @@ Arquivo: `/opt/fincontrol/shared/.env`
 ```dotenv
 NODE_ENV=production
 API_HOST=127.0.0.1
-API_PORT=3000
+API_PORT=3102
 LOG_LEVEL=info
 
 DB_HOST=127.0.0.1
@@ -306,6 +326,12 @@ AUTH_ACCESS_TOKEN_TTL_SECONDS=900
 AUTH_REFRESH_TOKEN_TTL_DAYS=30
 AUTH_ISSUER=fincontrol-api
 AUTH_AUDIENCE=fincontrol
+
+# Somente para criar o Operador Master inicial.
+# Remover ou proteger após o bootstrap.
+BOOTSTRAP_MASTER_NAME="Operador Master"
+BOOTSTRAP_MASTER_EMAIL=master@example.com
+BOOTSTRAP_MASTER_PASSWORD=SENHA_TEMPORARIA_FORTE
 ```
 
 Aplicar permissões:
@@ -339,9 +365,23 @@ Rotas esperadas:
 
 ```text
 /fincontrol/          → frontend estático
-/fincontrol/api/      → 127.0.0.1:PORTA_API_LOCAL/api/
-/fincontrol/auth/     → 127.0.0.1:PORTA_API_LOCAL/auth/
-/fincontrol/health/   → 127.0.0.1:PORTA_API_LOCAL/health/
+/fincontrol/api/      → 127.0.0.1:3102/api/
+/fincontrol/auth/     → 127.0.0.1:3102/auth/
+/fincontrol/health/   → 127.0.0.1:3102/health/
+```
+
+Endpoints de health existentes na API:
+
+```text
+/fincontrol/health/live
+/fincontrol/health/ready
+```
+
+Documentacao interativa da API:
+
+```text
+/fincontrol/docs/
+/fincontrol/openapi.json
 ```
 
 Não publicar o frontend atual no subpath antes desses ajustes.
@@ -390,6 +430,18 @@ pm2 logs fincontrol-api --lines 100
 
 Será criado um novo serviço `pm2-fincontrol.service` com home `/opt/fincontrol`, sem modificar `pm2-harlem.service` ou os serviços dos demais sistemas. O arquivo `ecosystem.config.cjs` apontará explicitamente para o binário Node.js 22 isolado.
 
+Comando manual usado no primeiro deploy:
+
+```bash
+sudo -u fincontrol -H env PATH="/opt/fincontrol/.local/bin:$PATH" \
+  PM2_HOME=/opt/fincontrol/.pm2 \
+  pm2 start /opt/fincontrol/current/apps/api/dist/server.js \
+  --name fincontrol-api \
+  --interpreter /opt/fincontrol/.local/bin/node \
+  --cwd /opt/fincontrol/current/apps/api \
+  --node-args="--env-file=/opt/fincontrol/shared/.env"
+```
+
 ## 15. Deploy e rollback
 
 O script `/opt/fincontrol/bin/deploy` deverá:
@@ -434,9 +486,9 @@ A chave usada pelo GitHub Actions para entrar como `deploy` é diferente da Depl
 9. Criar release inicial e aplicar migrations.
 10. Criar e testar o processo PM2.
 11. Incorporar os locations ao Nginx existente e validar SSL.
-12. Criar e testar deploy e rollback manuais.
-13. Configurar o environment `production` no GitHub.
-14. Habilitar o deploy controlado da Fase 14.
+12. Criar e testar deploy e rollback manuais. **Pendente.**
+13. Configurar o environment `production` no GitHub. **Pendente.**
+14. Habilitar o deploy controlado da Fase 14. **Pendente.**
 
 ## 18. Informações ainda necessárias antes da execução assistida
 

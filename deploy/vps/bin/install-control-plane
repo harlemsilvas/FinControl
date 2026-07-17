@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/fincontrol"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "Run with sudo: sudo bash deploy/vps/bin/install-control-plane" >&2
+  exit 1
+fi
+
+install -d -o fincontrol -g fincontrol -m 750 "$APP_ROOT/bin" "$APP_ROOT/shared"
+install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/deploy" "$APP_ROOT/bin/deploy"
+install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/rollback" "$APP_ROOT/bin/rollback"
+install -o fincontrol -g fincontrol -m 644 "$REPO_DIR/deploy/vps/pm2/ecosystem.config.cjs" "$APP_ROOT/shared/ecosystem.config.cjs"
+install -o root -g root -m 644 "$REPO_DIR/deploy/vps/systemd/pm2-fincontrol.service" "/etc/systemd/system/pm2-fincontrol.service"
+
+if [[ -f "$REPO_DIR/deploy/vps/postgres/compose.yaml" ]]; then
+  install -d -o fincontrol -g fincontrol -m 750 "$APP_ROOT/infra/postgres"
+  install -o fincontrol -g fincontrol -m 644 "$REPO_DIR/deploy/vps/postgres/compose.yaml" "$APP_ROOT/infra/postgres/compose.yaml"
+fi
+
+echo "Installed FinControl control plane:"
+echo "  $APP_ROOT/bin/deploy"
+echo "  $APP_ROOT/bin/rollback"
+echo "  $APP_ROOT/shared/ecosystem.config.cjs"
+echo "  /etc/systemd/system/pm2-fincontrol.service"
+echo
+echo "To enable PM2 startup after the first successful deploy:"
+echo "  sudo systemctl daemon-reload"
+echo "  sudo systemctl enable pm2-fincontrol.service"

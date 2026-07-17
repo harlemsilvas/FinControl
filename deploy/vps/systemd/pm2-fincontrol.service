@@ -1,0 +1,19 @@
+[Unit]
+Description=PM2 process manager for FinControl
+Documentation=https://pm2.keymetrics.io/
+After=network.target
+
+[Service]
+Type=forking
+User=fincontrol
+Group=fincontrol
+WorkingDirectory=/opt/fincontrol
+Environment=PATH=/opt/fincontrol/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PM2_HOME=/opt/fincontrol/.pm2
+ExecStart=/usr/bin/pm2 resurrect
+ExecReload=/usr/bin/pm2 reload all
+ExecStop=/usr/bin/pm2 kill
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

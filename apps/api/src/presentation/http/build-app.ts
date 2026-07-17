@@ -13,6 +13,7 @@ import { PayablesRepository } from '../../domains/payables/payables-repository.j
 import { payablesRoutes } from '../../domains/payables/payables-routes.js';
 import { IntelligenceRepository } from '../../domains/intelligence/intelligence-repository.js';
 import { intelligenceRoutes } from '../../domains/intelligence/intelligence-routes.js';
+import { registerOpenApi } from './openapi.js';
 
 export interface BuildAppOptions {
   database: Database;
@@ -43,6 +44,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   registerErrorHandler(app);
+  registerOpenApi(app);
   app.decorateRequest('authUser', null);
   app.decorateRequest('authSessionId', null);
   void app.register(healthRoutes, { prefix: '/health', database: options.database });

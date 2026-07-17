@@ -6,7 +6,7 @@
 **Status:** Aprovado para início da implementação  
 **Data:** 16/07/2026  
 
-## Atualização de execução — 16/07/2026
+## Atualização de execução — 17/07/2026
 
 - Fases 1 e 2 concluídas e documentadas em docs/PHASE-1-2-VALIDATION.md.
 - Fase 3 concluída pelos scripts verify_database.sql e test_financial_flow.sql.
@@ -24,8 +24,12 @@
 - Fase 13, containers locais da aplicação, concluída e documentada em docs/PHASE-13-LOCAL-CONTAINERS.md.
 - Decisão de implantação: Docker Desktop local; PostgreSQL em container Docker na VPS; API Node.js nativa gerenciada pelo PM2; frontend estático publicado pelo Nginx.
 - Fase 14, CI/CD, concluída e documentada em docs/PHASE-14-CI-CD.md.
-- Deploy da VPS é manual, protegido e somente será habilitado após o provisionamento da Fase 15.
-- Próxima fase oficial: Fase 15 — VPS.
+- Fase 15, provisionamento inicial da VPS Hostinger, executada parcialmente com sucesso e documentada em docs/PHASE-15-HOSTINGER-VPS-RUNBOOK.md.
+- Deploy manual inicial validado em `https://hrmmotos.com.br/fincontrol/` com PostgreSQL 17 em Docker, API Node.js 22 sob PM2 e frontend estático sob Nginx.
+- Login do Operador Master validado após aplicação das migrations de autenticação e permissões.
+- Documentação interativa da API iniciada com Swagger UI/OpenAPI, planejada para publicação em `/fincontrol/docs/`.
+- Fase 16 preparada localmente com scripts versionados de deploy, rollback, instalação do plano de controle e serviço `pm2-fincontrol`.
+- Próxima etapa oficial: instalar o plano de controle na VPS, testar `/opt/fincontrol/bin/deploy` manualmente e habilitar o environment `production` no GitHub.
 
 ---
 
