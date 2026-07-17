@@ -2,17 +2,18 @@
 
 **Status:** aguardando execução
 **Domínio:** `https://hrmmotos.com.br/fincontrol/`
-**Modelo:** aplicação nativa na VPS; Docker restrito ao ambiente local
+**Modelo:** PostgreSQL em Docker; API nativa sob PM2; frontend estático sob Nginx
 
 ## 1. Arquitetura aprovada
 
 - `deploy`: usuário administrativo, acessado por SSH e autorizado a usar `sudo`.
 - `fincontrol`: usuário de serviço sem login, responsável pela aplicação.
-- API Node.js em `127.0.0.1:3000`, sem exposição pública direta.
+- API Node.js em uma porta local ainda a confirmar, sem exposição pública direta, gerenciada pelo PM2.
 - Frontend estático servido pelo Nginx.
-- PostgreSQL nativo acessível somente pela interface local.
+- PostgreSQL 17 em container Docker, com volume persistente e porta publicada somente em `127.0.0.1`.
 - Nginx publica frontend e API sob `/fincontrol`.
 - Releases versionados com symlink `current`, permitindo rollback.
+- O Compose da VPS controla somente o banco; deploys da aplicação não recriam o PostgreSQL.
 
 ## 2. Estrutura de diretórios
 
@@ -21,6 +22,10 @@
 ├── bin/
 │   ├── deploy
 │   └── rollback
+├── infra/
+│   └── postgres/
+│       ├── compose.yaml
+│       └── .env
 ├── releases/
 │   └── <commit-ou-versao>/
 ├── shared/
@@ -32,15 +37,12 @@
 /var/www/hrmmotos.com.br/
 └── fincontrol -> /opt/fincontrol/current/apps/web/dist
 
-/etc/systemd/system/
-└── fincontrol-api.service
-
 /etc/nginx/
 ├── sites-available/hrmmotos.com.br
 └── sites-enabled/hrmmotos.com.br
 ```
 
-O diretório de dados do PostgreSQL é gerenciado pelo próprio pacote do Ubuntu e não deve ser manipulado manualmente.
+O banco usa um volume Docker nomeado. Backups lógicos devem ser gravados fora do volume em `/opt/fincontrol/shared/backups`; o volume nunca deve ser removido por rotinas de deploy.
 
 ## 3. Preparação no hPanel
 
@@ -127,17 +129,15 @@ sudo systemctl reload ssh
 
 Manter a sessão atual aberta e testar novamente antes de encerrar.
 
-## 7. Atualizar e instalar pacotes
+## 7. Validar programas existentes
 
 ```bash
 sudo apt update
 sudo apt upgrade -y
-sudo apt install -y \
-  nginx git postgresql postgresql-contrib \
-  fail2ban curl ca-certificates build-essential
+sudo apt install -y git fail2ban curl ca-certificates build-essential postgresql-client
 ```
 
-Instalar Node.js 22 por uma fonte controlada, confirmar a origem utilizada e validar:
+Como a VPS já hospeda outros sistemas, não reinstalar ou trocar versões antes do inventário. Validar:
 
 ```bash
 node --version
@@ -145,9 +145,13 @@ npm --version
 nginx -v
 git --version
 psql --version
+pm2 --version
+docker --version
+docker compose version
 sudo systemctl status nginx
-sudo systemctl status postgresql
 ```
+
+O projeto exige Node.js 22. Se a versão global for diferente, deve-se avaliar o gerenciador de versões já utilizado pelos outros sistemas antes de qualquer alteração.
 
 Referência: [Hostinger — Node.js no Ubuntu](https://www.hostinger.com/tutorials/how-to-install-nodejs-ubuntu/).
 
@@ -206,34 +210,46 @@ No GitHub, acessar `Settings → Deploy keys → Add deploy key`:
 
 Antes do clone, cadastrar o host do GitHub em `known_hosts` e conferir a impressão digital publicada oficialmente pelo GitHub.
 
-## 10. Criar banco e usuário PostgreSQL
+## 10. Criar o Compose dedicado do PostgreSQL
 
-Gerar uma senha forte fora da VPS ou com:
+O arquivo `/opt/fincontrol/infra/postgres/compose.yaml` será criado após confirmar containers, redes, portas e convenções existentes. Requisitos obrigatórios:
+
+- imagem PostgreSQL 17 Alpine fixada;
+- nome de projeto e container exclusivos;
+- volume nomeado exclusivo e persistente;
+- bind somente em `127.0.0.1`;
+- porta externa sem conflito, preferencialmente 5434 se estiver livre;
+- health check com `pg_isready`;
+- `restart: unless-stopped`;
+- credenciais lidas de `.env` com permissão 600;
+- nenhuma execução de `down -v` nos procedimentos operacionais.
+
+Gerar senhas fortes fora da VPS ou com:
 
 ```bash
 openssl rand -base64 36
 ```
 
-Abrir o PostgreSQL:
+Após criar os arquivos, validar e subir:
 
 ```bash
-sudo -u postgres psql
+cd /opt/fincontrol/infra/postgres
+sudo docker compose config
+sudo docker compose up -d
+sudo docker compose ps
 ```
 
-Executar, substituindo a senha:
+Não adicionar o usuário `fincontrol` ao grupo `docker`: esse grupo equivale, na prática, a acesso root. O Compose será operado pelo usuário administrativo `deploy` via `sudo`.
 
-```sql
-CREATE ROLE fincontrol_app
-WITH LOGIN
-PASSWORD 'UMA_SENHA_LONGA_E_ALEATORIA';
+O banco e o usuário da aplicação serão criados pelas variáveis iniciais do container:
 
-CREATE DATABASE fincontrol
-OWNER fincontrol_app;
-
-\q
+```dotenv
+POSTGRES_DB=fincontrol
+POSTGRES_USER=fincontrol_app
+POSTGRES_PASSWORD=UMA_SENHA_LONGA_E_ALEATORIA
 ```
 
-O PostgreSQL não deve aceitar conexões públicas e a porta 5432 não deve ser aberta no firewall.
+O PostgreSQL não deve aceitar conexões públicas e sua porta não deve ser aberta no firewall da VPS ou da Hostinger.
 
 ## 11. Criar ambiente de produção
 
@@ -246,7 +262,7 @@ API_PORT=3000
 LOG_LEVEL=info
 
 DB_HOST=127.0.0.1
-DB_PORT=5432
+DB_PORT=PORTA_LOCAL_DO_CONTAINER
 DB_NAME=fincontrol
 DB_USER=fincontrol_app
 DB_PASSWORD=SENHA_FORTE
@@ -284,9 +300,9 @@ Rotas esperadas:
 
 ```text
 /fincontrol/          → frontend estático
-/fincontrol/api/      → 127.0.0.1:3000/api/
-/fincontrol/auth/     → 127.0.0.1:3000/auth/
-/fincontrol/health/   → 127.0.0.1:3000/health/
+/fincontrol/api/      → 127.0.0.1:PORTA_API_LOCAL/api/
+/fincontrol/auth/     → 127.0.0.1:PORTA_API_LOCAL/auth/
+/fincontrol/health/   → 127.0.0.1:PORTA_API_LOCAL/health/
 ```
 
 Não publicar o frontend atual no subpath antes desses ajustes.
@@ -310,25 +326,28 @@ sudo systemctl reload nginx
 
 Referência: [Hostinger — Nginx reverse proxy](https://www.hostinger.com/uk/tutorials/how-to-set-up-nginx-reverse-proxy).
 
-## 14. Serviço systemd
+## 14. Processo PM2
 
-Será criado `/etc/systemd/system/fincontrol-api.service` com:
+Será criado um arquivo `ecosystem.config.cjs` versionado ou instalado no release com:
 
 - execução como `fincontrol`;
 - diretório `/opt/fincontrol/current/apps/api`;
 - variáveis de `/opt/fincontrol/shared/.env`;
-- reinício somente em falha;
-- limites e hardening compatíveis com upload e logs;
-- API vinculada exclusivamente a `127.0.0.1:3000`.
+- execução do JavaScript compilado em `dist/server.js`;
+- uma instância inicial em modo `fork`;
+- reinício automático, limites de memória e rotação de logs;
+- API vinculada exclusivamente a `127.0.0.1` e porta sem conflito.
 
-Após criação:
+O PM2 deve ser executado pelo usuário operacional definido após o inventário. Comandos previstos:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable fincontrol-api
-sudo systemctl start fincontrol-api
-sudo systemctl status fincontrol-api
+pm2 start ecosystem.config.cjs --only fincontrol-api
+pm2 save
+pm2 status
+pm2 logs fincontrol-api --lines 100
 ```
+
+O `pm2 startup` deve reutilizar o padrão já configurado na VPS; não criar uma segunda inicialização sem revisar o serviço existente.
 
 ## 15. Deploy e rollback
 
@@ -343,7 +362,7 @@ O script `/opt/fincontrol/bin/deploy` deverá:
 7. executar verificação do banco;
 8. apontar `current` de forma atômica;
 9. atualizar o symlink do frontend;
-10. reiniciar a API;
+10. recarregar a API com `pm2 reload fincontrol-api --update-env`;
 11. validar health check e frontend;
 12. reverter o symlink se a validação falhar;
 13. manter releases anteriores para rollback.
@@ -366,13 +385,13 @@ A chave usada pelo GitHub Actions para entrar como `deploy` é diferente da Depl
 1. Confirmar Ubuntu, IP, DNS e configuração HTTP/Nginx atual.
 2. Criar `deploy` e testar a chave pessoal em outra sessão.
 3. Proteger SSH e firewall.
-4. Instalar Node.js 22, Nginx, PostgreSQL, Git e Fail2Ban.
+4. Inventariar Node.js, PM2, Nginx, Docker, Compose, Git e firewall existentes.
 5. Criar `fincontrol` e a estrutura de diretórios.
 6. Criar Deploy Key somente leitura para o GitHub.
-7. Criar banco, usuário e `.env` de produção.
+7. Criar o Compose do PostgreSQL, banco, usuário e `.env` de produção.
 8. Adaptar e testar o frontend para `/fincontrol`.
 9. Criar release inicial e aplicar migrations.
-10. Criar e testar o serviço systemd.
+10. Criar e testar o processo PM2.
 11. Incorporar os locations ao Nginx existente e validar SSL.
 12. Criar e testar deploy e rollback manuais.
 13. Configurar o environment `production` no GitHub.
@@ -387,5 +406,9 @@ A chave usada pelo GitHub Actions para entrar como `deploy` é diferente da Depl
 - configuração atual do virtual host `hrmmotos.com.br`, sem chaves privadas;
 - situação atual do DNS e SSL;
 - confirmação de que o repositório GitHub continuará privado ou público.
+- versões de Node.js, npm, PM2, Docker e Docker Compose;
+- saída sanitizada de containers, redes e portas em uso;
+- usuário Unix que atualmente executa os processos PM2;
+- configuração PM2 atual e nomes dos processos, sem variáveis ou segredos;
 
 Nunca enviar senhas, chave SSH privada, `.env`, chave privada TLS ou dump de produção pela conversa.

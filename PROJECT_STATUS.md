@@ -22,7 +22,7 @@
 - Fase 11, frontend de Contas a Pagar, concluída para o modelo atual e documentada em docs/PHASE-11-PAYABLES-FRONTEND.md.
 - Fase 12, Dashboard e Agenda, concluída e documentada em docs/PHASE-12-DASHBOARD-AGENDA.md.
 - Fase 13, containers locais da aplicação, concluída e documentada em docs/PHASE-13-LOCAL-CONTAINERS.md.
-- Decisão de implantação: Docker Desktop local; API e frontend nativos na VPS.
+- Decisão de implantação: Docker Desktop local; PostgreSQL em container Docker na VPS; API Node.js nativa gerenciada pelo PM2; frontend estático publicado pelo Nginx.
 - Fase 14, CI/CD, concluída e documentada em docs/PHASE-14-CI-CD.md.
 - Deploy da VPS é manual, protegido e somente será habilitado após o provisionamento da Fase 15.
 - Próxima fase oficial: Fase 15 — VPS.

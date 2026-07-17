@@ -30,7 +30,7 @@ O workflow `.github/workflows/publish-images.yml` publica no GitHub Container Re
 
 A publicação ocorre por tag `v*` ou acionamento manual. O token automático do GitHub recebe somente `contents: read` e `packages: write`.
 
-### Deploy nativo controlado
+### Deploy híbrido controlado
 
 O workflow `.github/workflows/deploy-vps.yml` somente pode ser iniciado manualmente. Ele exige:
 
@@ -40,6 +40,8 @@ O workflow `.github/workflows/deploy-vps.yml` somente pode ser iniciado manualme
 - exclusão mútua de deploys;
 - host conhecido e chave SSH fornecidos por secrets;
 - script remoto `/opt/fincontrol/bin/deploy`, que será criado e validado na Fase 15.
+
+O script remoto atualizará a API nativa sob PM2 e o frontend estático sob Nginx. O PostgreSQL será mantido por um Compose dedicado e não será recriado a cada deploy da aplicação.
 
 O workflow não está operacional antes da Fase 15 e não executa deploy automático em push.
 

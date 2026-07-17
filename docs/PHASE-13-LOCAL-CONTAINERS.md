@@ -10,7 +10,7 @@ Foi adotado um modelo híbrido:
 
 - desenvolvimento padrão no WSL: Node.js nativo para API e frontend, PostgreSQL no Docker Desktop;
 - homologação local: PostgreSQL, API e frontend no Docker Desktop, acionado pelo terminal WSL;
-- VPS: API e frontend nativos, gerenciados por `systemd` e publicados por Nginx; Docker não será requisito de produção.
+- VPS: PostgreSQL em container Docker persistente; API Node.js nativa gerenciada pelo PM2; frontend estático publicado pelo Nginx.
 
 Não deve ser instalado um segundo daemon Docker dentro do Ubuntu WSL. O cliente executado no WSL usa a integração do Docker Desktop do Windows.
 
@@ -50,9 +50,9 @@ Não use `down -v` em um banco com dados que devam ser preservados.
 
 O profile da aplicação não aplica migrations automaticamente. Antes de subir API e frontend sobre um banco novo, execute o fluxo documentado de migrations e validação. Essa separação evita alterações implícitas de schema ao reiniciar containers.
 
-## Desvio aprovado
+## Evolução da decisão de produção
 
-O Compose de produção previsto originalmente não foi criado, pois a decisão atual é executar a aplicação nativamente na VPS. As imagens continuam reproduzíveis para validação local, CI e contingência. A configuração nativa de Nginx, `systemd`, SSL, backup e rollback pertence à Fase 15.
+O Compose completo de produção não será usado. Na VPS, apenas o PostgreSQL será containerizado em um Compose dedicado, enquanto API e frontend permanecerão nativos para integração com a infraestrutura já existente. As imagens da aplicação continuam reproduzíveis para validação local, CI e contingência. A configuração de PostgreSQL, PM2, Nginx, SSL, backup e rollback pertence à Fase 15.
 
 ## Validação executada
 
