@@ -20,7 +20,12 @@
 - Fase 9, bootstrap do frontend, concluída e documentada em docs/PHASE-9-FRONTEND-FOUNDATION.md.
 - Fase 10, frontend dos cadastros, concluída e documentada em docs/PHASE-10-MASTER-DATA-FRONTEND.md.
 - Fase 11, frontend de Contas a Pagar, concluída para o modelo atual e documentada em docs/PHASE-11-PAYABLES-FRONTEND.md.
-- Próxima fase oficial: Fase 12 — Dashboard e Agenda.
+- Fase 12, Dashboard e Agenda, concluída e documentada em docs/PHASE-12-DASHBOARD-AGENDA.md.
+- Fase 13, containers locais da aplicação, concluída e documentada em docs/PHASE-13-LOCAL-CONTAINERS.md.
+- Decisão de implantação: Docker Desktop local; API e frontend nativos na VPS.
+- Fase 14, CI/CD, concluída e documentada em docs/PHASE-14-CI-CD.md.
+- Deploy da VPS é manual, protegido e somente será habilitado após o provisionamento da Fase 15.
+- Próxima fase oficial: Fase 15 — VPS.
 
 ---
 
