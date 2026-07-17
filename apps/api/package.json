@@ -9,10 +9,12 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "bootstrap:master": "tsx --env-file=../../.env src/commands/bootstrap-master.ts",
     "dev": "tsx watch --env-file=../../.env src/server.ts",
     "lint": "eslint src test --max-warnings=0",
     "start": "node --env-file=../../.env dist/server.js",
     "test": "vitest run",
+    "test:integration": "RUN_DATABASE_INTEGRATION=true node --env-file=../../.env ../../node_modules/vitest/vitest.mjs run test/integration",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -33,4 +35,3 @@
     "vitest": "^3.2.0"
   }
 }
-

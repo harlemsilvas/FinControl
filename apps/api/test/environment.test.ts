@@ -9,6 +9,7 @@ describe('loadEnvironment', () => {
       DB_NAME: 'fincontrol',
       DB_USER: 'fincontrol',
       DB_PASSWORD: 'test-password',
+      AUTH_ACCESS_TOKEN_SECRET: 'test-secret-that-is-at-least-32-characters-long',
     });
 
     expect(environment).toMatchObject({
@@ -23,4 +24,3 @@ describe('loadEnvironment', () => {
     expect(() => loadEnvironment({})).toThrow('Invalid environment configuration');
   });
 });
-

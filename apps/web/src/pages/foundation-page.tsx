@@ -1,0 +1,5 @@
+import type { ReactElement } from 'react';
+import { Card } from '../components/ui/card';
+
+const modules=[['Fornecedores','Cadastro e homologação','/suppliers'],['Categorias financeiras','Classificação de despesas','/financial-categories'],['Contas bancárias','Recursos de tesouraria','/bank-accounts']] as const;
+export function FoundationPage():ReactElement{return <div className="grid gap-8"><div><p className="mb-2 text-sm font-bold uppercase tracking-widest text-teal-700">Visão geral</p><h1 className="text-3xl font-bold tracking-tight">Cadastros financeiros</h1><p className="mt-3 text-slate-600">Mantenha os dados mestres usados pelo Contas a Pagar.</p></div><div className="grid gap-4 md:grid-cols-3">{modules.map(([name,description,path])=><Card key={path}><h2 className="font-bold">{name}</h2><p className="mt-2 text-sm text-slate-600">{description}</p><a href={path} className="mt-5 inline-block text-sm font-bold text-teal-700 hover:underline">Acessar cadastro →</a></Card>)}</div></div>;}

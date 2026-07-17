@@ -30,6 +30,7 @@ BEGIN
             ('administracao', 'permissions'), ('administracao', 'user_roles'),
             ('administracao', 'role_permissions'), ('administracao', 'audit_events'),
             ('administracao', 'maintenance_operations'), ('administracao', 'schema_versions'),
+            ('administracao', 'auth_sessions'),
             ('cadastros', 'suppliers'), ('cadastros', 'financial_categories'),
             ('cadastros', 'cost_centers'), ('cadastros', 'document_types'),
             ('cadastros', 'payment_methods'), ('cadastros', 'payment_terms'),
@@ -72,6 +73,10 @@ BEGIN
         RAISE EXCEPTION 'One or more required financial functions are missing';
     END IF;
 
+    IF to_regprocedure('financeiro.recalculate_title_status(uuid)') IS NULL THEN
+        RAISE EXCEPTION 'Required payable-title recalculation function is missing';
+    END IF;
+
     IF to_regclass('financeiro.v_payable_installments_open') IS NULL
        OR to_regclass('financeiro.v_payable_title_balances') IS NULL THEN
         RAISE EXCEPTION 'One or more required financial views are missing';
@@ -88,8 +93,8 @@ BEGIN
     END IF;
 
     SELECT count(*) INTO v_count FROM administracao.permissions;
-    IF v_count <> 10 THEN
-        RAISE EXCEPTION 'Expected 10 seeded permissions, found %', v_count;
+    IF v_count <> 16 THEN
+        RAISE EXCEPTION 'Expected 16 seeded permissions, found %', v_count;
     END IF;
 
     RAISE NOTICE 'PASS: schemas, public isolation, tables, constraints, functions, views and seeds';
@@ -101,4 +106,3 @@ SELECT current_database() AS database_name,
        current_setting('server_version') AS postgres_version,
        6 AS schemas_verified,
        'PASS' AS result;
-

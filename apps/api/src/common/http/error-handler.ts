@@ -10,6 +10,8 @@ interface ErrorResponse {
   };
 }
 
+interface PostgreSqlError extends Error { code?: string; constraint?: string }
+
 function handleError(
   error: FastifyError | ApplicationError,
   request: FastifyRequest,
@@ -25,6 +27,19 @@ function handleError(
         ...(error.details === undefined ? {} : { details: error.details }),
       },
     } satisfies ErrorResponse);
+    return;
+  }
+
+
+  const databaseError = error as PostgreSqlError;
+  if (databaseError.code === '23505') {
+    void reply.status(409).send({ error: { code: 'RESOURCE_CONFLICT', message: 'A resource with these values already exists',
+      requestId: request.id, details: databaseError.constraint ? { constraint: databaseError.constraint } : undefined } });
+    return;
+  }
+  if (databaseError.code === '23503' || databaseError.code === '23514') {
+    void reply.status(400).send({ error: { code: 'INVALID_REFERENCE', message: 'The resource contains an invalid reference or value',
+      requestId: request.id, details: databaseError.constraint ? { constraint: databaseError.constraint } : undefined } });
     return;
   }
 
@@ -52,4 +67,3 @@ export function registerErrorHandler(app: FastifyInstance): void {
     } satisfies ErrorResponse);
   });
 }
-

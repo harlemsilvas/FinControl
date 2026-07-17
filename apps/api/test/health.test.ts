@@ -16,6 +16,11 @@ const environment: Environment = {
   DB_POOL_MAX: 10,
   DB_IDLE_TIMEOUT_MS: 30_000,
   DB_CONNECTION_TIMEOUT_MS: 5_000,
+  AUTH_ACCESS_TOKEN_SECRET: 'test-secret-that-is-at-least-32-characters-long',
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: 900,
+  AUTH_REFRESH_TOKEN_TTL_DAYS: 30,
+  AUTH_ISSUER: 'fincontrol-api',
+  AUTH_AUDIENCE: 'fincontrol',
 };
 
 const apps: ReturnType<typeof buildApp>[] = [];
@@ -40,6 +45,8 @@ function createDatabase(): DatabaseMock {
     checkHealth,
     database: {
       checkHealth,
+      query: vi.fn(),
+      transaction: vi.fn(),
       close: vi.fn().mockResolvedValue(undefined),
     },
   };

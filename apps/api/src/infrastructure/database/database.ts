@@ -4,8 +4,15 @@ export interface DatabaseHealth {
   serverTime: string;
 }
 
-export interface Database {
-  checkHealth(): Promise<DatabaseHealth>;
-  close(): Promise<void>;
+export interface QueryExecutor {
+  query<Row extends Record<string, unknown> = Record<string, unknown>>(
+    text: string,
+    values?: readonly unknown[],
+  ): Promise<{ rows: Row[]; rowCount: number }>;
 }
 
+export interface Database extends QueryExecutor {
+  checkHealth(): Promise<DatabaseHealth>;
+  transaction<T>(work: (executor: QueryExecutor) => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+}

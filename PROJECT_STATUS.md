@@ -13,7 +13,14 @@
 - Fase 4, fundação técnica do backend, concluída e documentada em docs/PHASE-4-BACKEND-FOUNDATION.md.
 - API Node.js 22, TypeScript e Fastify criada em apps/api.
 - Health checks, conexão PostgreSQL, configuração, logs, erros, testes e build aprovados.
-- Próxima fase oficial: Fase 5 — Autenticação e autorização.
+- Fase 5, autenticação e autorização, implementada e documentada em docs/PHASE-5-AUTHENTICATION-AUTHORIZATION.md.
+- Fase 6, APIs de Cadastros e Tesouraria, concluída e documentada em docs/PHASE-6-MASTER-DATA-API.md.
+- Fase 7, API de Contas a Pagar, concluída para o modelo atual e documentada em docs/PHASE-7-PAYABLES-API.md.
+- Fase 8, testes ampliados do backend, concluída e documentada em docs/PHASE-8-BACKEND-TESTING.md.
+- Fase 9, bootstrap do frontend, concluída e documentada em docs/PHASE-9-FRONTEND-FOUNDATION.md.
+- Fase 10, frontend dos cadastros, concluída e documentada em docs/PHASE-10-MASTER-DATA-FRONTEND.md.
+- Fase 11, frontend de Contas a Pagar, concluída para o modelo atual e documentada em docs/PHASE-11-PAYABLES-FRONTEND.md.
+- Próxima fase oficial: Fase 12 — Dashboard e Agenda.
 
 ---
 

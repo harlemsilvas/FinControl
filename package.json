@@ -12,10 +12,12 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "dev": "npm run dev --workspace @fincontrol/api",
+    "dev:api": "npm run dev --workspace @fincontrol/api",
+    "dev:web": "npm run dev --workspace @fincontrol/web",
     "lint": "npm run lint --workspaces --if-present",
     "start": "npm run start --workspace @fincontrol/api",
+    "preview:web": "npm run preview --workspace @fincontrol/web",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   }
 }
-

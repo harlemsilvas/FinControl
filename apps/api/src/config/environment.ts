@@ -13,6 +13,11 @@ const environmentSchema = z.object({
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+  AUTH_ACCESS_TOKEN_SECRET: z.string().min(32),
+  AUTH_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+  AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+  AUTH_ISSUER: z.string().min(1).default('fincontrol-api'),
+  AUTH_AUDIENCE: z.string().min(1).default('fincontrol'),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
@@ -29,4 +34,3 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
 
   return result.data;
 }
-

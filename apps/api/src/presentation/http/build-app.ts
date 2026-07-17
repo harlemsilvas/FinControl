@@ -3,6 +3,14 @@ import { registerErrorHandler } from '../../common/http/error-handler.js';
 import type { Environment } from '../../config/environment.js';
 import { healthRoutes } from '../../domains/health/health-routes.js';
 import type { Database } from '../../infrastructure/database/database.js';
+import { AuthRepository } from '../../domains/auth/auth-repository.js';
+import { AuthService } from '../../domains/auth/auth-service.js';
+import { TokenService } from '../../domains/auth/token-service.js';
+import { authRoutes } from '../../domains/auth/auth-routes.js';
+import { MasterDataRepository } from '../../domains/master-data/master-data-repository.js';
+import { masterDataRoutes } from '../../domains/master-data/master-data-routes.js';
+import { PayablesRepository } from '../../domains/payables/payables-repository.js';
+import { payablesRoutes } from '../../domains/payables/payables-routes.js';
 
 export interface BuildAppOptions {
   database: Database;
@@ -33,7 +41,23 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   registerErrorHandler(app);
+  app.decorateRequest('authUser', null);
+  app.decorateRequest('authSessionId', null);
   void app.register(healthRoutes, { prefix: '/health', database: options.database });
+  const authRepository = new AuthRepository(options.database);
+  const tokenService = new TokenService(options.environment);
+  const authService = new AuthService(authRepository, tokenService);
+  void app.register(authRoutes, {
+    prefix: '/auth', repository: authRepository, service: authService, tokens: tokenService,
+  });
+  void app.register(masterDataRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    repository: new MasterDataRepository(options.database),
+  });
+  void app.register(payablesRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    repository: new PayablesRepository(options.database),
+  });
 
   app.addHook('onClose', async () => {
     await options.database.close();
@@ -41,4 +65,3 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
   return app;
 }
-
