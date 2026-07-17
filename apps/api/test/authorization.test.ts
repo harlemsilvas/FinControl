@@ -8,14 +8,14 @@ const baseUser: AuthUser = { id:'user-id',fullName:'User',email:'user@example.co
 function request(user:AuthUser|null):FastifyRequest{return {authUser:user,authSessionId:null,headers:{}} as FastifyRequest;}
 
 describe('authorization guards',()=>{
-  it('allows a user with the required action permission',()=>{
-    expect(()=>requirePermission('PAYMENT_CREATE')(request({...baseUser,permissions:['PAYMENT_CREATE']}))).not.toThrow();
+  it('allows a user with the required action permission',async()=>{
+    await expect(requirePermission('PAYMENT_CREATE')(request({...baseUser,permissions:['PAYMENT_CREATE']}))).resolves.toBeUndefined();
   });
-  it('allows the Master Operator independently of role mappings',()=>{
-    expect(()=>requirePermission('ANY_PERMISSION')(request({...baseUser,isMaster:true}))).not.toThrow();
+  it('allows the Master Operator independently of role mappings',async()=>{
+    await expect(requirePermission('ANY_PERMISSION')(request({...baseUser,isMaster:true}))).resolves.toBeUndefined();
   });
-  it('rejects missing permissions with a standardized forbidden error',()=>{
-    expect(()=>requirePermission('PAYMENT_REVERSE')(request(baseUser))).toThrow('Insufficient permission');
+  it('rejects missing permissions with a standardized forbidden error',async()=>{
+    await expect(requirePermission('PAYMENT_REVERSE')(request(baseUser))).rejects.toThrow('Insufficient permission');
   });
   it('rejects revoked sessions before loading the user',async()=>{
     const findActiveUserById=vi.fn();

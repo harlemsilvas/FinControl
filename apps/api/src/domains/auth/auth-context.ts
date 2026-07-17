@@ -27,10 +27,11 @@ export function createAuthenticate(repository: AuthRepository, tokens: TokenServ
 }
 
 export function requirePermission(permission: string) {
-  return function authorize(request: FastifyRequest): void {
+  return function authorize(request: FastifyRequest): Promise<void> {
     const user = request.authUser;
     if (!user || (!user.isMaster && !user.permissions.includes(permission))) {
-      throw new ApplicationError({ code: 'FORBIDDEN', message: 'Insufficient permission', statusCode: 403 });
+      return Promise.reject(new ApplicationError({ code: 'FORBIDDEN', message: 'Insufficient permission', statusCode: 403 }));
     }
+    return Promise.resolve();
   };
 }

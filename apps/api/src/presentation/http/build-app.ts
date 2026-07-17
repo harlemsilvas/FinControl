@@ -11,6 +11,8 @@ import { MasterDataRepository } from '../../domains/master-data/master-data-repo
 import { masterDataRoutes } from '../../domains/master-data/master-data-routes.js';
 import { PayablesRepository } from '../../domains/payables/payables-repository.js';
 import { payablesRoutes } from '../../domains/payables/payables-routes.js';
+import { IntelligenceRepository } from '../../domains/intelligence/intelligence-repository.js';
+import { intelligenceRoutes } from '../../domains/intelligence/intelligence-routes.js';
 
 export interface BuildAppOptions {
   database: Database;
@@ -57,6 +59,10 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(payablesRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
     repository: new PayablesRepository(options.database),
+  });
+  void app.register(intelligenceRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    repository: new IntelligenceRepository(options.database),
   });
 
   app.addHook('onClose', async () => {
