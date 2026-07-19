@@ -189,6 +189,14 @@ export function MasterDataPage({ config }: { config: ResourceConfig }): ReactEle
   const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<FormValues>();
 
   useEffect(() => {
+    setPage(1);
+    setSearch('');
+    setActiveFilter('active');
+    setEditing(undefined);
+    reset({});
+  }, [config.path, reset]);
+
+  useEffect(() => {
     if (editing !== undefined) {
       const supplierType = (editing?.supplierType as SupplierType | undefined) ?? 'COMPANY';
       const values: FormValues = Object.fromEntries(config.fields.map((field) => [field.name, formatFieldValue(field, editing?.[field.name], supplierType)]));

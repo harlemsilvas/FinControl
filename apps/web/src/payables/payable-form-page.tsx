@@ -115,6 +115,23 @@ function splitAmount(total: number, count: number): number[] {
   const remainder = cents - base * normalizedCount;
   return Array.from({ length: normalizedCount }, (_, index) => (base + (index < remainder ? 1 : 0)) / 100);
 }
+function installmentsMatch(current: Installment[] | undefined, next: Installment[]): boolean {
+  if (!current || current.length !== next.length) return false;
+
+  return current.every((item, index) => {
+    const expected = next[index];
+    if (!expected) return false;
+
+    return (
+      Number(item.installmentNumber) === expected.installmentNumber &&
+      Number(item.installmentCount) === expected.installmentCount &&
+      Math.round(Number(item.amount || 0) * 100) === Math.round(Number(expected.amount || 0) * 100) &&
+      item.dueDate === expected.dueDate &&
+      item.paymentMethodId === expected.paymentMethodId
+    );
+  });
+}
+
 
 function buildInstallments({
   total,
@@ -289,17 +306,19 @@ export function PayableFormPage(): ReactElement {
   useEffect(() => {
     if (editing) return;
 
-    installments.replace(
-      buildInstallments({
-        total,
-        baseDueDate,
-        paymentMethodId: defaultPaymentMethodId,
-        occurrenceType,
-        dueDay,
-        installmentCount: occurrenceInstallmentCount
-      })
-    );
-  }, [baseDueDate, defaultPaymentMethodId, dueDay, editing, installments, occurrenceInstallmentCount, occurrenceType, total]);
+    const nextInstallments = buildInstallments({
+      total,
+      baseDueDate,
+      paymentMethodId: defaultPaymentMethodId,
+      occurrenceType,
+      dueDay,
+      installmentCount: occurrenceInstallmentCount
+    });
+
+    if (installmentsMatch(installmentValues, nextInstallments)) return;
+
+    installments.replace(nextInstallments);
+  }, [baseDueDate, defaultPaymentMethodId, dueDay, editing, installmentValues, installments, occurrenceInstallmentCount, occurrenceType, total]);
 
   const mutation = useMutation({
     mutationFn: async ({ values, confirmed = false }: { values: Values; confirmed?: boolean }) => {
@@ -393,7 +412,7 @@ export function PayableFormPage(): ReactElement {
   };
 
   if (editing && detail.isLoading) {
-    return <p className="py-20 text-center text-slate-500">Carregando t?tulo?</p>;
+    return <p className="py-20 text-center text-slate-500">Carregando título…</p>;
   }
 
   return (
@@ -409,7 +428,7 @@ export function PayableFormPage(): ReactElement {
           </div>
           {detail.data && (
             <p className="mt-2 text-sm text-slate-600">
-              {detail.data.documentNumber} ? {statusLabel(detail.data.statusCode)}
+              {detail.data.documentNumber} • {statusLabel(detail.data.statusCode)}
             </p>
           )}
         </div>
@@ -417,7 +436,7 @@ export function PayableFormPage(): ReactElement {
         <div className="flex flex-wrap gap-2">
           {editing && detail.data?.statusCode !== 'CANCELLED' && (
             <Button type="button" variant="danger" onClick={() => void cancelTitle()}>
-              Cancelar t?tulo
+              Cancelar título
             </Button>
           )}
           <Button type="button" variant="secondary" onClick={() => void navigate('/payables')}>
@@ -427,7 +446,7 @@ export function PayableFormPage(): ReactElement {
             Salvar e Novo
           </Button>
           <Button type="submit" disabled={mutation.isPending} onClick={() => setSaveMode('close')}>
-            {mutation.isPending ? 'Salvando?' : 'Salvar'}
+            {mutation.isPending ? 'Salvando…' : 'Salvar'}
           </Button>
         </div>
       </header>
@@ -454,7 +473,7 @@ export function PayableFormPage(): ReactElement {
               <div>
                 <h2 className="text-lg font-bold text-slate-950">Dados da Conta</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Informe os dados principais. Parcelas e vencimentos ser?o preparados automaticamente para a conta.
+                  Informe os dados principais. Parcelas e vencimentos serão preparados automaticamente para a conta.
                 </p>
               </div>
 
@@ -479,10 +498,10 @@ export function PayableFormPage(): ReactElement {
                     )}
                   />
                 </Field>
-                <Field label="Data de Emiss?o" required>
+                <Field label="Data de Emissão" required>
                   <input type="date" className={inputClass} {...register('issueDate', { required: true })} />
                 </Field>
-                <Field label="N? do Documento" required>
+                <Field label="Nº do Documento" required>
                   <input className={inputClass} {...register('documentNumber', { required: true })} />
                 </Field>
                 <Field label="Histórico / Descrição" required className="lg:col-span-2">
@@ -493,21 +512,21 @@ export function PayableFormPage(): ReactElement {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <h3 className="text-base font-bold text-slate-950">Ocorr?ncia</h3>
+                <h3 className="text-base font-bold text-slate-950">Ocorrência</h3>
                 <div className="mt-4 grid gap-5 lg:grid-cols-3">
-                  <Field label="Tipo de Ocorr?ncia" required>
+                  <Field label="Tipo de Ocorrência" required>
                     <select className={inputClass} {...register('occurrenceType', { required: true })}>
-                      <option value="SINGLE">?nica</option>
+                      <option value="SINGLE">Única</option>
                       <option value="INSTALLMENT">Parcelada</option>
                       <option value="RECURRENT" disabled>
-                        Recorrente ? em modelagem
+                        Recorrente — em modelagem
                       </option>
                     </select>
                   </Field>
                   <Field label="Dia do Vencimento">
                     <input type="number" min="1" max="31" className={inputClass} {...register('dueDay', { valueAsNumber: true, min: 1, max: 31 })} />
                   </Field>
-                  <Field label="N?mero de Parcelas">
+                  <Field label="Número de Parcelas">
                     <input
                       type="number"
                       min="1"
@@ -532,7 +551,7 @@ export function PayableFormPage(): ReactElement {
               <details className="rounded-2xl border border-slate-200 p-5">
                 <summary className="cursor-pointer text-sm font-bold text-slate-800">Detalhes adicionais preservados</summary>
                 <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                  <Field label="S?rie">
+                  <Field label="Série">
                     <input className={inputClass} {...register('documentSeries')} />
                   </Field>
                   <Select label="Condição de Pagamento" items={terms.data} registration={register('paymentTermId')} />
@@ -546,7 +565,7 @@ export function PayableFormPage(): ReactElement {
                       )}
                     />
                   </Field>
-                  <Field label="Acr?scimo">
+                  <Field label="Acréscimo">
                     <Controller
                       control={control}
                       name="additionalAmount"
@@ -559,7 +578,7 @@ export function PayableFormPage(): ReactElement {
                 </div>
               </details>
 
-              {Object.keys(errors).length > 0 && <p className="text-sm text-red-700">Revise os campos obrigat?rios.</p>}
+              {Object.keys(errors).length > 0 && <p className="text-sm text-red-700">Revise os campos obrigatórios.</p>}
             </section>
           </Card>
 
@@ -568,11 +587,11 @@ export function PayableFormPage(): ReactElement {
               <aside className="grid gap-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-950">Resumo</h2>
-                <p className="mt-1 text-sm text-slate-500">Pr?via calculada antes de salvar.</p>
+                <p className="mt-1 text-sm text-slate-500">Prévia calculada antes de salvar.</p>
               </div>
               <SummaryItem label="Vencimento" value={formatDatePtBr(baseDueDate)} />
               <SummaryItem label="Valor" value={currency(total)} />
-              <SummaryItem label="Ocorr?ncia" value={occurrenceInstallmentCount === 1 ? '?nica' : `${occurrenceInstallmentCount} parcelas`} />
+              <SummaryItem label="Ocorrência" value={occurrenceInstallmentCount === 1 ? 'Única' : `${occurrenceInstallmentCount} parcelas`} />
               <SummaryItem label="Total das parcelas" value={currency(installmentTotal)} />
               <Link to="/agenda" className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-center text-sm font-bold text-teal-800 hover:bg-teal-100">
                 Ver Agenda Financeira
@@ -652,7 +671,7 @@ export function PayableFormPage(): ReactElement {
             }`}
           >
             Total das parcelas: {currency(installmentTotal)}{' '}
-            {Math.round(installmentTotal * 100) !== Math.round(total * 100) && '? ajuste necess?rio'}
+            {Math.round(installmentTotal * 100) !== Math.round(total * 100) && '— ajuste necessário'}
           </div>
         </Card>
       )}
@@ -690,7 +709,7 @@ export function PayableFormPage(): ReactElement {
               ))}
             </div>
           ) : (
-            <Empty title="Anexos" text="O armazenamento bin?rio aguarda a pol?tica de arquivos. Metadados existentes ser?o exibidos aqui." />
+            <Empty title="Anexos" text="O armazenamento binário aguarda a política de arquivos. Metadados existentes serão exibidos aqui." />
           )}
         </Card>
       )}
@@ -712,16 +731,16 @@ export function PayableFormPage(): ReactElement {
 
       {mutation.error && !(mutation.error instanceof ApiError && mutation.error.code === 'POSSIBLE_DUPLICATE') && (
         <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
-          {mutation.error instanceof ApiError ? mutation.error.message : 'N?o foi poss?vel salvar o t?tulo.'}
+          {mutation.error instanceof ApiError ? mutation.error.message : 'Não foi possível salvar o título.'}
         </p>
       )}
 
       {duplicatePayload && (
         <div className="fixed inset-0 z-30 grid place-items-center bg-slate-950/60 p-4">
           <div role="alertdialog" aria-modal="true" className="max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <h2 className="text-xl font-bold">Poss?vel duplicidade</h2>
+            <h2 className="text-xl font-bold">Possível duplicidade</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              J? existe um t?tulo com o mesmo fornecedor, documento e s?rie. Revise os dados ou confirme conscientemente a continuidade.
+              Já existe um título com o mesmo fornecedor, documento e série. Revise os dados ou confirme conscientemente a continuidade.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setDuplicatePayload(undefined)}>
