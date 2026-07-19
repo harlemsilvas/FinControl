@@ -80,4 +80,5 @@ O menu lateral passa a seguir a organização por áreas funcionais, conforme o 
 - Itens com tela implementada devem apontar para sua rota real.
 - Itens planejados, mas ainda não implementados, devem apontar para uma página placeholder funcional com breadcrumb, status claro e próximos passos sugeridos.
 - A seção ativa deve usar destaque visual azul, mantendo o fundo lateral em azul-marinho.
-- A estrutura deve ser mantida como padrão para novas telas internas.`n- Quando uma tela placeholder for implementada de verdade, sua rota deve ser reaproveitada para evitar mudança desnecessária de navegação.
+- A estrutura deve ser mantida como padrão para novas telas internas.
+- Quando uma tela placeholder for implementada de verdade, sua rota deve ser reaproveitada para evitar mudança desnecessária de navegação.
