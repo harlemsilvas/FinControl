@@ -128,7 +128,12 @@ const supplierBase = z.object({ supplierType: z.enum(['INDIVIDUAL', 'COMPANY', '
   cityId: nullableUuid(), stateId: nullableUuid(), financialEmail: z.string().trim().max(255).nullable().optional(), markerIds: z.array(uuid).max(50).optional(),
   defaultPaymentMethodId: nullableUuid(), defaultPaymentTermId: nullableUuid(), defaultCostCenterId: nullableUuid(),
   averagePaymentTermDays: z.number().int().min(0).nullable().optional(), preferredPaymentDay: z.number().int().min(1).max(31).nullable().optional(),
-  financialNotes: nullableText(5000) });
+  financialNotes: nullableText(5000), internalResponsibleName: nullableText(160), relationshipStartedAt: nullableText(10), internalCode: nullableText(60),
+  preferredContactChannel: z.enum(['PHONE', 'WHATSAPP', 'EMAIL', 'IN_PERSON']).nullable().optional(),
+  supplierOperationalType: z.enum(['PRODUCT', 'SERVICE', 'PRODUCT_AND_SERVICE']).nullable().optional(),
+  defaultDeliveryLeadTimeDays: z.number().int().min(0).nullable().optional(), minimumOrderAmount: z.number().min(0).nullable().optional(),
+  preferredCarrierName: nullableText(160), freightMode: z.enum(['CIF', 'FOB', 'PICKUP', 'OWN_DELIVERY', 'NOT_APPLICABLE']).nullable().optional(),
+  receivingDays: nullableText(160), additionalInfo: nullableText(5000) });
 const supplier = withSupplierRules(supplierBase);
 const supplierUpdate = withSupplierRules(partial(supplierBase));
 const category = z.object({ parentId: uuid.nullable().optional(), code: z.string().trim().min(1).max(60).toUpperCase(),
@@ -155,7 +160,10 @@ const resources: RouteResource[] = [
       municipalRegistration: 'municipal_registration', supplierCategoryId: 'supplier_category_id', postalCode: 'postal_code', street: 'street', streetNumber: 'street_number',
       addressComplement: 'address_complement', neighborhood: 'neighborhood', cityId: 'city_id', stateId: 'state_id', financialEmail: 'financial_email',
       defaultPaymentMethodId: 'default_payment_method_id', defaultPaymentTermId: 'default_payment_term_id', defaultCostCenterId: 'default_cost_center_id',
-      averagePaymentTermDays: 'average_payment_term_days', preferredPaymentDay: 'preferred_payment_day', financialNotes: 'financial_notes' } },
+      averagePaymentTermDays: 'average_payment_term_days', preferredPaymentDay: 'preferred_payment_day', financialNotes: 'financial_notes',
+      internalResponsibleName: 'internal_responsible_name', relationshipStartedAt: 'relationship_started_at', internalCode: 'internal_code',
+      preferredContactChannel: 'preferred_contact_channel', supplierOperationalType: 'supplier_operational_type', defaultDeliveryLeadTimeDays: 'default_delivery_lead_time_days',
+      minimumOrderAmount: 'minimum_order_amount', preferredCarrierName: 'preferred_carrier_name', freightMode: 'freight_mode', receivingDays: 'receiving_days', additionalInfo: 'additional_info' } },
   { path: '/supplier-statuses', domain: 'DOM-001', entity: 'SUPPLIER_STATUS', table: 'cadastros.supplier_statuses', createSchema: supplierStatus,
     updateSchema: partial(supplierStatus), searchColumns: ['code', 'name'], hasSoftDelete: false, orderBy: 'name, id',
     columns: { ...simpleColumns, code: 'code', name: 'name' } },

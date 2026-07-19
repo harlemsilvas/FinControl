@@ -8,6 +8,9 @@ import { Card } from '../components/ui/card';
 type ActiveFilter = 'active' | 'inactive' | 'all';
 type SupplierType = 'INDIVIDUAL' | 'COMPANY' | 'FOREIGN';
 type SupplierStatusCode = 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
+type PreferredContactChannel = 'PHONE' | 'WHATSAPP' | 'EMAIL' | 'IN_PERSON';
+type SupplierOperationalType = 'PRODUCT' | 'SERVICE' | 'PRODUCT_AND_SERVICE';
+type FreightMode = 'CIF' | 'FOB' | 'PICKUP' | 'OWN_DELIVERY' | 'NOT_APPLICABLE';
 
 interface ListResponse<T> {
   data: T[];
@@ -51,6 +54,17 @@ interface Supplier {
   averagePaymentTermDays: number | null;
   preferredPaymentDay: number | null;
   financialNotes: string | null;
+  internalResponsibleName: string | null;
+  relationshipStartedAt: string | null;
+  internalCode: string | null;
+  preferredContactChannel: PreferredContactChannel | null;
+  supplierOperationalType: SupplierOperationalType | null;
+  defaultDeliveryLeadTimeDays: number | null;
+  minimumOrderAmount: string | number | null;
+  preferredCarrierName: string | null;
+  freightMode: FreightMode | null;
+  receivingDays: string | null;
+  additionalInfo: string | null;
   markerIds: string[];
 }
 
@@ -92,11 +106,43 @@ interface SupplierFormValues {
   averagePaymentTermDays: string;
   preferredPaymentDay: string;
   financialNotes: string;
+  internalResponsibleName: string;
+  relationshipStartedAt: string;
+  internalCode: string;
+  preferredContactChannel: string;
+  supplierOperationalType: string;
+  defaultDeliveryLeadTimeDays: string;
+  minimumOrderAmount: string;
+  preferredCarrierName: string;
+  freightMode: string;
+  receivingDays: string;
+  additionalInfo: string;
   markerIds: string[];
 }
 
 const tabs = ['Dados Gerais', 'Dados Financeiros', 'Documentos', 'Informações Complementares', 'Pedidos'] as const;
 type SupplierTab = (typeof tabs)[number];
+
+const preferredContactChannels = [
+  { value: 'PHONE', label: 'Telefone' },
+  { value: 'WHATSAPP', label: 'WhatsApp' },
+  { value: 'EMAIL', label: 'E-mail' },
+  { value: 'IN_PERSON', label: 'Presencial' },
+] as const;
+
+const supplierOperationalTypes = [
+  { value: 'PRODUCT', label: 'Produto' },
+  { value: 'SERVICE', label: 'Serviço' },
+  { value: 'PRODUCT_AND_SERVICE', label: 'Produto e Serviço' },
+] as const;
+
+const freightModes = [
+  { value: 'CIF', label: 'CIF' },
+  { value: 'FOB', label: 'FOB' },
+  { value: 'PICKUP', label: 'Retirada' },
+  { value: 'OWN_DELIVERY', label: 'Entrega própria' },
+  { value: 'NOT_APPLICABLE', label: 'Não se aplica' },
+] as const;
 
 function toActiveParam(filter: ActiveFilter): boolean | undefined {
   if (filter === 'active') return true;
@@ -196,6 +242,17 @@ function defaultFormValues(): SupplierFormValues {
     averagePaymentTermDays: '',
     preferredPaymentDay: '',
     financialNotes: '',
+    internalResponsibleName: '',
+    relationshipStartedAt: '',
+    internalCode: '',
+    preferredContactChannel: '',
+    supplierOperationalType: '',
+    defaultDeliveryLeadTimeDays: '',
+    minimumOrderAmount: '',
+    preferredCarrierName: '',
+    freightMode: '',
+    receivingDays: '',
+    additionalInfo: '',
     markerIds: [],
   };
 }
@@ -332,6 +389,17 @@ export function SuppliersPage(): ReactElement {
       averagePaymentTermDays: supplier.averagePaymentTermDays == null ? '' : String(supplier.averagePaymentTermDays),
       preferredPaymentDay: supplier.preferredPaymentDay == null ? '' : String(supplier.preferredPaymentDay),
       financialNotes: supplier.financialNotes ?? '',
+      internalResponsibleName: supplier.internalResponsibleName ?? '',
+      relationshipStartedAt: supplier.relationshipStartedAt ?? '',
+      internalCode: supplier.internalCode ?? '',
+      preferredContactChannel: supplier.preferredContactChannel ?? '',
+      supplierOperationalType: supplier.supplierOperationalType ?? '',
+      defaultDeliveryLeadTimeDays: supplier.defaultDeliveryLeadTimeDays == null ? '' : String(supplier.defaultDeliveryLeadTimeDays),
+      minimumOrderAmount: supplier.minimumOrderAmount == null ? '' : String(supplier.minimumOrderAmount),
+      preferredCarrierName: supplier.preferredCarrierName ?? '',
+      freightMode: supplier.freightMode ?? '',
+      receivingDays: supplier.receivingDays ?? '',
+      additionalInfo: supplier.additionalInfo ?? '',
       markerIds: supplier.markerIds ?? [],
     });
     setActiveTab('Dados Gerais');
@@ -372,6 +440,17 @@ export function SuppliersPage(): ReactElement {
         averagePaymentTermDays: optionalNumber(values.averagePaymentTermDays),
         preferredPaymentDay: optionalNumber(values.preferredPaymentDay),
         financialNotes: normalizeNullable(values.financialNotes),
+        internalResponsibleName: normalizeNullable(values.internalResponsibleName),
+        relationshipStartedAt: normalizeNullable(values.relationshipStartedAt),
+        internalCode: normalizeNullable(values.internalCode),
+        preferredContactChannel: values.preferredContactChannel || null,
+        supplierOperationalType: values.supplierOperationalType || null,
+        defaultDeliveryLeadTimeDays: optionalNumber(values.defaultDeliveryLeadTimeDays),
+        minimumOrderAmount: optionalNumber(values.minimumOrderAmount),
+        preferredCarrierName: normalizeNullable(values.preferredCarrierName),
+        freightMode: values.freightMode || null,
+        receivingDays: normalizeNullable(values.receivingDays),
+        additionalInfo: normalizeNullable(values.additionalInfo),
         markerIds: values.markerIds,
         isActive: statusCode !== 'INACTIVE',
         isBlocked: statusCode === 'BLOCKED',
@@ -574,7 +653,22 @@ export function SuppliersPage(): ReactElement {
             </section> : null}
 
             {activeTab === 'Documentos' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Documentos</h3><p className="mt-2 text-sm text-slate-500">Upload e gestão documental ficarão para a etapa própria. Por enquanto, notas fiscais/XML continuam no fluxo financeiro.</p></section> : null}
-            {activeTab === 'Informações Complementares' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Informações Complementares</h3><p className="mt-2 text-sm text-slate-500">Campos complementares serão modelados na próxima onda para evitar alterações prematuras no banco.</p></section> : null}
+            {activeTab === 'Informações Complementares' ? <section className="rounded-2xl border border-slate-200 p-5">
+              <h3 className="mb-5 text-lg font-bold text-slate-900">Informações Complementares</h3>
+              <div className="grid gap-4 lg:grid-cols-4">
+                <SupplierField label="Responsável interno"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('internalResponsibleName')} /></SupplierField>
+                <SupplierField label="Data de início do relacionamento"><input type="date" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('relationshipStartedAt')} /></SupplierField>
+                <SupplierField label="Código interno"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('internalCode')} /></SupplierField>
+                <SupplierField label="Canal preferencial de contato"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('preferredContactChannel')}><option value="">Selecione</option>{preferredContactChannels.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></SupplierField>
+                <SupplierField label="Tipo operacional"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('supplierOperationalType')}><option value="">Selecione</option>{supplierOperationalTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></SupplierField>
+                <SupplierField label="Prazo de entrega padrão (dias)" error={errors.defaultDeliveryLeadTimeDays?.message}><input type="number" min="0" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('defaultDeliveryLeadTimeDays', { validate: (value) => value === '' || Number(value) >= 0 || 'Informe um prazo válido.' })} /></SupplierField>
+                <SupplierField label="Pedido mínimo" error={errors.minimumOrderAmount?.message}><input type="number" min="0" step="0.01" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('minimumOrderAmount', { validate: (value) => value === '' || Number(value) >= 0 || 'Informe um valor válido.' })} /></SupplierField>
+                <SupplierField label="Transportadora preferencial"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('preferredCarrierName')} /></SupplierField>
+                <SupplierField label="Modalidade de frete"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('freightMode')}><option value="">Selecione</option>{freightModes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></SupplierField>
+                <SupplierField label="Dias para recebimento" helperText="Ex.: segunda a sexta, terça e quinta, ou sob agendamento." className="lg:col-span-2"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('receivingDays')} /></SupplierField>
+                <SupplierField label="Informações adicionais" className="lg:col-span-4"><textarea rows={4} className="rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('additionalInfo')} /></SupplierField>
+              </div>
+            </section> : null}
             {activeTab === 'Pedidos' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Pedidos</h3><p className="mt-2 text-sm text-slate-500">Aba reservada para integração futura com compras/pedidos, fora do escopo atual.</p></section> : null}
 
             {saveMutation.error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{saveMutation.error instanceof ApiError ? saveMutation.error.message : 'Não foi possível salvar o fornecedor.'}</p> : null}
