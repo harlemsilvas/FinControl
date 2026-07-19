@@ -138,6 +138,7 @@ export class MasterDataRepository {
       .map(([key, column]) => [key, row[column]]));
 
     if (!this.isSupplierDefinition(definition) || !row.id) return entity;
+    entity.relationshipStartedAt = this.toDateOnly(entity.relationshipStartedAt);
 
     const markerRows = await this.database.query<{ marker_id: string }>(
       'SELECT marker_id FROM cadastros.supplier_markers WHERE supplier_id = $1 ORDER BY created_at, marker_id',
@@ -164,6 +165,12 @@ export class MasterDataRepository {
 
     await executor.query(`INSERT INTO cadastros.supplier_markers (supplier_id, marker_id, created_by)
       VALUES ${tuples.join(', ')}`, values);
+  }
+
+  private toDateOnly(value: unknown): unknown {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (typeof value === 'string') return value.slice(0, 10);
+    return value;
   }
 
   private isSupplierDefinition(definition: ResourceDefinition): boolean {

@@ -184,6 +184,11 @@ function formatPostalCode(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
+function formatDateForInput(value: string | null | undefined): string {
+  if (!value) return '';
+  return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : '';
+}
+
 function statusBadgeClass(code?: string): string {
   if (code === 'BLOCKED') return 'bg-red-100 text-red-700';
   if (code === 'INACTIVE') return 'bg-slate-200 text-slate-700';
@@ -390,7 +395,7 @@ export function SuppliersPage(): ReactElement {
       preferredPaymentDay: supplier.preferredPaymentDay == null ? '' : String(supplier.preferredPaymentDay),
       financialNotes: supplier.financialNotes ?? '',
       internalResponsibleName: supplier.internalResponsibleName ?? '',
-      relationshipStartedAt: supplier.relationshipStartedAt ?? '',
+      relationshipStartedAt: formatDateForInput(supplier.relationshipStartedAt),
       internalCode: supplier.internalCode ?? '',
       preferredContactChannel: supplier.preferredContactChannel ?? '',
       supplierOperationalType: supplier.supplierOperationalType ?? '',
