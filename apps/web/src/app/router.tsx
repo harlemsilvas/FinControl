@@ -5,6 +5,7 @@ import { NotFoundPage } from '../pages/not-found-page';
 import { ProtectedRoute } from '../auth/protected-route';
 import { LoginPage } from '../pages/login-page';
 import { MasterDataPage } from '../master-data/master-data-page';
+import { SuppliersPage } from '../master-data/suppliers-page';
 import { resources } from '../master-data/resources';
 import { PayablesListPage } from '../payables/payables-list-page';
 import { PayableFormPage } from '../payables/payable-form-page';
@@ -19,7 +20,8 @@ export const router=createBrowserRouter([
     {path:'payables',element:<PayablesListPage/>},
     {path:'payables/new',element:<PayableFormPage/>},
     {path:'payables/:id',element:<PayableFormPage/>},
-    ...Object.entries(resources).map(([path,config])=>({path,element:<MasterDataPage config={config}/>})),
+    {path:'suppliers',element:<SuppliersPage/>},
+    ...Object.entries(resources).filter(([path])=>path!=='suppliers').map(([path,config])=>({path,element:<MasterDataPage config={config}/>})),
     {path:'*',element:<NotFoundPage/>},
   ]}]},
 ],{basename:environment.VITE_BASE_PATH.replace(/\/$/,'')||'/'});

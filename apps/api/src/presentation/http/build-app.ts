@@ -43,6 +43,19 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     requestIdHeader: 'x-request-id',
   });
 
+  app.addHook('onRequest', async (request, reply) => {
+    const origin = request.headers.origin;
+    if (origin) {
+      reply.header('Access-Control-Allow-Origin', origin);
+      reply.header('Vary', 'Origin');
+      reply.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+      reply.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Requested-With, X-Request-Id');
+    }
+    if (request.method === 'OPTIONS') {
+      return reply.code(204).send();
+    }
+  });
+
   registerErrorHandler(app);
   registerOpenApi(app);
   app.decorateRequest('authUser', null);
