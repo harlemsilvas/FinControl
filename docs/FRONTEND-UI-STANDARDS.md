@@ -39,8 +39,10 @@ Tesouraria > Contas Bancárias > Nova Conta Bancária
 
 ### Estado atual
 
-- Aplicado na revisão v2 de Contas a Pagar.
-- Aprovado pelo usuário como padrão para o projeto todo.
+- Aplicado na revis?o v2 de Contas a Pagar.
+- Componente compartilhado `Breadcrumb` criado para padronizar novas telas.
+- Aplicado progressivamente em Dashboard, Agenda Financeira, Cadastros, Fornecedores e Contas a Pagar.
+- Aprovado pelo usu?rio como padr?o para o projeto todo.
 
 ## Campos monetários
 

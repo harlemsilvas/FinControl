@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
+import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
 
@@ -486,8 +487,8 @@ export function SuppliersPage(): ReactElement {
   return <div className="grid gap-6">
     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div>
-        <p className="text-sm font-bold uppercase tracking-widest text-teal-700">Cadastros</p>
-        <h1 className="mt-1 text-3xl font-bold text-slate-950">Cadastro de Fornecedores</h1>
+        <Breadcrumb items={[{ label: 'Cadastros', to: '/suppliers' }, { label: 'Fornecedores' }]} />
+        <h1 className="mt-3 text-3xl font-bold text-slate-950">Cadastro de Fornecedores</h1>
         <p className="mt-2 text-slate-600">Cadastro estruturado por abas, com dados gerais e preferências financeiras.</p>
       </div>
       <Button onClick={openNewForm}>Novo fornecedor</Button>

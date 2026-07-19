@@ -6,6 +6,7 @@ import { Controller, useFieldArray, useForm, type UseFormRegisterReturn } from '
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
+import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
 import { currency, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
@@ -399,17 +400,9 @@ export function PayableFormPage(): ReactElement {
     <form className="grid gap-6" onSubmit={event => void submit(event)}>
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-            <Link to="/dashboard" className="font-medium text-slate-600 hover:text-teal-700">
-              Financeiro
-            </Link>
-            <span aria-hidden="true">?</span>
-            <Link to="/payables" className="font-medium text-slate-600 hover:text-teal-700">
-              Contas a Pagar
-            </Link>
-            <span aria-hidden="true">?</span>
-            <span className="font-semibold text-slate-800">{editing ? 'Editar Conta' : 'Nova Conta'}</span>
-          </nav>
+          <Breadcrumb
+            items={[{ label: 'Financeiro', to: '/dashboard' }, { label: 'Contas a Pagar', to: '/payables' }, { label: editing ? 'Editar Conta' : 'Nova Conta' }]}
+          />
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold">{editing ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}</h1>
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${badge.className}`}>{badge.label}</span>
