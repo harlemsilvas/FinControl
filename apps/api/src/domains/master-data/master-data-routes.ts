@@ -92,27 +92,27 @@ function withSupplierRules(schema: z.ZodType<Record<string, unknown>>): z.ZodTyp
     const financialEmail = typeof value.financialEmail === 'string' || value.financialEmail == null ? value.financialEmail : undefined;
     const postalCode = typeof value.postalCode === 'string' || value.postalCode == null ? value.postalCode : undefined;
     if (supplierType === 'INDIVIDUAL' && documentNumber && !/^\d{11}$/.test(documentNumber)) {
-      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'CPF deve conter 11 d?gitos.' });
+      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'CPF deve conter 11 dígitos.' });
     }
     if (supplierType === 'COMPANY' && documentNumber && !/^\d{14}$/.test(documentNumber)) {
-      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'CNPJ deve conter 14 d?gitos.' });
+      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'CNPJ deve conter 14 dígitos.' });
     }
     if (supplierType === 'FOREIGN' && documentNumber && documentNumber.length > 40) {
-      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'Documento deve ter no m?ximo 40 caracteres.' });
+      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'Documento deve ter no máximo 40 caracteres.' });
     }
     if (!validateEmail(email)) {
-      context.addIssue({ code: 'custom', path: ['email'], message: 'E-mail inv?lido.' });
+      context.addIssue({ code: 'custom', path: ['email'], message: 'E-mail inválido.' });
     }
     if (!validateEmail(financialEmail)) {
-      context.addIssue({ code: 'custom', path: ['financialEmail'], message: 'E-mail financeiro inv?lido.' });
+      context.addIssue({ code: 'custom', path: ['financialEmail'], message: 'E-mail financeiro inválido.' });
     }
     if (postalCode && !/^\d{8}$/.test(postalCode)) {
-      context.addIssue({ code: 'custom', path: ['postalCode'], message: 'CEP deve conter 8 d?gitos.' });
+      context.addIssue({ code: 'custom', path: ['postalCode'], message: 'CEP deve conter 8 dígitos.' });
     }
     for (const [field, label] of [['phone', 'Telefone'], ['mobilePhone', 'Celular'], ['secondaryPhone', 'Telefone adicional']] as const) {
       const phoneValue = typeof value[field] === 'string' || value[field] == null ? value[field] : undefined;
       if (!validatePhone(phoneValue)) {
-        context.addIssue({ code: 'custom', path: [field], message: label + ' deve conter DDD e 10 ou 11 d?gitos.' });
+        context.addIssue({ code: 'custom', path: [field], message: label + ' deve conter DDD e 10 ou 11 dígitos.' });
       }
     }
   });

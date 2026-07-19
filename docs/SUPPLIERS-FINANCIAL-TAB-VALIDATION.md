@@ -133,7 +133,7 @@ Fornecedor fictício criado via API para validar gravação/leitura:
 
 ## Pendências conhecidas
 
-- Corrigir textos truncados/encoding em mensagens antigas da API que ainda aparecem como `d?gitos`, `inv?lido`, etc.
+- Textos truncados/encoding em mensagens de validação de fornecedores foram corrigidos em 19/07/2026.
 - Definir escopo funcional antes de modelar:
   - documentos/upload;
   - dados bancários do fornecedor;
