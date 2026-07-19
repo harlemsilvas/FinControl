@@ -45,6 +45,12 @@ interface Supplier {
   cityId: string | null;
   stateId: string | null;
   financialEmail: string | null;
+  defaultPaymentMethodId: string | null;
+  defaultPaymentTermId: string | null;
+  defaultCostCenterId: string | null;
+  averagePaymentTermDays: number | null;
+  preferredPaymentDay: number | null;
+  financialNotes: string | null;
   markerIds: string[];
 }
 
@@ -80,10 +86,17 @@ interface SupplierFormValues {
   email: string;
   financialEmail: string;
   representativeName: string;
+  defaultPaymentMethodId: string;
+  defaultPaymentTermId: string;
+  defaultCostCenterId: string;
+  averagePaymentTermDays: string;
+  preferredPaymentDay: string;
+  financialNotes: string;
   markerIds: string[];
 }
 
 const tabs = ['Dados Gerais', 'Dados Financeiros', 'Documentos', 'Informações Complementares', 'Pedidos'] as const;
+type SupplierTab = (typeof tabs)[number];
 
 function toActiveParam(filter: ActiveFilter): boolean | undefined {
   if (filter === 'active') return true;
@@ -136,6 +149,15 @@ function normalizeOptional(value: string): string | undefined {
   return trimmed === '' ? undefined : trimmed;
 }
 
+function normalizeNullable(value: string): string | null {
+  return normalizeOptional(value) ?? null;
+}
+
+function optionalNumber(value: string): number | null {
+  const trimmed = value.trim();
+  return trimmed === '' ? null : Number(trimmed);
+}
+
 function inputValueFromUnknown(event: unknown): string {
   if (typeof event !== 'object' || event === null || !('target' in event)) return '';
   const target = (event as { target?: unknown }).target;
@@ -168,6 +190,12 @@ function defaultFormValues(): SupplierFormValues {
     email: '',
     financialEmail: '',
     representativeName: '',
+    defaultPaymentMethodId: '',
+    defaultPaymentTermId: '',
+    defaultCostCenterId: '',
+    averagePaymentTermDays: '',
+    preferredPaymentDay: '',
+    financialNotes: '',
     markerIds: [],
   };
 }
@@ -197,6 +225,7 @@ export function SuppliersPage(): ReactElement {
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<SupplierTab>('Dados Gerais');
 
   const suppliersQuery = useQuery({
     queryKey: ['suppliers', page, search, activeFilter],
@@ -233,6 +262,21 @@ export function SuppliersPage(): ReactElement {
     queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/cities', { params: { pageSize: 500, active: true } })).data.data,
     staleTime: 60000,
   });
+  const paymentMethodsQuery = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/payment-methods', { params: { pageSize: 100, active: true } })).data.data,
+    staleTime: 60000,
+  });
+  const paymentTermsQuery = useQuery({
+    queryKey: ['payment-terms'],
+    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/payment-terms', { params: { pageSize: 100, active: true } })).data.data,
+    staleTime: 60000,
+  });
+  const costCentersQuery = useQuery({
+    queryKey: ['cost-centers'],
+    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/cost-centers', { params: { pageSize: 100, active: true } })).data.data,
+    staleTime: 60000,
+  });
 
   const statusById = useMemo(() => new Map((statusesQuery.data ?? []).map((item) => [item.id, item])), [statusesQuery.data]);
   const categoryById = useMemo(() => new Map((categoriesQuery.data ?? []).map((item) => [item.id, item])), [categoriesQuery.data]);
@@ -253,6 +297,7 @@ export function SuppliersPage(): ReactElement {
   const openNewForm = (): void => {
     const defaultStatus = statusesQuery.data?.find((item) => item.code === 'ACTIVE')?.id ?? '';
     reset({ ...defaultFormValues(), statusId: defaultStatus });
+    setActiveTab('Dados Gerais');
     setEditing(null);
     setFormOpen(true);
   };
@@ -281,8 +326,15 @@ export function SuppliersPage(): ReactElement {
       email: supplier.email ?? '',
       financialEmail: supplier.financialEmail ?? '',
       representativeName: supplier.representativeName ?? '',
+      defaultPaymentMethodId: supplier.defaultPaymentMethodId ?? '',
+      defaultPaymentTermId: supplier.defaultPaymentTermId ?? '',
+      defaultCostCenterId: supplier.defaultCostCenterId ?? '',
+      averagePaymentTermDays: supplier.averagePaymentTermDays == null ? '' : String(supplier.averagePaymentTermDays),
+      preferredPaymentDay: supplier.preferredPaymentDay == null ? '' : String(supplier.preferredPaymentDay),
+      financialNotes: supplier.financialNotes ?? '',
       markerIds: supplier.markerIds ?? [],
     });
+    setActiveTab('Dados Gerais');
     setEditing(supplier);
     setFormOpen(true);
   };
@@ -314,6 +366,12 @@ export function SuppliersPage(): ReactElement {
         email: normalizeOptional(values.email),
         financialEmail: normalizeOptional(values.financialEmail),
         representativeName: normalizeOptional(values.representativeName),
+        defaultPaymentMethodId: values.defaultPaymentMethodId || null,
+        defaultPaymentTermId: values.defaultPaymentTermId || null,
+        defaultCostCenterId: values.defaultCostCenterId || null,
+        averagePaymentTermDays: optionalNumber(values.averagePaymentTermDays),
+        preferredPaymentDay: optionalNumber(values.preferredPaymentDay),
+        financialNotes: normalizeNullable(values.financialNotes),
         markerIds: values.markerIds,
         isActive: statusCode !== 'INACTIVE',
         isBlocked: statusCode === 'BLOCKED',
@@ -345,7 +403,7 @@ export function SuppliersPage(): ReactElement {
       <div>
         <p className="text-sm font-bold uppercase tracking-widest text-teal-700">Cadastros</p>
         <h1 className="mt-1 text-3xl font-bold text-slate-950">Cadastro de Fornecedores</h1>
-        <p className="mt-2 text-slate-600">Onda 1: dados gerais, endereço, contatos, categoria, status e marcadores.</p>
+        <p className="mt-2 text-slate-600">Cadastro estruturado por abas, com dados gerais e preferências financeiras.</p>
       </div>
       <Button onClick={openNewForm}>Novo fornecedor</Button>
     </header>
@@ -431,11 +489,12 @@ export function SuppliersPage(): ReactElement {
 
           <div className="border-b border-slate-200 px-6 pt-4">
             <div className="flex flex-wrap gap-6 text-sm font-semibold text-slate-500">
-              {tabs.map((tab, index) => <button key={tab} type="button" className={`border-b-2 pb-3 ${index === 0 ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400'}`}>{tab}</button>)}
+              {tabs.map((tab) => <button key={tab} type="button" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`border-b-2 pb-3 ${activeTab === tab ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>{tab}</button>)}
             </div>
           </div>
 
           <div className="grid gap-4 px-6 py-6">
+            {activeTab === 'Dados Gerais' ? <>
             <section className="rounded-2xl border border-slate-200 p-5">
               <h3 className="mb-5 text-lg font-bold text-slate-900">Dados Gerais</h3>
               <div className="grid gap-4 lg:grid-cols-4">
@@ -499,6 +558,24 @@ export function SuppliersPage(): ReactElement {
                 })}
               </div>
             </section>
+
+            </> : null}
+
+            {activeTab === 'Dados Financeiros' ? <section className="rounded-2xl border border-slate-200 p-5">
+              <h3 className="mb-5 text-lg font-bold text-slate-900">Dados Financeiros</h3>
+              <div className="grid gap-4 lg:grid-cols-4">
+                <SupplierField label="Forma de pagamento preferencial"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('defaultPaymentMethodId')}><option value="">Selecione</option>{(paymentMethodsQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Condição de pagamento"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('defaultPaymentTermId')}><option value="">Selecione</option>{(paymentTermsQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Centro de custo padrão"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('defaultCostCenterId')}><option value="">Selecione</option>{(costCentersQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.code ? `${item.code} - ` : ''}{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Prazo médio (dias)" error={errors.averagePaymentTermDays?.message}><input type="number" min="0" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('averagePaymentTermDays', { validate: (value) => value === '' || Number(value) >= 0 || 'Informe um prazo válido.' })} /></SupplierField>
+                <SupplierField label="Dia preferencial de pagamento" helperText="Use 1 a 31, quando o fornecedor tiver dia fixo." error={errors.preferredPaymentDay?.message}><input type="number" min="1" max="31" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('preferredPaymentDay', { validate: (value) => value === '' || (Number(value) >= 1 && Number(value) <= 31) || 'Informe um dia entre 1 e 31.' })} /></SupplierField>
+                <SupplierField label="Observação financeira" className="lg:col-span-3"><textarea rows={4} className="rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('financialNotes')} /></SupplierField>
+              </div>
+            </section> : null}
+
+            {activeTab === 'Documentos' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Documentos</h3><p className="mt-2 text-sm text-slate-500">Upload e gestão documental ficarão para a etapa própria. Por enquanto, notas fiscais/XML continuam no fluxo financeiro.</p></section> : null}
+            {activeTab === 'Informações Complementares' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Informações Complementares</h3><p className="mt-2 text-sm text-slate-500">Campos complementares serão modelados na próxima onda para evitar alterações prematuras no banco.</p></section> : null}
+            {activeTab === 'Pedidos' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Pedidos</h3><p className="mt-2 text-sm text-slate-500">Aba reservada para integração futura com compras/pedidos, fora do escopo atual.</p></section> : null}
 
             {saveMutation.error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{saveMutation.error instanceof ApiError ? saveMutation.error.message : 'Não foi possível salvar o fornecedor.'}</p> : null}
           </div>

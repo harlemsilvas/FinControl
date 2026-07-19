@@ -125,11 +125,15 @@ const supplierBase = z.object({ supplierType: z.enum(['INDIVIDUAL', 'COMPANY', '
   notes: z.string().max(5000).nullable().optional(), isForeign: z.boolean().optional(), isApproved: z.boolean().optional(), isBlocked: z.boolean().optional(), isActive: z.boolean().optional(),
   statusId: nullableUuid(), stateRegistration: nullableText(60), municipalRegistration: nullableText(60), supplierCategoryId: nullableUuid(),
   postalCode: z.unknown().optional(), street: nullableText(255), streetNumber: nullableText(30), addressComplement: nullableText(120), neighborhood: nullableText(120),
-  cityId: nullableUuid(), stateId: nullableUuid(), financialEmail: z.string().trim().max(255).nullable().optional(), markerIds: z.array(uuid).max(50).optional() });
+  cityId: nullableUuid(), stateId: nullableUuid(), financialEmail: z.string().trim().max(255).nullable().optional(), markerIds: z.array(uuid).max(50).optional(),
+  defaultPaymentMethodId: nullableUuid(), defaultPaymentTermId: nullableUuid(), defaultCostCenterId: nullableUuid(),
+  averagePaymentTermDays: z.number().int().min(0).nullable().optional(), preferredPaymentDay: z.number().int().min(1).max(31).nullable().optional(),
+  financialNotes: nullableText(5000) });
 const supplier = withSupplierRules(supplierBase);
 const supplierUpdate = withSupplierRules(partial(supplierBase));
 const category = z.object({ parentId: uuid.nullable().optional(), code: z.string().trim().min(1).max(60).toUpperCase(),
   name: z.string().trim().min(2).max(160), natureCode: z.string().trim().min(1).max(30).toUpperCase().optional(), isActive: z.boolean().optional() });
+const paymentMethod = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120), isActive: z.boolean().optional() });
 const paymentTerm = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120),
   installmentCount: z.number().int().min(1).nullable().optional(), intervalDays: z.number().int().min(0).nullable().optional(), isActive: z.boolean().optional() });
 const bank = z.object({ code: z.string().trim().min(1).max(20), name: z.string().trim().min(2).max(160), isActive: z.boolean().optional() });
@@ -149,7 +153,9 @@ const resources: RouteResource[] = [
       countryCode: 'country_code', representativeName: 'representative_name', email: 'email', phone: 'phone', mobilePhone: 'mobile_phone', secondaryPhone: 'secondary_phone', notes: 'notes',
       isForeign: 'is_foreign', isApproved: 'is_approved', isBlocked: 'is_blocked', statusId: 'status_id', stateRegistration: 'state_registration',
       municipalRegistration: 'municipal_registration', supplierCategoryId: 'supplier_category_id', postalCode: 'postal_code', street: 'street', streetNumber: 'street_number',
-      addressComplement: 'address_complement', neighborhood: 'neighborhood', cityId: 'city_id', stateId: 'state_id', financialEmail: 'financial_email' } },
+      addressComplement: 'address_complement', neighborhood: 'neighborhood', cityId: 'city_id', stateId: 'state_id', financialEmail: 'financial_email',
+      defaultPaymentMethodId: 'default_payment_method_id', defaultPaymentTermId: 'default_payment_term_id', defaultCostCenterId: 'default_cost_center_id',
+      averagePaymentTermDays: 'average_payment_term_days', preferredPaymentDay: 'preferred_payment_day', financialNotes: 'financial_notes' } },
   { path: '/supplier-statuses', domain: 'DOM-001', entity: 'SUPPLIER_STATUS', table: 'cadastros.supplier_statuses', createSchema: supplierStatus,
     updateSchema: partial(supplierStatus), searchColumns: ['code', 'name'], hasSoftDelete: false, orderBy: 'name, id',
     columns: { ...simpleColumns, code: 'code', name: 'name' } },
@@ -171,6 +177,9 @@ const resources: RouteResource[] = [
   { path: '/cost-centers', domain: 'DOM-001', entity: 'COST_CENTER', table: 'cadastros.cost_centers', createSchema: category,
     updateSchema: partial(category), searchColumns: ['code', 'name'], hasSoftDelete: true, orderBy: 'code, id',
     columns: { ...auditColumns, parentId: 'parent_id', code: 'code', name: 'name' } },
+  { path: '/payment-methods', domain: 'DOM-001', entity: 'PAYMENT_METHOD', table: 'cadastros.payment_methods', createSchema: paymentMethod,
+    updateSchema: partial(paymentMethod), searchColumns: ['code', 'name'], hasSoftDelete: false, orderBy: 'code, id',
+    columns: { ...simpleColumns, code: 'code', name: 'name' } },
   { path: '/payment-terms', domain: 'DOM-001', entity: 'PAYMENT_TERM', table: 'cadastros.payment_terms', createSchema: paymentTerm,
     updateSchema: partial(paymentTerm), searchColumns: ['code', 'name'], hasSoftDelete: false, orderBy: 'code, id',
     columns: { ...simpleColumns, code: 'code', name: 'name', installmentCount: 'installment_count', intervalDays: 'interval_days' } },
