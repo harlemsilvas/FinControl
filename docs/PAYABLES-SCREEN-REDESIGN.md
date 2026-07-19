@@ -202,6 +202,12 @@ Depois da Onda 1, decidir:
 - Centro de custo: continua em observações/complementos.
 - Dados bancários do fornecedor: continuam fora de Contas a Pagar.
 
+## Decisão aprovada ? 19/07/2026
+
+A Onda 1 foi aprovada para implementação sem migration.
+
+Também foi aprovado que o breadcrumb usado na tela v2 de Contas a Pagar passa a ser padrão visual progressivo para o projeto todo. O padrão foi documentado em `docs/FRONTEND-UI-STANDARDS.md`.
+
 ## Próximo passo de implementação
 
 Se aprovado, iniciar pela Onda 1 sem migration:
