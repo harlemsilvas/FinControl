@@ -657,7 +657,15 @@ export function SuppliersPage(): ReactElement {
               </div>
             </section> : null}
 
-            {activeTab === 'Documentos' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Documentos</h3><p className="mt-2 text-sm text-slate-500">Upload e gestão documental ficarão para a etapa própria. Por enquanto, notas fiscais/XML continuam no fluxo financeiro.</p></section> : null}
+            {activeTab === 'Documentos' ? <section className="rounded-2xl border border-slate-200 p-5">
+              <h3 className="text-lg font-bold text-slate-900">Documentos</h3>
+              <p className="mt-2 text-sm text-slate-500">Esta aba está reservada para a etapa documental. No escopo atual, XML e notas fiscais entram pelo fluxo financeiro de contas a pagar.</p>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold text-slate-900">Agora</p><p className="mt-1 text-sm text-slate-500">Sem upload próprio no fornecedor. Use o fluxo financeiro para XML/notas.</p></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold text-slate-900">Depois</p><p className="mt-1 text-sm text-slate-500">Definir tipos, validade, alertas e bloqueios antes de criar tabela.</p></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold text-slate-900">Decisão</p><p className="mt-1 text-sm text-slate-500">Nenhuma migration será criada para documentos até fecharmos o contrato funcional.</p></div>
+              </div>
+            </section> : null}
             {activeTab === 'Informações Complementares' ? <section className="rounded-2xl border border-slate-200 p-5">
               <h3 className="mb-5 text-lg font-bold text-slate-900">Informações Complementares</h3>
               <div className="grid gap-4 lg:grid-cols-4">
@@ -674,7 +682,15 @@ export function SuppliersPage(): ReactElement {
                 <SupplierField label="Informações adicionais" className="lg:col-span-4"><textarea rows={4} className="rounded-xl border border-slate-300 px-3 py-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('additionalInfo')} /></SupplierField>
               </div>
             </section> : null}
-            {activeTab === 'Pedidos' ? <section className="rounded-2xl border border-slate-200 p-5"><h3 className="text-lg font-bold text-slate-900">Pedidos</h3><p className="mt-2 text-sm text-slate-500">Aba reservada para integração futura com compras/pedidos, fora do escopo atual.</p></section> : null}
+            {activeTab === 'Pedidos' ? <section className="rounded-2xl border border-slate-200 p-5">
+              <h3 className="text-lg font-bold text-slate-900">Pedidos</h3>
+              <p className="mt-2 text-sm text-slate-500">Aba reservada para integração futura com compras/pedidos. Hoje ela serve apenas como orientação de escopo.</p>
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold text-slate-900">Histórico</p><p className="mt-1 text-sm text-slate-500">Será alimentado quando existir módulo de pedidos/compras.</p></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold text-slate-900">Indicadores</p><p className="mt-1 text-sm text-slate-500">Compras, entregas e recorrência dependem de dados operacionais futuros.</p></div>
+                <div className="rounded-2xl bg-slate-50 p-4"><p className="text-sm font-semibold text-slate-900">Decisão</p><p className="mt-1 text-sm text-slate-500">Não criar campos isolados de pedidos dentro do fornecedor.</p></div>
+              </div>
+            </section> : null}
 
             {saveMutation.error ? <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{saveMutation.error instanceof ApiError ? saveMutation.error.message : 'Não foi possível salvar o fornecedor.'}</p> : null}
           </div>
