@@ -62,3 +62,22 @@ Campos de valor monetário devem seguir o padrão brasileiro na exibição e na 
 
 - Aplicado nos valores de Contas a Pagar.
 - Aplicado no campo `Pedido mínimo` do cadastro de Fornecedores.
+
+## Menu lateral
+
+O menu lateral passa a seguir a organização por áreas funcionais, conforme o modelo visual aprovado para o FinControl.
+
+### Grupos padrão
+
+- Entrada principal: Dashboard.
+- Cadastros: fornecedores, categorias, centros de custo, contas bancárias, tipos de documento, formas de pagamento, condições de pagamento e bancos.
+- Financeiro: contas a pagar, agenda, aprovações, pagamentos, recorrências e conciliação bancária.
+- Relatórios: relatórios, dashboards, fluxo de caixa e indicadores.
+- Configurações: usuários, perfis de acesso e parâmetros.
+
+### Regras de uso
+
+- Itens com tela implementada devem apontar para sua rota real.
+- Itens planejados, mas ainda não implementados, devem apontar para uma página placeholder funcional com breadcrumb, status claro e próximos passos sugeridos.
+- A seção ativa deve usar destaque visual azul, mantendo o fundo lateral em azul-marinho.
+- A estrutura deve ser mantida como padrão para novas telas internas.`n- Quando uma tela placeholder for implementada de verdade, sua rota deve ser reaproveitada para evitar mudança desnecessária de navegação.
