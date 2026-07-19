@@ -31,6 +31,45 @@ Arquivos auxiliares de analise operacional da VPS podem existir localmente sem e
 - conexao local: `127.0.0.1:5434`;
 - segredos locais: `.env`, nunca versionado.
 
+
+## Start local no WSL
+
+Para o desenvolvimento diario, use o script abaixo dentro do Ubuntu WSL:
+
+```bash
+cd /home/harlem/projetos/FinControl
+scripts/start-local-dev.sh
+```
+
+O script:
+
+- mantem o PostgreSQL no Docker Desktop;
+- remove apenas containers locais antigos da API/Web, quando existirem;
+- libera as portas padrao da API e do Web;
+- sobe a API no WSL em `http://127.0.0.1:3000`;
+- sobe o Web no WSL em `http://127.0.0.1:5173`;
+- usa proxy do Vite para `/auth`, `/api` e `/health`, evitando falhas de login por URL incorreta;
+- grava logs em `.local/dev/api.log` e `.local/dev/web.log`.
+
+Se o Windows nao encaminhar `127.0.0.1`, use o IP do WSL impresso pelo script, por exemplo:
+
+```text
+http://<IP-DO-WSL>:5173
+```
+
+Para acompanhar logs:
+
+```bash
+tail -f .local/dev/api.log
+tail -f .local/dev/web.log
+```
+
+Para parar API/Web iniciados pelo script:
+
+```bash
+kill $(cat .local/dev/api.pid) $(cat .local/dev/web.pid)
+```
+
 ## Docker local
 
 Use a integracao WSL do Docker Desktop; nao instale outro daemon Docker dentro do Ubuntu.

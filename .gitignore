@@ -34,3 +34,4 @@ backups/
 archives/*.rar
 archives/*.zip
 hrmmotos.com.br
+.local/
