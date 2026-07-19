@@ -2,11 +2,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { CurrencyInput } from '../components/ui/currency-input';
 import { currency, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
 import { payableTabs } from './payable-form-contract';
 
@@ -476,7 +477,14 @@ export function PayableFormPage(): ReactElement {
                   <input type="date" className={inputClass} {...register('baseDueDate', { required: true })} />
                 </Field>
                 <Field label="Valor" required>
-                  <input type="number" step="0.01" min="0.01" className={inputClass} {...register('originalAmount', { valueAsNumber: true, required: true, min: 0.01 })} />
+                  <Controller
+                    control={control}
+                    name="originalAmount"
+                    rules={{ required: true, min: 0.01 }}
+                    render={({ field }) => (
+                      <CurrencyInput className={inputClass} value={field.value} onValueChange={value => field.onChange(value ?? 0)} onBlur={field.onBlur} />
+                    )}
+                  />
                 </Field>
                 <Field label="Data de Emiss?o" required>
                   <input type="date" className={inputClass} {...register('issueDate', { required: true })} />
@@ -536,10 +544,24 @@ export function PayableFormPage(): ReactElement {
                   </Field>
                   <Select label="Condição de Pagamento" items={terms.data} registration={register('paymentTermId')} />
                   <Field label="Desconto">
-                    <input type="number" step="0.01" min="0" className={inputClass} {...register('discountAmount', { valueAsNumber: true, min: 0 })} />
+                    <Controller
+                      control={control}
+                      name="discountAmount"
+                      rules={{ min: 0 }}
+                      render={({ field }) => (
+                        <CurrencyInput className={inputClass} value={field.value} onValueChange={value => field.onChange(value ?? 0)} onBlur={field.onBlur} />
+                      )}
+                    />
                   </Field>
                   <Field label="Acr?scimo">
-                    <input type="number" step="0.01" min="0" className={inputClass} {...register('additionalAmount', { valueAsNumber: true, min: 0 })} />
+                    <Controller
+                      control={control}
+                      name="additionalAmount"
+                      rules={{ min: 0 }}
+                      render={({ field }) => (
+                        <CurrencyInput className={inputClass} value={field.value} onValueChange={value => field.onChange(value ?? 0)} onBlur={field.onBlur} />
+                      )}
+                    />
                   </Field>
                 </div>
               </details>
@@ -603,7 +625,19 @@ export function PayableFormPage(): ReactElement {
                   <input className={inputClass} {...register(`installments.${index}.installmentCount`, { valueAsNumber: true, min: 1 })} />
                 </Field>
                 <Field label="Valor" small>
-                  <input type="number" step="0.01" min="0.01" className={inputClass} {...register(`installments.${index}.amount`, { valueAsNumber: true, required: true })} />
+                  <Controller
+                    control={control}
+                    name={`installments.${index}.amount`}
+                    rules={{ required: true, min: 0.01 }}
+                    render={({ field: amountField }) => (
+                      <CurrencyInput
+                        className={inputClass}
+                        value={amountField.value}
+                        onValueChange={value => amountField.onChange(value ?? 0)}
+                        onBlur={amountField.onBlur}
+                      />
+                    )}
+                  />
                 </Field>
                 <Field label="Vencimento" small>
                   <input type="date" className={inputClass} {...register(`installments.${index}.dueDate`, { required: true })} />
