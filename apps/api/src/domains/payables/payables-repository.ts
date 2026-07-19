@@ -22,10 +22,17 @@ export class PayablesRepository {
       JOIN cadastros.suppliers s ON s.id=t.supplier_id JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id WHERE ${where}`, values);
     values.push(pageSize, (page - 1) * pageSize);
     const result = await this.database.query(`SELECT t.*,s.legal_name supplier_name,c.name category_name,ts.code status_code,
-      COALESCE(b.open_balance,0) open_balance FROM financeiro.payable_titles t JOIN cadastros.suppliers s ON s.id=t.supplier_id
+      COALESCE(b.open_balance,0) open_balance, first_i.due_date first_due_date, pm.name payment_method_name
+      FROM financeiro.payable_titles t JOIN cadastros.suppliers s ON s.id=t.supplier_id
       JOIN cadastros.financial_categories c ON c.id=t.category_id JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
-      LEFT JOIN financeiro.v_payable_title_balances b ON b.payable_title_id=t.id WHERE ${where}
-      ORDER BY t.issue_date DESC,t.created_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
+      LEFT JOIN financeiro.v_payable_title_balances b ON b.payable_title_id=t.id
+      LEFT JOIN LATERAL (
+        SELECT i.due_date,i.payment_method_id FROM financeiro.payable_installments i
+        WHERE i.payable_title_id=t.id AND i.deleted_at IS NULL ORDER BY i.installment_number LIMIT 1
+      ) first_i ON true
+      LEFT JOIN cadastros.payment_methods pm ON pm.id=first_i.payment_method_id
+      WHERE ${where}
+      ORDER BY COALESCE(first_i.due_date,t.issue_date) ASC,t.created_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
     return { data: result.rows.map(api), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
   }
 
