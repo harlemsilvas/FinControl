@@ -133,4 +133,5 @@ Fornecedor fictício criado via API para validar gravação/leitura:
 
 - Definir futuramente se `responsável interno` deve virar vínculo com usuário.
 - Definir futuramente se `transportadora preferencial` deve virar cadastro próprio.
+- `Código interno` permanece editável/manual por enquanto; quando existir configuração geral de numeração automática, ele deverá virar campo somente leitura/preenchido pelo sistema.
 - Definir futuramente upload/documentos e pedidos/compras antes de criar novas estruturas.
