@@ -14,7 +14,7 @@ export function Breadcrumb({ items }: { items: BreadcrumbItem[] }): ReactElement
 
         return (
           <span key={`${item.label}-${index}`} className="contents">
-            {index > 0 && <span aria-hidden="true">?</span>}
+            {index > 0 && <span aria-hidden="true">&gt;</span>}
             {item.to && !isLast ? (
               <Link to={item.to} className="font-medium text-slate-600 hover:text-teal-700">
                 {item.label}

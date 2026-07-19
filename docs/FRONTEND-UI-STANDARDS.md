@@ -34,15 +34,16 @@ Tesouraria > Contas Bancárias > Nova Conta Bancária
 - Posicionar no cabeçalho da página, antes do título principal.
 - Os níveis intermediários devem ser links navegáveis quando houver rota correspondente.
 - O último nível representa a tela atual e não precisa ser link.
+- O separador visual deve usar `>` para evitar problemas de renderização/encoding.
 - Não substituir menus laterais ou abas; breadcrumb é navegação contextual.
 - Aplicar progressivamente nas próximas alterações de tela, sem criar refatoração global arriscada neste momento.
 
 ### Estado atual
 
-- Aplicado na revis?o v2 de Contas a Pagar.
+- Aplicado na revisão v2 de Contas a Pagar.
 - Componente compartilhado `Breadcrumb` criado para padronizar novas telas.
 - Aplicado progressivamente em Dashboard, Agenda Financeira, Cadastros, Fornecedores e Contas a Pagar.
-- Aprovado pelo usu?rio como padr?o para o projeto todo.
+- Aprovado pelo usuário como padrão para o projeto todo.
 
 ## Campos monetários
 

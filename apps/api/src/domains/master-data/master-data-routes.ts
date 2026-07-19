@@ -138,6 +138,7 @@ const supplier = withSupplierRules(supplierBase);
 const supplierUpdate = withSupplierRules(partial(supplierBase));
 const category = z.object({ parentId: uuid.nullable().optional(), code: z.string().trim().min(1).max(60).toUpperCase(),
   name: z.string().trim().min(2).max(160), natureCode: z.string().trim().min(1).max(30).toUpperCase().optional(), isActive: z.boolean().optional() });
+const documentType = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120), requiresFiscalKey: z.boolean().optional(), isActive: z.boolean().optional() });
 const paymentMethod = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120), isActive: z.boolean().optional() });
 const paymentTerm = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120),
   installmentCount: z.number().int().min(1).nullable().optional(), intervalDays: z.number().int().min(0).nullable().optional(), isActive: z.boolean().optional() });
@@ -185,6 +186,9 @@ const resources: RouteResource[] = [
   { path: '/cost-centers', domain: 'DOM-001', entity: 'COST_CENTER', table: 'cadastros.cost_centers', createSchema: category,
     updateSchema: partial(category), searchColumns: ['code', 'name'], hasSoftDelete: true, orderBy: 'code, id',
     columns: { ...auditColumns, parentId: 'parent_id', code: 'code', name: 'name' } },
+  { path: '/document-types', domain: 'DOM-001', entity: 'DOCUMENT_TYPE', table: 'cadastros.document_types', createSchema: documentType,
+    updateSchema: partial(documentType), searchColumns: ['code', 'name'], hasSoftDelete: false, orderBy: 'code, id',
+    columns: { ...simpleColumns, code: 'code', name: 'name', requiresFiscalKey: 'requires_fiscal_key' } },
   { path: '/payment-methods', domain: 'DOM-001', entity: 'PAYMENT_METHOD', table: 'cadastros.payment_methods', createSchema: paymentMethod,
     updateSchema: partial(paymentMethod), searchColumns: ['code', 'name'], hasSoftDelete: false, orderBy: 'code, id',
     columns: { ...simpleColumns, code: 'code', name: 'name' } },
