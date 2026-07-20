@@ -49,4 +49,30 @@ describe('PayablesRepository business safeguards',()=>{
     expect(xmlInsertValues?.[1]).toBe('supplier-id');
   });
 
+
+  it('generates a payable title from a received XML import',async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'xml-id',access_key:'12345678901234567890123456789012345678901234',supplier_id:'supplier-id',generated_title_id:null,supplier_legal_name:'Fornecedor XML Ltda',document_number:'123',document_series:'1',issue_date:'2026-07-01',due_date:'2026-07-30',invoice_total_amount:'150.00',payment_amount:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[{id:'title-id',document_number:'123',supplier_id:'supplier-id'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{installment_number:1,due_date:'2026-07-30',amount:'150.00'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.generatePayableFromXml('xml-id',{categoryId:'category-id',documentTypeId:'document-type-id',paymentMethodId:'payment-method-id'},'user-id') as {id:string;installments:{amount:number}[];xmlImportId:string};
+    const titleValues = query.mock.calls[2]?.[1] as unknown[] | undefined;
+    const installmentValues = query.mock.calls[4]?.[1] as unknown[] | undefined;
+    expect(result.id).toBe('title-id');
+    expect(result.xmlImportId).toBe('xml-id');
+    expect(result.installments[0]?.amount).toBe(150);
+    expect(query.mock.calls[2]?.[0]).toContain('INSERT INTO financeiro.payable_titles');
+    expect(titleValues?.[0]).toBe('supplier-id');
+    expect(titleValues?.[8]).toBe('2026-07-01');
+    expect(titleValues?.[9]).toBe(150);
+    expect(query.mock.calls[4]?.[0]).toContain('INSERT INTO financeiro.payable_installments');
+    expect(installmentValues?.[5]).toBe('payment-method-id');
+  });
+
 });

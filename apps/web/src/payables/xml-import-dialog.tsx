@@ -1,16 +1,31 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
+import type { ListResponse } from './payables-types';
 import { currency } from './payables-types';
 import { digitsOnly, parseNfeXml, type ParsedNfeXml } from './xml-import-parser';
 
 type RecipientKind = 'MAIN' | 'BRANCH' | 'UNKNOWN';
 
+interface LookupItem {
+  id: string;
+  name?: string;
+  legalName?: string;
+  code?: string;
+}
+
 interface XmlImportResult {
   id: string;
   supplier?: { id: string; legalName?: string; documentNumber?: string } | null;
   supplierWasCreated?: boolean;
+}
+
+interface GeneratedPayableResult {
+  id: string;
+  documentNumber?: string;
+  installments?: { installmentNumber: number; amount: number; dueDate: string }[];
 }
 
 function formatDocument(value?: string): string {
@@ -26,11 +41,29 @@ function datePtBr(value?: string): string {
   return day && month && year ? `${day}/${month}/${year}` : '—';
 }
 
+function optionLabel(item: LookupItem): string {
+  return item.legalName ?? item.name ?? item.code ?? item.id;
+}
+
 function recipientKind(parsed: ParsedNfeXml | undefined, mainCompanyDocument: string): RecipientKind {
   const recipientDocument = digitsOnly(parsed?.recipient.documentNumber);
   const mainDocument = digitsOnly(mainCompanyDocument);
   if (!recipientDocument || !mainDocument) return 'UNKNOWN';
   return recipientDocument === mainDocument ? 'MAIN' : 'BRANCH';
+}
+
+function defaultDescription(parsed: ParsedNfeXml | undefined): string {
+  if (!parsed) return '';
+  return `NFe ${parsed.documentNumber ?? parsed.accessKey} - ${parsed.supplier.legalName ?? 'Fornecedor'}`.slice(0, 255);
+}
+
+function useLookup(path: string, enabled: boolean): UseQueryResult<LookupItem[]> {
+  return useQuery({
+    queryKey: ['xml-import-lookup', path],
+    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>(`/api/v1${path}`, { params: { pageSize: 100, active: true } })).data.data,
+    enabled,
+    staleTime: 60000,
+  });
 }
 
 export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () => void }): ReactElement | null {
@@ -41,18 +74,43 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
   const [parsed, setParsed] = useState<ParsedNfeXml>();
   const [parseError, setParseError] = useState<string>();
   const [importResult, setImportResult] = useState<XmlImportResult>();
+  const [generatedPayable, setGeneratedPayable] = useState<GeneratedPayableResult>();
+  const [categoryId, setCategoryId] = useState('');
+  const [documentTypeId, setDocumentTypeId] = useState('');
+  const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [paymentTermId, setPaymentTermId] = useState('');
+  const [costCenterId, setCostCenterId] = useState('');
+  const [description, setDescription] = useState('');
+  const [duplicatePending, setDuplicatePending] = useState(false);
 
   useEffect(() => {
     if (mainCompanyDocument) localStorage.setItem('fincontrol.mainCompanyDocument', digitsOnly(mainCompanyDocument));
   }, [mainCompanyDocument]);
 
   useEffect(() => {
-    if (!open) setImportResult(undefined);
+    if (!open) {
+      setImportResult(undefined);
+      setGeneratedPayable(undefined);
+      setDuplicatePending(false);
+    }
   }, [open]);
+
+  useEffect(() => {
+    if (parsed && !description) setDescription(defaultDescription(parsed));
+  }, [description, parsed]);
+
+  const lookupsEnabled = Boolean(open && importResult && !generatedPayable);
+  const categories = useLookup('/financial-categories', lookupsEnabled);
+  const documentTypes = useLookup('/document-types', lookupsEnabled);
+  const paymentMethods = useLookup('/payment-methods', lookupsEnabled);
+  const paymentTerms = useLookup('/payment-terms', lookupsEnabled);
+  const costCenters = useLookup('/cost-centers', lookupsEnabled);
 
   const kind = recipientKind(parsed, mainCompanyDocument);
   const canImport = Boolean(parsed && /^\d{44}$/.test(parsed.accessKey) && digitsOnly(mainCompanyDocument) && !importResult);
-  const mutation = useMutation({
+  const canGenerate = Boolean(importResult?.id && categoryId && documentTypeId && paymentMethodId && !generatedPayable);
+
+  const importMutation = useMutation({
     mutationFn: async () => {
       if (!parsed) throw new Error('Nenhum XML lido.');
       const response = await httpClient.post<XmlImportResult>('/api/v1/xml-imports', {
@@ -101,23 +159,64 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
     },
   });
 
-  const error = mutation.error instanceof ApiError
-    ? mutation.error.code === 'XML_IMPORT_DUPLICATE'
+  const generateMutation = useMutation<GeneratedPayableResult, Error, boolean>({
+    mutationFn: async (duplicateConfirmed = false) => {
+      if (!importResult?.id) throw new Error('XML ainda não foi importado.');
+      const response = await httpClient.post<GeneratedPayableResult>(`/api/v1/xml-imports/${importResult.id}/generate-payable`, {
+        categoryId,
+        documentTypeId,
+        paymentMethodId,
+        paymentTermId: paymentTermId || null,
+        costCenterId: costCenterId || null,
+        description: description || null,
+        duplicateConfirmed,
+      });
+      return response.data;
+    },
+    onSuccess: async (data) => {
+      setDuplicatePending(false);
+      setGeneratedPayable(data);
+      await queryClient.invalidateQueries({ queryKey: ['payables'] });
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.code === 'POSSIBLE_DUPLICATE') setDuplicatePending(true);
+    },
+  });
+
+  const importError = importMutation.error instanceof ApiError
+    ? importMutation.error.code === 'XML_IMPORT_DUPLICATE'
       ? 'Este XML já foi importado. A chave NFe é única no sistema.'
-      : mutation.error.message
-    : mutation.error
+      : importMutation.error.message
+    : importMutation.error
       ? 'Não foi possível importar o XML.'
+      : undefined;
+  const generateError = generateMutation.error instanceof ApiError
+    ? generateMutation.error.code === 'POSSIBLE_DUPLICATE'
+      ? 'Já existe uma conta para este fornecedor/documento. Confirme se deseja gerar mesmo assim.'
+      : generateMutation.error.message
+    : generateMutation.error
+      ? 'Não foi possível gerar a conta a pagar.'
       : undefined;
 
   async function handleFile(file: File | undefined): Promise<void> {
     setParseError(undefined);
     setImportResult(undefined);
+    setGeneratedPayable(undefined);
+    setDuplicatePending(false);
     setParsed(undefined);
     setFileName(file?.name ?? '');
     setFileSize(file?.size);
+    setCategoryId('');
+    setDocumentTypeId('');
+    setPaymentMethodId('');
+    setPaymentTermId('');
+    setCostCenterId('');
+    setDescription('');
     if (!file) return;
     try {
-      setParsed(parseNfeXml(await file.text()));
+      const nextParsed = parseNfeXml(await file.text());
+      setParsed(nextParsed);
+      setDescription(defaultDescription(nextParsed));
     } catch (cause) {
       setParseError(cause instanceof Error ? cause.message : 'Não foi possível ler o XML.');
     }
@@ -156,11 +255,16 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
         </div>
 
         {parseError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{parseError}</p>}
-        {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
+        {importError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{importError}</p>}
+        {generateError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{generateError}</p>}
         {importResult && <div role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
           <strong>XML importado com sucesso.</strong>{' '}
           {importResult.supplier ? importResult.supplierWasCreated ? 'Fornecedor cadastrado automaticamente a partir do emitente da NFe.' : 'Fornecedor já cadastrado foi localizado pelo documento do emitente.' : 'Fornecedor não foi vinculado porque o XML não trouxe CNPJ/CPF válido do emitente.'}
           {importResult.supplier ? <span className="mt-1 block">Fornecedor: <strong>{importResult.supplier.legalName ?? '—'}</strong> · {formatDocument(importResult.supplier.documentNumber)}</span> : null}
+        </div>}
+        {generatedPayable && <div role="status" className="mt-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-800">
+          <strong>Conta a pagar gerada.</strong>{' '}
+          <Link className="font-bold underline" to={`/payables/${generatedPayable.id}`} onClick={onClose}>Abrir conta {generatedPayable.documentNumber ?? ''}</Link>
         </div>}
 
         {parsed && (
@@ -202,6 +306,23 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
               </section>
             </div>
 
+            {importResult && !generatedPayable && <section className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+              <h3 className="font-bold text-slate-950">Gerar conta a pagar</h3>
+              <p className="mt-1 text-sm text-slate-600">Confirme os dados financeiros antes de inserir o título na rotina de Contas a Pagar.</p>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <Select label="Categoria financeira" required value={categoryId} onChange={setCategoryId} items={categories.data} />
+                <Select label="Tipo de documento" required value={documentTypeId} onChange={setDocumentTypeId} items={documentTypes.data} />
+                <Select label="Forma de pagamento" required value={paymentMethodId} onChange={setPaymentMethodId} items={paymentMethods.data} />
+                <Select label="Condição de pagamento" value={paymentTermId} onChange={setPaymentTermId} items={paymentTerms.data} />
+                <Select label="Centro de custo" value={costCenterId} onChange={setCostCenterId} items={costCenters.data} />
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-700 lg:col-span-2">
+                  Descrição / histórico
+                  <input value={description} maxLength={255} onChange={(event) => setDescription(event.target.value)} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm" />
+                </label>
+              </div>
+              {duplicatePending && <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Existe possível duplicidade para este fornecedor/documento. Se você revisou e deseja continuar, confirme abaixo.</div>}
+            </section>}
+
             <section className="rounded-2xl border border-slate-200 p-4">
               <h3 className="font-bold text-slate-950">Itens da NF — prévia simples</h3>
               <div className="mt-3 max-h-52 overflow-y-auto rounded-xl border border-slate-100">
@@ -213,10 +334,22 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
         )}
 
         <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
-          <Button variant="secondary" onClick={onClose}>{importResult ? 'Fechar' : 'Cancelar'}</Button>
-          {importResult ? <Button disabled title="Próxima etapa: confirmar categoria, tipo de documento e forma de pagamento antes de gerar os títulos.">Importar contas</Button> : <Button disabled={!canImport || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Importando…' : 'Importar XML'}</Button>}
+          <Button variant="secondary" onClick={onClose}>{generatedPayable || importResult ? 'Fechar' : 'Cancelar'}</Button>
+          {!importResult && <Button disabled={!canImport || importMutation.isPending} onClick={() => importMutation.mutate()}>{importMutation.isPending ? 'Importando…' : 'Importar XML'}</Button>}
+          {importResult && !generatedPayable && !duplicatePending && <Button disabled={!canGenerate || generateMutation.isPending} onClick={() => generateMutation.mutate(false)}>{generateMutation.isPending ? 'Gerando…' : 'Importar contas'}</Button>}
+          {importResult && !generatedPayable && duplicatePending && <Button variant="danger" disabled={generateMutation.isPending} onClick={() => generateMutation.mutate(true)}>{generateMutation.isPending ? 'Gerando…' : 'Confirmar duplicidade e importar'}</Button>}
         </div>
       </div>
     </div>
   );
+}
+
+function Select({ label, value, onChange, items, required = false }: { label: string; value: string; onChange: (value: string) => void; items?: LookupItem[]; required?: boolean }): ReactElement {
+  return <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+    {label}{required ? ' *' : ''}
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm">
+      <option value="">Selecione</option>
+      {items?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
+    </select>
+  </label>;
 }

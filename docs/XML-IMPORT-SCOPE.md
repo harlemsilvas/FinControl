@@ -67,7 +67,7 @@ O XML de filial é armazenado para conferência, mas a geração automática de 
 - Migration antiga não foi alterada.
 - Importação XML ainda não cria título automaticamente.
 - O fornecedor do emitente é localizado por CNPJ/CPF; se não existir, é criado como cadastro básico ativo e vinculado à importação.
-- Criação automática de Conta a Pagar a partir do XML deve ser etapa posterior e auditável.
+- Criação de Conta a Pagar a partir do XML acontece somente por ação explícita em “Importar contas”, com confirmação de categoria financeira, tipo de documento e forma de pagamento.
 - Produtos/itens do XML ficam fora do escopo inicial de persistência estruturada.
 - A tela pode exibir uma prévia simples dos itens para conferência, armazenada em parsed_data, sem criar tabela de itens fiscais.
 

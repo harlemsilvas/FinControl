@@ -7,6 +7,7 @@ export interface TitleInput { supplierId: string; categoryId: string; documentTy
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
+export interface XmlImportGenerateInput { categoryId: string; documentTypeId: string; paymentMethodId: string; paymentTermId?: string | null; costCenterId?: string | null; description?: string | null; duplicateConfirmed?: boolean }
 export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; recipientLegalName?: string | null; recipientDocumentNumber?: string | null; recipientStateRegistration?: string | null; recipientCityName?: string | null; recipientStateCode?: string | null; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; mainCompanyDocumentNumber?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
 
 function camel(key: string): string { return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()); }
@@ -209,6 +210,71 @@ export class PayablesRepository {
     const entity = api(created.rows[0]!);
     await tx.query(`INSERT INTO administracao.audit_events(domain_code,entity_name,entity_id,action_code,previous_data,new_data,user_id,source_code) VALUES('DOM-001','SUPPLIER',$1,'CREATED_FROM_XML_IMPORT',NULL,$2,$3,'API')`, [entity.id,JSON.stringify(entity),userId]);
     return { id: entity.id as string, created: true, entity };
+  }
+
+  async generatePayableFromXml(xmlImportId: string, input: XmlImportGenerateInput, userId: string): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      const xmlResult = await tx.query<{ id: string; access_key: string | null; supplier_id: string | null; generated_title_id: string | null; supplier_legal_name: string | null; document_number: string | null; document_series: string | null; issue_date: string | Date | null; due_date: string | Date | null; invoice_total_amount: string | null; payment_amount: string | null; raw_xml: string | null } & Record<string, unknown>>(
+        `SELECT * FROM financeiro.xml_imports WHERE id=$1 FOR UPDATE`, [xmlImportId]);
+      const xml = xmlResult.rows[0];
+      if (!xml) throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'XML import not found', statusCode: 404 });
+      if (xml.generated_title_id) throw new ApplicationError({ code: 'XML_IMPORT_ALREADY_GENERATED', message: 'XML import already generated a payable title', statusCode: 409 });
+      if (!xml.supplier_id) throw new ApplicationError({ code: 'XML_IMPORT_SUPPLIER_REQUIRED', message: 'XML import must be linked to a supplier before generating payable title', statusCode: 409 });
+
+      const amount = Number(xml.payment_amount ?? xml.invoice_total_amount ?? 0);
+      if (!Number.isFinite(amount) || amount <= 0) throw new ApplicationError({ code: 'XML_IMPORT_AMOUNT_REQUIRED', message: 'XML import does not have a valid amount', statusCode: 400 });
+      const documentNumber = String(xml.document_number || xml.access_key || xml.id).slice(0, 80);
+      const documentSeries = xml.document_series ? String(xml.document_series).slice(0, 30) : null;
+      const issueDate = this.toDateString(xml.issue_date) ?? new Date().toISOString().slice(0, 10);
+      const description = input.description?.trim() || `NFe ${documentNumber}${xml.supplier_legal_name ? ` - ${xml.supplier_legal_name}` : ''}`;
+
+      const duplicate = await tx.query(`SELECT 1 FROM financeiro.payable_titles WHERE supplier_id=$1 AND lower(trim(document_number))=lower(trim($2))
+        AND coalesce(lower(trim(document_series)),'')=coalesce(lower(trim($3)),'') AND deleted_at IS NULL LIMIT 1`, [xml.supplier_id,documentNumber,documentSeries]);
+      if (duplicate.rowCount && !input.duplicateConfirmed) throw new ApplicationError({ code: 'POSSIBLE_DUPLICATE', message: 'A possible duplicate title exists', statusCode: 409 });
+
+      const title = await tx.query(`INSERT INTO financeiro.payable_titles (supplier_id,category_id,document_type_id,payment_term_id,cost_center_id,
+        document_number,document_series,description,origin_code,issue_date,original_amount,discount_amount,additional_amount,status_id,notes,
+        duplicate_warning_confirmed,duplicate_warning_confirmed_by,duplicate_warning_confirmed_at,created_by,updated_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'XML',$9,$10,0,0,(SELECT id FROM financeiro.payable_title_statuses WHERE code='OPEN'),$11,$12,
+        CASE WHEN $12 THEN $13::uuid END,CASE WHEN $12 THEN CURRENT_TIMESTAMP END,$13,$13) RETURNING *`,
+      [xml.supplier_id,input.categoryId,input.documentTypeId,input.paymentTermId ?? null,input.costCenterId ?? null,documentNumber,documentSeries,description,issueDate,amount,
+        `Gerado a partir da importação XML ${xml.access_key ?? xml.id}.`,input.duplicateConfirmed ?? false,userId]);
+      const titleRow = title.rows[0]!;
+
+      const xmlInstallments = await tx.query<{ installment_number: number; due_date: string | Date | null; amount: string } & Record<string, unknown>>(
+        `SELECT installment_number,due_date,amount::text FROM financeiro.xml_import_installments WHERE xml_import_id=$1 ORDER BY installment_number`, [xmlImportId]);
+      const installments = this.normalizeXmlInstallments(xmlInstallments.rows, amount, this.toDateString(xml.due_date) ?? issueDate);
+      for (const item of installments) {
+        await tx.query(`INSERT INTO financeiro.payable_installments
+          (payable_title_id,installment_number,installment_count,amount,due_date,payment_method_id,open_balance,status_id,notes,created_by,updated_by)
+          VALUES ($1,$2,$3,$4,$5,$6,$4,(SELECT id FROM financeiro.payable_installment_statuses WHERE code=CASE WHEN $5::date<CURRENT_DATE THEN 'OVERDUE' ELSE 'OPEN' END),$7,$8,$8)`,
+        [titleRow.id,item.installmentNumber,item.installmentCount,item.amount,item.dueDate,input.paymentMethodId,item.notes,userId]);
+      }
+
+      await tx.query(`UPDATE financeiro.xml_imports SET generated_title_id=$2,status_id=(SELECT id FROM financeiro.xml_import_statuses WHERE code='PROCESSED'),processed_at=CURRENT_TIMESTAMP WHERE id=$1`, [xmlImportId,titleRow.id]);
+      await this.audit(tx,'PAYABLE_TITLE',titleRow.id as string,'CREATED_FROM_XML_IMPORT',userId,null,{...api(titleRow),xmlImportId,installments});
+      await this.audit(tx,'XML_IMPORT',xmlImportId,'GENERATED_PAYABLE_TITLE',userId,null,{generatedTitleId:titleRow.id});
+      return { ...api(titleRow), installments, xmlImportId };
+    });
+  }
+
+  private normalizeXmlInstallments(rows: { installment_number: number; due_date: string | Date | null; amount: string }[], total: number, fallbackDueDate: string): { installmentNumber: number; installmentCount: number; amount: number; dueDate: string; notes: string | null }[] {
+    const parsed = rows.map((row, index) => ({
+      installmentNumber: Number(row.installment_number || index + 1),
+      amount: Number(row.amount || 0),
+      dueDate: this.toDateString(row.due_date) ?? fallbackDueDate,
+      notes: null,
+    })).filter((item) => item.amount > 0 && item.dueDate);
+    const totalCents = Math.round(total * 100);
+    const parsedCents = parsed.reduce((sum, item) => sum + Math.round(item.amount * 100), 0);
+    const items = parsed.length && parsedCents === totalCents ? parsed : [{ installmentNumber: 1, amount: total, dueDate: fallbackDueDate, notes: null }];
+    return items.map((item, index) => ({ ...item, installmentNumber: index + 1, installmentCount: items.length }));
+  }
+
+  private toDateString(value: string | Date | null | undefined): string | null {
+    if (!value) return null;
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value).slice(0, 10);
   }
   async execute(sql:string,values:readonly unknown[]=[]):Promise<object[]>{const result=await this.database.query(sql,values);return result.rows.map(api);}
   async executeOne(sql:string,values:readonly unknown[]=[]):Promise<object>{const rows=await this.execute(sql,values);if(!rows[0])throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Resource not found',statusCode:404});return rows[0];}
