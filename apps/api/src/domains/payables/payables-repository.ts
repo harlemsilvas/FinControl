@@ -152,18 +152,19 @@ export class PayablesRepository {
         if (duplicate.rowCount) throw new ApplicationError({ code: 'XML_IMPORT_DUPLICATE', message: 'XML access key already imported', statusCode: 409 });
       }
 
+      const supplier = await this.findOrCreateXmlSupplier(tx, input, userId);
       const result = await tx.query(`INSERT INTO financeiro.xml_imports (
-        access_key,attachment_id,raw_xml,source_file_name,source_mime_type,source_size_bytes,source_file_hash,
+        access_key,supplier_id,attachment_id,raw_xml,source_file_name,source_mime_type,source_size_bytes,source_file_hash,
         supplier_legal_name,supplier_trade_name,supplier_document_number,supplier_state_registration,supplier_city_name,supplier_state_code,
         recipient_legal_name,recipient_document_number,recipient_state_registration,recipient_city_name,recipient_state_code,recipient_kind,main_company_document_number,
         document_model,document_number,document_series,issue_date,operation_date,due_date,
         products_amount,freight_amount,insurance_amount,discount_amount,other_amount,invoice_total_amount,payment_amount,currency_code,parsed_data,
         status_id,imported_by
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,
-        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$36
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
+        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$37
       ) RETURNING *`, [
-        input.accessKey ?? null,input.attachmentId ?? null,input.rawXml ?? null,input.sourceFileName ?? null,input.sourceMimeType ?? null,input.sourceSizeBytes ?? null,input.sourceFileHash ?? null,
+        input.accessKey ?? null,supplier?.id ?? null,input.attachmentId ?? null,input.rawXml ?? null,input.sourceFileName ?? null,input.sourceMimeType ?? null,input.sourceSizeBytes ?? null,input.sourceFileHash ?? null,
         input.supplierLegalName ?? null,input.supplierTradeName ?? null,input.supplierDocumentNumber ?? null,input.supplierStateRegistration ?? null,input.supplierCityName ?? null,input.supplierStateCode ?? null,
         input.recipientLegalName ?? null,input.recipientDocumentNumber ?? null,input.recipientStateRegistration ?? null,input.recipientCityName ?? null,input.recipientStateCode ?? null,input.recipientKind ?? 'UNKNOWN',input.mainCompanyDocumentNumber ?? null,
         input.documentModel ?? null,input.documentNumber ?? null,input.documentSeries ?? null,input.issueDate ?? null,input.operationDate ?? null,input.dueDate ?? null,
@@ -177,9 +178,37 @@ export class PayablesRepository {
           VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [row.id,item.installmentNumber,item.dueDate,item.amount,item.paymentMethodRaw ?? null,item.notes ?? null]);
         installments.push(api(installment.rows[0]!));
       }
-      await this.audit(tx,'XML_IMPORT',row.id as string,'CREATED',userId,null,{...api(row),installments});
-      return { ...api(row), installments };
+      await this.audit(tx,'XML_IMPORT',row.id as string,'CREATED',userId,null,{...api(row),installments,supplier:supplier?.entity ?? null,supplierWasCreated:supplier?.created ?? false});
+      return { ...api(row), installments, supplier: supplier?.entity ?? null, supplierWasCreated: supplier?.created ?? false };
     });
+  }
+
+  private async findOrCreateXmlSupplier(tx: QueryExecutor, input: XmlImportInput, userId: string): Promise<{ id: string; created: boolean; entity: Record<string, unknown> } | null> {
+    const documentNumber = input.supplierDocumentNumber?.replace(/\D+/g, '') ?? '';
+    if (!/^\d{11}$/.test(documentNumber) && !/^\d{14}$/.test(documentNumber)) return null;
+
+    const existing = await tx.query(`SELECT * FROM cadastros.suppliers WHERE country_code='BR' AND document_number=$1 AND deleted_at IS NULL LIMIT 1`, [documentNumber]);
+    if (existing.rows[0]) return { id: existing.rows[0].id as string, created: false, entity: api(existing.rows[0]) };
+
+    const supplierType = documentNumber.length === 11 ? 'INDIVIDUAL' : 'COMPANY';
+    const legalName = input.supplierLegalName?.trim() || input.supplierTradeName?.trim() || `Fornecedor XML ${documentNumber}`;
+    const tradeName = input.supplierTradeName?.trim() || null;
+    const stateCode = input.supplierStateCode?.trim().toUpperCase() || null;
+    const cityName = input.supplierCityName?.trim() || null;
+    const notes = `Fornecedor criado automaticamente pela importação XML NFe${input.accessKey ? ` ${input.accessKey}` : ''}.`;
+    const created = await tx.query(`INSERT INTO cadastros.suppliers (
+        supplier_type,legal_name,trade_name,document_number,country_code,state_registration,supplier_category_id,status_id,state_id,city_id,notes,created_by,updated_by
+      ) VALUES (
+        $1,$2,$3,$4,'BR',$5,
+        (SELECT id FROM cadastros.supplier_categories WHERE code='SUPPLIER'),
+        (SELECT id FROM cadastros.supplier_statuses WHERE code='ACTIVE'),
+        (SELECT id FROM cadastros.states WHERE code=$6 LIMIT 1),
+        (SELECT c.id FROM cadastros.cities c JOIN cadastros.states s ON s.id=c.state_id WHERE s.code=$6 AND lower(c.name)=lower($7) LIMIT 1),
+        $8,$9,$9
+      ) RETURNING *`, [supplierType,legalName,tradeName,documentNumber,input.supplierStateRegistration ?? null,stateCode,cityName,notes,userId]);
+    const entity = api(created.rows[0]!);
+    await tx.query(`INSERT INTO administracao.audit_events(domain_code,entity_name,entity_id,action_code,previous_data,new_data,user_id,source_code) VALUES('DOM-001','SUPPLIER',$1,'CREATED_FROM_XML_IMPORT',NULL,$2,$3,'API')`, [entity.id,JSON.stringify(entity),userId]);
+    return { id: entity.id as string, created: true, entity };
   }
   async execute(sql:string,values:readonly unknown[]=[]):Promise<object[]>{const result=await this.database.query(sql,values);return result.rows.map(api);}
   async executeOne(sql:string,values:readonly unknown[]=[]):Promise<object>{const rows=await this.execute(sql,values);if(!rows[0])throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Resource not found',statusCode:404});return rows[0];}

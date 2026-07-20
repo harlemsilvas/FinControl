@@ -12,6 +12,7 @@ A primeira etapa deve armazenar:
 - XML bruto para auditoria e investigação futura;
 - chave de acesso;
 - dados principais do fornecedor;
+- vínculo com fornecedor existente ou cadastrado automaticamente pelo documento do emitente;
 - dados principais do documento;
 - totais financeiros relevantes;
 - frete;
@@ -65,6 +66,7 @@ O XML de filial é armazenado para conferência, mas a geração automática de 
 - Nenhum objeto foi criado no schema `public`.
 - Migration antiga não foi alterada.
 - Importação XML ainda não cria título automaticamente.
+- O fornecedor do emitente é localizado por CNPJ/CPF; se não existir, é criado como cadastro básico ativo e vinculado à importação.
 - Criação automática de Conta a Pagar a partir do XML deve ser etapa posterior e auditável.
 - Produtos/itens do XML ficam fora do escopo inicial de persistência estruturada.
 - A tela pode exibir uma prévia simples dos itens para conferência, armazenada em parsed_data, sem criar tabela de itens fiscais.

@@ -7,6 +7,12 @@ import { digitsOnly, parseNfeXml, type ParsedNfeXml } from './xml-import-parser'
 
 type RecipientKind = 'MAIN' | 'BRANCH' | 'UNKNOWN';
 
+interface XmlImportResult {
+  id: string;
+  supplier?: { id: string; legalName?: string; documentNumber?: string } | null;
+  supplierWasCreated?: boolean;
+}
+
 function formatDocument(value?: string): string {
   const digits = digitsOnly(value);
   if (digits.length === 14) return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
@@ -34,17 +40,22 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
   const [fileSize, setFileSize] = useState<number>();
   const [parsed, setParsed] = useState<ParsedNfeXml>();
   const [parseError, setParseError] = useState<string>();
+  const [importResult, setImportResult] = useState<XmlImportResult>();
 
   useEffect(() => {
     if (mainCompanyDocument) localStorage.setItem('fincontrol.mainCompanyDocument', digitsOnly(mainCompanyDocument));
   }, [mainCompanyDocument]);
 
+  useEffect(() => {
+    if (!open) setImportResult(undefined);
+  }, [open]);
+
   const kind = recipientKind(parsed, mainCompanyDocument);
-  const canImport = Boolean(parsed && /^\d{44}$/.test(parsed.accessKey) && digitsOnly(mainCompanyDocument));
+  const canImport = Boolean(parsed && /^\d{44}$/.test(parsed.accessKey) && digitsOnly(mainCompanyDocument) && !importResult);
   const mutation = useMutation({
     mutationFn: async () => {
       if (!parsed) throw new Error('Nenhum XML lido.');
-      await httpClient.post('/api/v1/xml-imports', {
+      const response = await httpClient.post<XmlImportResult>('/api/v1/xml-imports', {
         accessKey: parsed.accessKey,
         rawXml: parsed.rawXml,
         sourceFileName: fileName || null,
@@ -79,10 +90,14 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
         parsedData: { itemsPreview: parsed.items },
         installments: parsed.installments,
       });
+      return response.data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['payables'] });
-      onClose();
+    onSuccess: async (data) => {
+      setImportResult(data);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['payables'] }),
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+      ]);
     },
   });
 
@@ -96,6 +111,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
 
   async function handleFile(file: File | undefined): Promise<void> {
     setParseError(undefined);
+    setImportResult(undefined);
     setParsed(undefined);
     setFileName(file?.name ?? '');
     setFileSize(file?.size);
@@ -141,6 +157,11 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
 
         {parseError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{parseError}</p>}
         {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
+        {importResult && <div role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
+          <strong>XML importado com sucesso.</strong>{' '}
+          {importResult.supplier ? importResult.supplierWasCreated ? 'Fornecedor cadastrado automaticamente a partir do emitente da NFe.' : 'Fornecedor já cadastrado foi localizado pelo documento do emitente.' : 'Fornecedor não foi vinculado porque o XML não trouxe CNPJ/CPF válido do emitente.'}
+          {importResult.supplier ? <span className="mt-1 block">Fornecedor: <strong>{importResult.supplier.legalName ?? '—'}</strong> · {formatDocument(importResult.supplier.documentNumber)}</span> : null}
+        </div>}
 
         {parsed && (
           <div className="mt-6 grid gap-5">
@@ -191,9 +212,9 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
           </div>
         )}
 
-        <div className="mt-6 flex justify-end gap-3 border-t border-slate-200 pt-4">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!canImport || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Importando…' : 'Confirmar importação'}</Button>
+        <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
+          <Button variant="secondary" onClick={onClose}>{importResult ? 'Fechar' : 'Cancelar'}</Button>
+          {importResult ? <Button disabled title="Próxima etapa: confirmar categoria, tipo de documento e forma de pagamento antes de gerar os títulos.">Importar contas</Button> : <Button disabled={!canImport || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Importando…' : 'Importar XML'}</Button>}
         </div>
       </div>
     </div>
