@@ -16,6 +16,7 @@ A primeira etapa deve armazenar:
 - totais financeiros relevantes;
 - frete;
 - vencimento principal;
+- destinatário da NFe, usado para classificar matriz ou filial;
 - vencimentos/parcelas quando existirem no XML.
 
 Itens/produtos do XML não serão persistidos nesta etapa, pois não são relevantes para a rotina inicial de Contas a Pagar.
@@ -47,13 +48,26 @@ Guarda vencimentos extraídos do XML:
 - valor;
 - forma de pagamento bruta quando identificada.
 
+## Regra matriz/filial
+
+A primeira versão não implementa ainda todo o cadastro multiempresa previsto na documentação funcional.
+
+No fluxo de importação, o usuário informa o CNPJ matriz do sistema. O XML é classificado assim:
+
+- MAIN: CNPJ do destinatário da NFe igual ao CNPJ matriz informado;
+- BRANCH: CNPJ do destinatário diferente do CNPJ matriz informado;
+- UNKNOWN: quando não houver CNPJ suficiente para classificar.
+
+O XML de filial é armazenado para conferência, mas a geração automática de Conta a Pagar por empresa/filial fica para uma etapa posterior, após a modelagem multiempresa definitiva.
+
 ## Decisões preservadas
 
 - Nenhum objeto foi criado no schema `public`.
 - Migration antiga não foi alterada.
 - Importação XML ainda não cria título automaticamente.
 - Criação automática de Conta a Pagar a partir do XML deve ser etapa posterior e auditável.
-- Produtos/itens do XML ficam fora do escopo inicial.
+- Produtos/itens do XML ficam fora do escopo inicial de persistência estruturada.
+- A tela pode exibir uma prévia simples dos itens para conferência, armazenada em parsed_data, sem criar tabela de itens fiscais.
 
 ## Próximos passos sugeridos
 

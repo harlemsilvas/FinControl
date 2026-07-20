@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import type { OptionResponse } from '../intelligence/contracts';
 import { currency, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
+import { XmlImportDialog } from './xml-import-dialog';
 
 const statuses = ['OPEN', 'OVERDUE', 'IN_APPROVAL', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'] as const;
 type PeriodPreset = 'day' | 'week' | 'month' | 'year' | 'custom';
@@ -81,6 +82,7 @@ export function PayablesListPage(): ReactElement {
   const [dueTo, setDueTo] = useState(initialRange.to);
   const [supplierId, setSupplierId] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [xmlImportOpen, setXmlImportOpen] = useState(false);
 
   const query = useQuery({
     queryKey: ['payables', page, pageSize, search, status, dueFrom, dueTo, supplierId, categoryId],
@@ -175,9 +177,7 @@ export function PayablesListPage(): ReactElement {
           <p className="mt-2 text-slate-600">Consulte, filtre e acompanhe títulos, saldos e documentos do contas a pagar.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" disabled title="Importação XML será conectada após a etapa de armazenamento e leitura do XML">
-            Importar XML
-          </Button>
+          <Button variant="secondary" onClick={() => setXmlImportOpen(true)}>Importar XML</Button>
           <Button variant="secondary" disabled title="Ações em lote serão conectadas em etapa futura">
             Mais ações
           </Button>
@@ -300,6 +300,7 @@ export function PayablesListPage(): ReactElement {
           </div>
         </div>
       </Card>
+      <XmlImportDialog open={xmlImportOpen} onClose={() => setXmlImportOpen(false)} />
     </div>
   );
 }

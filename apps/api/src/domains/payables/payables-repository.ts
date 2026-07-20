@@ -7,7 +7,7 @@ export interface TitleInput { supplierId: string; categoryId: string; documentTy
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
-export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
+export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; recipientLegalName?: string | null; recipientDocumentNumber?: string | null; recipientStateRegistration?: string | null; recipientCityName?: string | null; recipientStateCode?: string | null; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; mainCompanyDocumentNumber?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
 
 function camel(key: string): string { return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()); }
 function api(row: Record<string, unknown>): Record<string, unknown> { return Object.fromEntries(Object.entries(row).map(([key, value]) => [camel(key), value])); }
@@ -147,18 +147,25 @@ export class PayablesRepository {
 
   async createXmlImport(input: XmlImportInput, userId: string): Promise<object> {
     return this.database.transaction(async (tx) => {
+      if (input.accessKey) {
+        const duplicate = await tx.query(`SELECT id FROM financeiro.xml_imports WHERE access_key=$1 LIMIT 1`, [input.accessKey]);
+        if (duplicate.rowCount) throw new ApplicationError({ code: 'XML_IMPORT_DUPLICATE', message: 'XML access key already imported', statusCode: 409 });
+      }
+
       const result = await tx.query(`INSERT INTO financeiro.xml_imports (
         access_key,attachment_id,raw_xml,source_file_name,source_mime_type,source_size_bytes,source_file_hash,
         supplier_legal_name,supplier_trade_name,supplier_document_number,supplier_state_registration,supplier_city_name,supplier_state_code,
+        recipient_legal_name,recipient_document_number,recipient_state_registration,recipient_city_name,recipient_state_code,recipient_kind,main_company_document_number,
         document_model,document_number,document_series,issue_date,operation_date,due_date,
         products_amount,freight_amount,insurance_amount,discount_amount,other_amount,invoice_total_amount,payment_amount,currency_code,parsed_data,
         status_id,imported_by
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,
-        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$29
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,
+        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$36
       ) RETURNING *`, [
         input.accessKey ?? null,input.attachmentId ?? null,input.rawXml ?? null,input.sourceFileName ?? null,input.sourceMimeType ?? null,input.sourceSizeBytes ?? null,input.sourceFileHash ?? null,
         input.supplierLegalName ?? null,input.supplierTradeName ?? null,input.supplierDocumentNumber ?? null,input.supplierStateRegistration ?? null,input.supplierCityName ?? null,input.supplierStateCode ?? null,
+        input.recipientLegalName ?? null,input.recipientDocumentNumber ?? null,input.recipientStateRegistration ?? null,input.recipientCityName ?? null,input.recipientStateCode ?? null,input.recipientKind ?? 'UNKNOWN',input.mainCompanyDocumentNumber ?? null,
         input.documentModel ?? null,input.documentNumber ?? null,input.documentSeries ?? null,input.issueDate ?? null,input.operationDate ?? null,input.dueDate ?? null,
         input.productsAmount ?? null,input.freightAmount ?? null,input.insuranceAmount ?? null,input.discountAmount ?? null,input.otherAmount ?? null,input.invoiceTotalAmount ?? null,input.paymentAmount ?? null,input.currencyCode ?? 'BRL',JSON.stringify(input.parsedData ?? {}),
         userId

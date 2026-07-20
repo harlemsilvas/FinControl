@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { PayablesListPage } from './payables-list-page';
 
 vi.mock('../api/http-client', () => ({
+  ApiError: class ApiError extends Error {
+    constructor(readonly status: number, readonly code: string, message: string) { super(message); }
+  },
   httpClient: {
     get: vi.fn((url: string) => {
       if (url !== '/api/v1/payables') return Promise.resolve({ data: { data: [] } });
