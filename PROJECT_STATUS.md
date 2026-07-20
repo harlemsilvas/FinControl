@@ -543,6 +543,7 @@ Regras:
 - implantação VPS.
 
 ## Pendente de decisão futura
+- Buscador moderno de notas fiscais (por chave, fornecedor, período, status e CNPJ matriz/filial).
 
 - impostos;
 - retenções;

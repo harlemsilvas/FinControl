@@ -265,9 +265,9 @@ export class PayablesRepository {
       dueDate: this.toDateString(row.due_date) ?? fallbackDueDate,
       notes: null,
     })).filter((item) => item.amount > 0 && item.dueDate);
-    const totalCents = Math.round(total * 100);
-    const parsedCents = parsed.reduce((sum, item) => sum + Math.round(item.amount * 100), 0);
-    const items = parsed.length && parsedCents === totalCents ? parsed : [{ installmentNumber: 1, amount: total, dueDate: fallbackDueDate, notes: null }];
+    // Cada duplicata da NFe representa um vencimento independente.
+    // Diferencas de arredondamento entre vNF e vDup nao podem descartar parcelas.
+    const items = parsed.length ? parsed : [{ installmentNumber: 1, amount: total, dueDate: fallbackDueDate, notes: null }];
     return items.map((item, index) => ({ ...item, installmentNumber: index + 1, installmentCount: items.length }));
   }
 
