@@ -5,6 +5,9 @@ export interface InstallmentInput { installmentNumber: number; installmentCount:
 export interface TitleInput { supplierId: string; categoryId: string; documentTypeId: string; paymentTermId?: string | null; costCenterId?: string | null;
   documentNumber: string; documentSeries?: string | null; description: string; originCode?: string; issueDate: string; originalAmount: number;
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
+export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
+export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
+export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
 
 function camel(key: string): string { return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()); }
 function api(row: Record<string, unknown>): Record<string, unknown> { return Object.fromEntries(Object.entries(row).map(([key, value]) => [camel(key), value])); }
@@ -13,25 +16,34 @@ function cents(value: number): number { return Math.round(value * 100); }
 export class PayablesRepository {
   constructor(private readonly database: Database) {}
 
-  async list(page: number, pageSize: number, search?: string, status?: string): Promise<object> {
-    const values: unknown[] = []; const conditions = ['t.deleted_at IS NULL'];
-    if (search) { values.push(`%${search}%`); conditions.push(`(t.document_number ILIKE $${values.length} OR t.description ILIKE $${values.length} OR s.legal_name ILIKE $${values.length})`); }
-    if (status) { values.push(status); conditions.push(`ts.code=$${values.length}`); }
+  async list(page: number, pageSize: number, filters: PayableListFilters = {}): Promise<object> {
+    const values: unknown[] = [];
+    const conditions = ['t.deleted_at IS NULL'];
+
+    if (filters.search) {
+      values.push(`%${filters.search}%`);
+      conditions.push(`(t.document_number ILIKE $${values.length} OR t.description ILIKE $${values.length} OR s.legal_name ILIKE $${values.length})`);
+    }
+    if (filters.status) { values.push(filters.status); conditions.push(`ts.code=$${values.length}`); }
+    if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
+    if (filters.categoryId) { values.push(filters.categoryId); conditions.push(`t.category_id=$${values.length}`); }
+    if (filters.dueFrom) { values.push(filters.dueFrom); conditions.push(`first_i.due_date >= $${values.length}::date`); }
+    if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`first_i.due_date <= $${values.length}::date`); }
+
     const where = conditions.join(' AND ');
-    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total FROM financeiro.payable_titles t
-      JOIN cadastros.suppliers s ON s.id=t.supplier_id JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id WHERE ${where}`, values);
-    values.push(pageSize, (page - 1) * pageSize);
-    const result = await this.database.query(`SELECT t.*,s.legal_name supplier_name,c.name category_name,ts.code status_code,
-      COALESCE(b.open_balance,0) open_balance, first_i.due_date first_due_date, pm.name payment_method_name
-      FROM financeiro.payable_titles t JOIN cadastros.suppliers s ON s.id=t.supplier_id
+    const from = `FROM financeiro.payable_titles t JOIN cadastros.suppliers s ON s.id=t.supplier_id
       JOIN cadastros.financial_categories c ON c.id=t.category_id JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
       LEFT JOIN financeiro.v_payable_title_balances b ON b.payable_title_id=t.id
       LEFT JOIN LATERAL (
         SELECT i.due_date,i.payment_method_id FROM financeiro.payable_installments i
         WHERE i.payable_title_id=t.id AND i.deleted_at IS NULL ORDER BY i.installment_number LIMIT 1
       ) first_i ON true
-      LEFT JOIN cadastros.payment_methods pm ON pm.id=first_i.payment_method_id
-      WHERE ${where}
+      LEFT JOIN cadastros.payment_methods pm ON pm.id=first_i.payment_method_id`;
+    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
+    values.push(pageSize, (page - 1) * pageSize);
+    const result = await this.database.query(`SELECT t.*,s.legal_name supplier_name,c.name category_name,ts.code status_code,
+      COALESCE(b.open_balance,0) open_balance, first_i.due_date first_due_date, pm.name payment_method_name
+      ${from} WHERE ${where}
       ORDER BY COALESCE(first_i.due_date,t.issue_date) ASC,t.created_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
     return { data: result.rows.map(api), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
   }
@@ -133,6 +145,35 @@ export class PayablesRepository {
     await tx.query(`UPDATE financeiro.payments SET status_id=(SELECT id FROM financeiro.payment_statuses WHERE code='REVERSED'),updated_by=$2 WHERE id=$1`,[id,userId]);
     const row=result.rows[0]!; await this.audit(tx,'PAYMENT',id,'REVERSED',userId,null,{reason}); return api(row);});}
 
+  async createXmlImport(input: XmlImportInput, userId: string): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      const result = await tx.query(`INSERT INTO financeiro.xml_imports (
+        access_key,attachment_id,raw_xml,source_file_name,source_mime_type,source_size_bytes,source_file_hash,
+        supplier_legal_name,supplier_trade_name,supplier_document_number,supplier_state_registration,supplier_city_name,supplier_state_code,
+        document_model,document_number,document_series,issue_date,operation_date,due_date,
+        products_amount,freight_amount,insurance_amount,discount_amount,other_amount,invoice_total_amount,payment_amount,currency_code,parsed_data,
+        status_id,imported_by
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,
+        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$29
+      ) RETURNING *`, [
+        input.accessKey ?? null,input.attachmentId ?? null,input.rawXml ?? null,input.sourceFileName ?? null,input.sourceMimeType ?? null,input.sourceSizeBytes ?? null,input.sourceFileHash ?? null,
+        input.supplierLegalName ?? null,input.supplierTradeName ?? null,input.supplierDocumentNumber ?? null,input.supplierStateRegistration ?? null,input.supplierCityName ?? null,input.supplierStateCode ?? null,
+        input.documentModel ?? null,input.documentNumber ?? null,input.documentSeries ?? null,input.issueDate ?? null,input.operationDate ?? null,input.dueDate ?? null,
+        input.productsAmount ?? null,input.freightAmount ?? null,input.insuranceAmount ?? null,input.discountAmount ?? null,input.otherAmount ?? null,input.invoiceTotalAmount ?? null,input.paymentAmount ?? null,input.currencyCode ?? 'BRL',JSON.stringify(input.parsedData ?? {}),
+        userId
+      ]);
+      const row = result.rows[0]!;
+      const installments: object[] = [];
+      for (const item of input.installments ?? []) {
+        const installment = await tx.query(`INSERT INTO financeiro.xml_import_installments (xml_import_id,installment_number,due_date,amount,payment_method_raw,notes)
+          VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [row.id,item.installmentNumber,item.dueDate,item.amount,item.paymentMethodRaw ?? null,item.notes ?? null]);
+        installments.push(api(installment.rows[0]!));
+      }
+      await this.audit(tx,'XML_IMPORT',row.id as string,'CREATED',userId,null,{...api(row),installments});
+      return { ...api(row), installments };
+    });
+  }
   async execute(sql:string,values:readonly unknown[]=[]):Promise<object[]>{const result=await this.database.query(sql,values);return result.rows.map(api);}
   async executeOne(sql:string,values:readonly unknown[]=[]):Promise<object>{const rows=await this.execute(sql,values);if(!rows[0])throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Resource not found',statusCode:404});return rows[0];}
   async record(entity:string,id:string,action:string,userId:string,data:object):Promise<void>{await this.audit(this.database,entity,id,action,userId,null,data);}

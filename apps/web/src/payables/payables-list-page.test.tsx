@@ -6,8 +6,10 @@ import { PayablesListPage } from './payables-list-page';
 
 vi.mock('../api/http-client', () => ({
   httpClient: {
-    get: vi.fn(() =>
-      Promise.resolve({
+    get: vi.fn((url: string) => {
+      if (url !== '/api/v1/payables') return Promise.resolve({ data: { data: [] } });
+
+      return Promise.resolve({
         data: {
           data: [
             {
@@ -29,8 +31,8 @@ vi.mock('../api/http-client', () => ({
           pageSize: 20,
           total: 1,
         },
-      }),
-    ),
+      });
+    }),
   },
 }));
 
