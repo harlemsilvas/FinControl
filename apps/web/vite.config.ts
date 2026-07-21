@@ -3,7 +3,8 @@ import { loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig(({mode})=>{const environment=loadEnv(mode,process.cwd(),'');return {
+export default defineConfig(({mode})=>{const environment=loadEnv(mode,process.cwd(),'');
+return {
   base: environment.VITE_BASE_PATH||'/',
   plugins: [react(), tailwindcss()],
   server: {
