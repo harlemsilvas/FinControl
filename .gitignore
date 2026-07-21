@@ -35,3 +35,5 @@ archives/*.rar
 archives/*.zip
 hrmmotos.com.br
 .local/
+backup/
+backup.sql
