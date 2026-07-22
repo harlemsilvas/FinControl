@@ -8,6 +8,18 @@ export interface AuthUser {
   isMaster: boolean;
   roles: string[];
   permissions: string[];
+  companies: AuthCompany[];
+  defaultCompanyId: string | null;
+}
+
+export interface AuthCompany {
+  id: string;
+  legalName: string;
+  tradeName: string | null;
+  documentNumber: string;
+  companyType: 'MAIN' | 'BRANCH';
+  isDefault: boolean;
+  accessScope: 'OPERATIONAL' | 'VIEW_ONLY';
 }
 
 export interface RequestContext {
@@ -26,6 +38,16 @@ interface UserRow extends Record<string, unknown> {
   permissions: string[] | null;
 }
 
+interface CompanyRow extends Record<string, unknown> {
+  id: string;
+  legal_name: string;
+  trade_name: string | null;
+  document_number: string;
+  company_type: 'MAIN' | 'BRANCH';
+  is_default: boolean;
+  access_scope: 'OPERATIONAL' | 'VIEW_ONLY';
+}
+
 export class AuthRepository {
   constructor(private readonly database: Database) {}
 
@@ -42,7 +64,7 @@ export class AuthRepository {
       WHERE lower(u.email) = lower($1) AND u.is_active AND u.deleted_at IS NULL
       GROUP BY u.id
     `, [email]);
-    return result.rows[0] ? this.mapUser(result.rows[0]) : null;
+    return result.rows[0] ? this.mapUserWithCompanies(result.rows[0]) : null;
   }
 
   async findActiveUserById(id: string): Promise<AuthUser | null> {
@@ -58,7 +80,7 @@ export class AuthRepository {
       WHERE u.id = $1 AND u.is_active AND u.deleted_at IS NULL
       GROUP BY u.id
     `, [id]);
-    return result.rows[0] ? this.mapUser(result.rows[0]) : null;
+    return result.rows[0] ? this.mapUserWithCompanies(result.rows[0]) : null;
   }
 
   async createSession(userId: string, tokenHash: string, expiresAt: Date, context: RequestContext): Promise<string> {
@@ -115,11 +137,49 @@ export class AuthRepository {
     `, [entityId, action, data ? JSON.stringify(data) : null, userId, context.ip, context.userAgent, context.correlationId]);
   }
 
-  private mapUser(row: UserRow): AuthUser {
+  private async mapUserWithCompanies(row: UserRow): Promise<AuthUser> {
+    const availableCompanies = await this.listCompanies(row.id, row.is_master);
+    const defaultCompanyId = availableCompanies.find((company) => company.isDefault)?.id ?? availableCompanies[0]?.id ?? null;
+    const companies = availableCompanies.map((company) => ({ ...company, isDefault: company.id === defaultCompanyId }));
+    return { ...this.mapUser(row), companies, defaultCompanyId };
+  }
+
+  private mapUser(row: UserRow): Omit<AuthUser, 'companies' | 'defaultCompanyId'> {
     return {
       id: row.id, fullName: row.full_name, email: row.email,
       passwordHash: row.password_hash, isMaster: row.is_master,
       roles: row.roles ?? [], permissions: row.permissions ?? [],
     };
+  }
+
+  private async listCompanies(userId: string, isMaster: boolean): Promise<AuthCompany[]> {
+    const result = isMaster
+      ? await this.database.query<CompanyRow>(`
+        SELECT c.id, c.legal_name, c.trade_name, c.document_number, c.company_type,
+               false AS is_default, 'OPERATIONAL'::varchar(30) AS access_scope
+          FROM cadastros.companies c
+         WHERE c.is_active AND c.deleted_at IS NULL
+         ORDER BY c.company_type, c.legal_name, c.id
+      `)
+      : await this.database.query<CompanyRow>(`
+        SELECT c.id, c.legal_name, c.trade_name, c.document_number, c.company_type,
+               uc.is_default, uc.access_scope
+          FROM administracao.user_companies uc
+          JOIN cadastros.companies c ON c.id = uc.company_id
+         WHERE uc.user_id = $1
+           AND uc.is_active AND uc.deleted_at IS NULL
+           AND c.is_active AND c.deleted_at IS NULL
+         ORDER BY uc.is_default DESC, c.company_type, c.legal_name, c.id
+      `, [userId]);
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      legalName: row.legal_name,
+      tradeName: row.trade_name,
+      documentNumber: row.document_number,
+      companyType: row.company_type,
+      isDefault: row.is_default,
+      accessScope: row.access_scope,
+    }));
   }
 }

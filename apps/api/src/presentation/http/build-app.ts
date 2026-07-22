@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import multipart from '@fastify/multipart';
 import { registerErrorHandler } from '../../common/http/error-handler.js';
 import type { Environment } from '../../config/environment.js';
 import { healthRoutes } from '../../domains/health/health-routes.js';
@@ -11,6 +12,8 @@ import { MasterDataRepository } from '../../domains/master-data/master-data-repo
 import { masterDataRoutes } from '../../domains/master-data/master-data-routes.js';
 import { PayablesRepository } from '../../domains/payables/payables-repository.js';
 import { payablesRoutes } from '../../domains/payables/payables-routes.js';
+import { TreasuryRepository } from '../../domains/treasury/treasury-repository.js';
+import { treasuryRoutes } from '../../domains/treasury/treasury-routes.js';
 import { IntelligenceRepository } from '../../domains/intelligence/intelligence-repository.js';
 import { intelligenceRoutes } from '../../domains/intelligence/intelligence-routes.js';
 import { registerOpenApi } from './openapi.js';
@@ -57,6 +60,12 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   registerErrorHandler(app);
+  void app.register(multipart, {
+    limits: {
+      files: 1,
+      fileSize: options.environment.ATTACHMENT_MAX_FILE_SIZE_BYTES,
+    },
+  });
   registerOpenApi(app);
   app.decorateRequest('authUser', null);
   app.decorateRequest('authSessionId', null);
@@ -74,6 +83,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(payablesRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
     repository: new PayablesRepository(options.database),
+    attachmentStorageRoot: options.environment.ATTACHMENT_STORAGE_ROOT,
+  });
+  void app.register(treasuryRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    repository: new TreasuryRepository(options.database),
   });
   void app.register(intelligenceRoutes, {
     prefix: '/api/v1', authRepository, tokenService,

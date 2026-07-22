@@ -148,8 +148,10 @@ apply_migrations() {
 require_root
 load_app_env
 
-mkdir -p "$APP_ROOT/releases" "$WEB_ROOT/releases"
+mkdir -p "$APP_ROOT/releases" "$WEB_ROOT/releases" "$APP_ROOT/storage/attachments/payments"
 chown -R fincontrol:fincontrol "$APP_ROOT/releases"
+chown -R fincontrol:fincontrol "$APP_ROOT/storage"
+chmod 750 "$APP_ROOT/storage" "$APP_ROOT/storage/attachments" "$APP_ROOT/storage/attachments/payments"
 
 work_dir="$(mktemp -d)"
 chown fincontrol:fincontrol "$work_dir"

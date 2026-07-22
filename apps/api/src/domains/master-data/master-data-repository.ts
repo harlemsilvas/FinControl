@@ -137,6 +137,21 @@ export class MasterDataRepository {
       .filter(([key]) => !['createdBy', 'updatedBy', 'deletedBy'].includes(key))
       .map(([key, column]) => [key, row[column]]));
 
+    if (this.isCompanyParameterDefinition(definition) && row.company_id) {
+      entity.companyName = await this.companyDisplayName(row.company_id);
+    }
+
+    if (this.isBankAccountDefinition(definition)) {
+      if (row.company_id) entity.companyName = await this.companyDisplayName(row.company_id);
+      if (row.bank_id) {
+        const bank = await this.database.query<{ name: string }>(
+          'SELECT name FROM tesouraria.banks WHERE id = $1',
+          [row.bank_id],
+        );
+        entity.bankName = bank.rows[0]?.name ?? null;
+      }
+    }
+
     if (!this.isSupplierDefinition(definition) || !row.id) return entity;
     entity.relationshipStartedAt = this.toDateOnly(entity.relationshipStartedAt);
 
@@ -149,6 +164,15 @@ export class MasterDataRepository {
       ...entity,
       markerIds: markerRows.rows.map((item) => item.marker_id),
     };
+  }
+
+  private async companyDisplayName(companyId: unknown): Promise<string | null> {
+    if (typeof companyId !== 'string') return null;
+    const company = await this.database.query<{ display_name: string }>(
+      "SELECT COALESCE(NULLIF(trade_name, ''), legal_name) AS display_name FROM cadastros.companies WHERE id = $1",
+      [companyId],
+    );
+    return company.rows[0]?.display_name ?? null;
   }
 
   private async replaceSupplierMarkersWithExecutor(executor: QueryExecutor, supplierId: string, markerIds: string[], userId: string): Promise<void> {
@@ -175,5 +199,13 @@ export class MasterDataRepository {
 
   private isSupplierDefinition(definition: ResourceDefinition): boolean {
     return definition.table === 'cadastros.suppliers';
+  }
+
+  private isCompanyParameterDefinition(definition: ResourceDefinition): boolean {
+    return definition.table === 'cadastros.company_parameters';
+  }
+
+  private isBankAccountDefinition(definition: ResourceDefinition): boolean {
+    return definition.table === 'tesouraria.bank_accounts';
   }
 }

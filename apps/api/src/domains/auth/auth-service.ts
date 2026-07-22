@@ -49,6 +49,6 @@ export class AuthService {
 
   publicUser(user: AuthUser): object {
     return { id: user.id, fullName: user.fullName, email: user.email, isMaster: user.isMaster,
-      roles: user.roles, permissions: user.permissions };
+      roles: user.roles, permissions: user.permissions, companies: user.companies, defaultCompanyId: user.defaultCompanyId };
   }
 }

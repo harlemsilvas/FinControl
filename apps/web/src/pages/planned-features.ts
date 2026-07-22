@@ -19,17 +19,6 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
-    path: 'payments',
-    domain: 'Financeiro',
-    title: 'Pagamentos',
-    description: 'Área para registrar pagamentos, pagamentos parciais, lotes, comprovantes e estornos.',
-    suggestedNextSteps: [
-      'Definir fluxo de pagamento manual e em lote.',
-      'Confirmar vínculo com conta bancária e forma de pagamento.',
-      'Mapear comprovantes, baixas parciais e estornos.',
-    ],
-  },
-  {
     path: 'recurrences',
     domain: 'Financeiro',
     title: 'Recorrências',

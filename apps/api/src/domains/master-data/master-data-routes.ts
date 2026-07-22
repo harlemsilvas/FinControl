@@ -56,6 +56,14 @@ function normalizeOptionalPostalCode(value: unknown): string | null | undefined 
   return digitsOnly(trimmed);
 }
 
+function normalizeOptionalUuid(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
 function validateEmail(value: string | null | undefined): boolean {
   if (value === undefined || value === null || value === '') return true;
   return z.email().safeParse(value).success;
@@ -118,6 +126,103 @@ function withSupplierRules(schema: z.ZodType<Record<string, unknown>>): z.ZodTyp
   });
 }
 
+function withCompanyRules(schema: z.ZodType<Record<string, unknown>>, requireBranchParent: boolean, requireDocument: boolean): z.ZodType<Record<string, unknown>> {
+  return schema.transform((input) => {
+    const value = input as Record<string, unknown> & { companyType?: 'MAIN' | 'BRANCH'; email?: string | null };
+    const parentCompanyId = value.companyType === 'MAIN' ? null : normalizeOptionalUuid(value.parentCompanyId);
+    return {
+      ...value,
+      parentCompanyId,
+      documentNumber: normalizeOptionalDocument(value.documentNumber, 'COMPANY'),
+      postalCode: normalizeOptionalPostalCode(value.postalCode),
+      email: value.email === '' ? undefined : value.email?.trim().toLowerCase(),
+      phone: normalizeOptionalPhone(value.phone),
+    };
+  }).superRefine((value, context) => {
+    const companyType = value.companyType;
+    const documentNumber = typeof value.documentNumber === 'string' ? value.documentNumber : undefined;
+    const email = typeof value.email === 'string' || value.email == null ? value.email : undefined;
+    const postalCode = typeof value.postalCode === 'string' || value.postalCode == null ? value.postalCode : undefined;
+    const phone = typeof value.phone === 'string' || value.phone == null ? value.phone : undefined;
+    const parentCompanyId = typeof value.parentCompanyId === 'string' || value.parentCompanyId == null ? value.parentCompanyId : undefined;
+
+    if (requireDocument && !documentNumber) {
+      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'CNPJ é obrigatório.' });
+    }
+    if (documentNumber && !/^\d{14}$/.test(documentNumber)) {
+      context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'CNPJ deve conter 14 dígitos.' });
+    }
+    if (companyType === 'BRANCH' && requireBranchParent && !parentCompanyId) {
+      context.addIssue({ code: 'custom', path: ['parentCompanyId'], message: 'Filial deve informar uma empresa matriz.' });
+    }
+    if (parentCompanyId && !uuid.safeParse(parentCompanyId).success) {
+      context.addIssue({ code: 'custom', path: ['parentCompanyId'], message: 'Empresa matriz inválida.' });
+    }
+    if (!validateEmail(email)) {
+      context.addIssue({ code: 'custom', path: ['email'], message: 'E-mail inválido.' });
+    }
+    if (postalCode && !/^\d{8}$/.test(postalCode)) {
+      context.addIssue({ code: 'custom', path: ['postalCode'], message: 'CEP deve conter 8 dígitos.' });
+    }
+    if (!validatePhone(phone)) {
+      context.addIssue({ code: 'custom', path: ['phone'], message: 'Telefone deve conter DDD e 10 ou 11 dígitos.' });
+    }
+  });
+}
+
+function validateUuidField(value: unknown, field: string, label: string, context: { addIssue: (issue: { code: 'custom'; path: string[]; message: string }) => void }): void {
+  if (typeof value === 'string' && !uuid.safeParse(value).success) {
+    context.addIssue({ code: 'custom', path: [field], message: label + ' inválido.' });
+  }
+}
+
+function withCompanyParameterRules(schema: z.ZodType<Record<string, unknown>>, requireCompany: boolean): z.ZodType<Record<string, unknown>> {
+  return schema.transform((input) => {
+    const value = input;
+    return {
+      ...value,
+      companyId: normalizeOptionalUuid(value.companyId),
+      defaultPaymentMethodId: normalizeOptionalUuid(value.defaultPaymentMethodId),
+      defaultFinancialCategoryId: normalizeOptionalUuid(value.defaultFinancialCategoryId),
+      defaultPaymentTermId: normalizeOptionalUuid(value.defaultPaymentTermId),
+      defaultCostCenterId: normalizeOptionalUuid(value.defaultCostCenterId),
+      defaultBankAccountId: normalizeOptionalUuid(value.defaultBankAccountId),
+      defaultDocumentTypeId: normalizeOptionalUuid(value.defaultDocumentTypeId),
+      notes: typeof value.notes === 'string' && value.notes.trim() === '' ? undefined : value.notes,
+    };
+  }).superRefine((value, context) => {
+    if (requireCompany && !value.companyId) {
+      context.addIssue({ code: 'custom', path: ['companyId'], message: 'Empresa é obrigatória.' });
+    }
+    validateUuidField(value.companyId, 'companyId', 'Empresa', context);
+    validateUuidField(value.defaultPaymentMethodId, 'defaultPaymentMethodId', 'Forma de pagamento', context);
+    validateUuidField(value.defaultFinancialCategoryId, 'defaultFinancialCategoryId', 'Categoria financeira', context);
+    validateUuidField(value.defaultPaymentTermId, 'defaultPaymentTermId', 'Condição de pagamento', context);
+    validateUuidField(value.defaultCostCenterId, 'defaultCostCenterId', 'Centro de custo', context);
+    validateUuidField(value.defaultBankAccountId, 'defaultBankAccountId', 'Conta bancária', context);
+    validateUuidField(value.defaultDocumentTypeId, 'defaultDocumentTypeId', 'Tipo de documento', context);
+  });
+}
+
+function withParentRules(schema: z.ZodType<Record<string, unknown>>): z.ZodType<Record<string, unknown>> {
+  return schema.transform((input) => ({ ...input, parentId: normalizeOptionalUuid(input.parentId) }))
+    .superRefine((value, context) => validateUuidField(value.parentId, 'parentId', 'Registro superior', context));
+}
+
+const companyBase = z.object({ companyType: z.enum(['MAIN', 'BRANCH']), parentCompanyId: z.unknown().optional(),
+  legalName: z.string().trim().min(2).max(200), tradeName: nullableText(200), documentNumber: z.unknown(),
+  stateRegistration: nullableText(60), municipalRegistration: nullableText(60), email: z.string().trim().max(255).nullable().optional(),
+  phone: z.unknown().optional(), postalCode: z.unknown().optional(), street: nullableText(200), streetNumber: nullableText(30),
+  addressComplement: nullableText(120), neighborhood: nullableText(120), cityId: nullableUuid(), stateId: nullableUuid(),
+  notes: z.string().max(5000).nullable().optional(), isActive: z.boolean().optional() });
+const company = withCompanyRules(companyBase, true, true);
+const companyUpdate = withCompanyRules(partial(companyBase), false, false);
+const companyParameterBase = z.object({ companyId: z.unknown().optional(), defaultPaymentMethodId: z.unknown().optional(),
+  defaultFinancialCategoryId: z.unknown().optional(), defaultPaymentTermId: z.unknown().optional(), defaultCostCenterId: z.unknown().optional(), defaultBankAccountId: z.unknown().optional(),
+  defaultDocumentTypeId: z.unknown().optional(), xmlAutoCreateSupplier: z.boolean().optional(), xmlRequireKnownRecipient: z.boolean().optional(),
+  fiscalEnvironment: z.enum(['PRODUCTION', 'HOMOLOGATION']).optional(), notes: z.string().max(5000).nullable().optional(), isActive: z.boolean().optional() });
+const companyParameter = withCompanyParameterRules(companyParameterBase, true);
+const companyParameterUpdate = withCompanyParameterRules(partial(companyParameterBase), false);
 const supplierBase = z.object({ supplierType: z.enum(['INDIVIDUAL', 'COMPANY', 'FOREIGN']),
   legalName: z.string().trim().min(2).max(200), tradeName: nullableText(200), documentNumber: z.unknown().optional(),
   countryCode: z.string().trim().length(2).toUpperCase().optional(), representativeName: nullableText(160),
@@ -136,14 +241,20 @@ const supplierBase = z.object({ supplierType: z.enum(['INDIVIDUAL', 'COMPANY', '
   receivingDays: nullableText(160), additionalInfo: nullableText(5000) });
 const supplier = withSupplierRules(supplierBase);
 const supplierUpdate = withSupplierRules(partial(supplierBase));
-const category = z.object({ parentId: uuid.nullable().optional(), code: z.string().trim().min(1).max(60).toUpperCase(),
+const categoryBase = z.object({ parentId: z.unknown().optional(), code: z.string().trim().min(1).max(60).toUpperCase(),
   name: z.string().trim().min(2).max(160), natureCode: z.string().trim().min(1).max(30).toUpperCase().optional(), isActive: z.boolean().optional() });
+const category = withParentRules(categoryBase);
+const categoryUpdate = withParentRules(partial(categoryBase));
+const costCenterBase = z.object({ parentId: z.unknown().optional(), code: z.string().trim().min(1).max(60).toUpperCase(),
+  name: z.string().trim().min(2).max(160), description: nullableText(255), isActive: z.boolean().optional() });
+const costCenter = withParentRules(costCenterBase);
+const costCenterUpdate = withParentRules(partial(costCenterBase));
 const documentType = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120), requiresFiscalKey: z.boolean().optional(), isActive: z.boolean().optional() });
 const paymentMethod = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120), isActive: z.boolean().optional() });
 const paymentTerm = z.object({ code: z.string().trim().min(1).max(40).toUpperCase(), name: z.string().trim().min(2).max(120),
   installmentCount: z.number().int().min(1).nullable().optional(), intervalDays: z.number().int().min(0).nullable().optional(), isActive: z.boolean().optional() });
 const bank = z.object({ code: z.string().trim().min(1).max(20), name: z.string().trim().min(2).max(160), isActive: z.boolean().optional() });
-const bankAccount = z.object({ bankId: uuid, accountName: z.string().trim().min(2).max(160), branchNumber: nullableText(30),
+const bankAccount = z.object({ companyId: uuid, bankId: uuid, accountName: z.string().trim().min(2).max(160), branchNumber: nullableText(30),
   accountNumber: z.string().trim().min(1).max(40), accountType: z.string().trim().min(1).max(30).toUpperCase().optional(),
   pixKey: nullableText(255), isDefault: z.boolean().optional(), isActive: z.boolean().optional() });
 const supplierStatus = z.object({ code: z.string().trim().min(1).max(30).toUpperCase(), name: z.string().trim().min(2).max(120), isActive: z.boolean().optional() });
@@ -153,6 +264,17 @@ const state = z.object({ code: z.string().trim().length(2).toUpperCase(), name: 
 const city = z.object({ stateId: uuid, name: z.string().trim().min(2).max(160), ibgeCode: z.string().trim().max(10).nullable().optional(), isActive: z.boolean().optional() });
 
 const resources: RouteResource[] = [
+  { path: '/companies', domain: 'DOM-001', entity: 'COMPANY', table: 'cadastros.companies', createSchema: company,
+    updateSchema: companyUpdate, searchColumns: ['legal_name', 'trade_name', 'document_number'], hasSoftDelete: true, orderBy: 'legal_name, id',
+    columns: { ...auditColumns, parentCompanyId: 'parent_company_id', companyType: 'company_type', legalName: 'legal_name', tradeName: 'trade_name',
+      documentNumber: 'document_number', stateRegistration: 'state_registration', municipalRegistration: 'municipal_registration', email: 'email', phone: 'phone',
+      postalCode: 'postal_code', street: 'street', streetNumber: 'street_number', addressComplement: 'address_complement', neighborhood: 'neighborhood',
+      cityId: 'city_id', stateId: 'state_id', notes: 'notes' } },
+  { path: '/company-parameters', domain: 'DOM-001', entity: 'COMPANY_PARAMETER', table: 'cadastros.company_parameters', createSchema: companyParameter,
+    updateSchema: companyParameterUpdate, searchColumns: ['notes'], hasSoftDelete: true, orderBy: 'created_at DESC, id',
+    columns: { ...auditColumns, companyId: 'company_id', defaultPaymentMethodId: 'default_payment_method_id', defaultFinancialCategoryId: 'default_financial_category_id', defaultPaymentTermId: 'default_payment_term_id',
+      defaultCostCenterId: 'default_cost_center_id', defaultBankAccountId: 'default_bank_account_id', defaultDocumentTypeId: 'default_document_type_id',
+      xmlAutoCreateSupplier: 'xml_auto_create_supplier', xmlRequireKnownRecipient: 'xml_require_known_recipient', fiscalEnvironment: 'fiscal_environment', notes: 'notes' } },
   { path: '/suppliers', domain: 'DOM-001', entity: 'SUPPLIER', table: 'cadastros.suppliers', createSchema: supplier,
     updateSchema: supplierUpdate, searchColumns: ['legal_name', 'trade_name', 'document_number'], hasSoftDelete: true, orderBy: 'legal_name, id',
     columns: { ...auditColumns, supplierType: 'supplier_type', legalName: 'legal_name', tradeName: 'trade_name', documentNumber: 'document_number',
@@ -181,11 +303,11 @@ const resources: RouteResource[] = [
     updateSchema: partial(city), searchColumns: ['name', 'ibge_code'], hasSoftDelete: false, orderBy: 'name, id',
     columns: { ...simpleColumns, stateId: 'state_id', name: 'name', ibgeCode: 'ibge_code' } },
   { path: '/financial-categories', domain: 'DOM-001', entity: 'FINANCIAL_CATEGORY', table: 'cadastros.financial_categories', createSchema: category,
-    updateSchema: partial(category), searchColumns: ['code', 'name'], hasSoftDelete: true, orderBy: 'code, id',
+    updateSchema: categoryUpdate, searchColumns: ['code', 'name'], hasSoftDelete: true, orderBy: 'code, id',
     columns: { ...auditColumns, parentId: 'parent_id', code: 'code', name: 'name', natureCode: 'nature_code' } },
-  { path: '/cost-centers', domain: 'DOM-001', entity: 'COST_CENTER', table: 'cadastros.cost_centers', createSchema: category,
-    updateSchema: partial(category), searchColumns: ['code', 'name'], hasSoftDelete: true, orderBy: 'code, id',
-    columns: { ...auditColumns, parentId: 'parent_id', code: 'code', name: 'name' } },
+  { path: '/cost-centers', domain: 'DOM-001', entity: 'COST_CENTER', table: 'cadastros.cost_centers', createSchema: costCenter,
+    updateSchema: costCenterUpdate, searchColumns: ['code', 'name', 'description'], hasSoftDelete: true, orderBy: 'code, id',
+    columns: { ...auditColumns, parentId: 'parent_id', code: 'code', name: 'name', description: 'description' } },
   { path: '/document-types', domain: 'DOM-001', entity: 'DOCUMENT_TYPE', table: 'cadastros.document_types', createSchema: documentType,
     updateSchema: partial(documentType), searchColumns: ['code', 'name'], hasSoftDelete: false, orderBy: 'code, id',
     columns: { ...simpleColumns, code: 'code', name: 'name', requiresFiscalKey: 'requires_fiscal_key' } },
@@ -200,7 +322,7 @@ const resources: RouteResource[] = [
     columns: { ...simpleColumns, code: 'code', name: 'name' } },
   { path: '/bank-accounts', domain: 'DOM-003', entity: 'BANK_ACCOUNT', table: 'tesouraria.bank_accounts', createSchema: bankAccount,
     updateSchema: partial(bankAccount), searchColumns: ['account_name', 'branch_number', 'account_number', 'pix_key'], hasSoftDelete: true, orderBy: 'account_name, id',
-    columns: { ...auditColumns, bankId: 'bank_id', accountName: 'account_name', branchNumber: 'branch_number', accountNumber: 'account_number',
+    columns: { ...auditColumns, companyId: 'company_id', bankId: 'bank_id', accountName: 'account_name', branchNumber: 'branch_number', accountNumber: 'account_number',
       accountType: 'account_type', pixKey: 'pix_key', isDefault: 'is_default' } },
 ];
 

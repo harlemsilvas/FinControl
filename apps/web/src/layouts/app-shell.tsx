@@ -20,6 +20,8 @@ const menuSections: MenuSection[] = [
   {
     title: 'Cadastros',
     items: [
+      { label: 'Empresas', to: '/companies', icon: '▦' },
+      { label: 'Parâmetros Empresa', to: '/company-parameters', icon: '▧' },
       { label: 'Fornecedores', to: '/suppliers', icon: '◉' },
       { label: 'Categorias', to: '/financial-categories', icon: '◇' },
       { label: 'Centros de Custo', to: '/cost-centers', icon: '▤' },
@@ -34,6 +36,7 @@ const menuSections: MenuSection[] = [
     title: 'Financeiro',
     items: [
       { label: 'Contas a Pagar', to: '/payables', icon: '▩' },
+      { label: 'XMLs Importados', to: '/xml-imports', icon: '▧' },
       { label: 'Agenda', to: '/agenda', icon: '□' },
       { label: 'Aprovações', to: '/approvals', icon: '✓' },
       { label: 'Pagamentos', to: '/payments', icon: '$' },
@@ -116,6 +119,10 @@ function MenuEntry({ item }: { item: MenuItem }): ReactElement {
 export function AppShell(): ReactElement {
   const auth = useAuth();
   const { session } = auth;
+  const companies = session?.user.companies ?? [];
+  const defaultCompany = companies.find((company) => company.id === session?.user.defaultCompanyId)
+    ?? companies.find((company) => company.isDefault);
+  const companyLabel = defaultCompany?.tradeName || defaultCompany?.legalName;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[260px_1fr]">
@@ -156,7 +163,7 @@ export function AppShell(): ReactElement {
         <header className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
           <div>
             <p className="text-sm font-semibold">{session?.user.fullName}</p>
-            <p className="text-xs text-slate-500">{session?.user.roles.join(', ') || 'Usuário'}</p>
+            <p className="text-xs text-slate-500">{companyLabel ?? (session?.user.roles.join(', ') || 'Usuário')}</p>
           </div>
           <button
             className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"

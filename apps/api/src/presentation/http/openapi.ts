@@ -75,6 +75,22 @@ export function registerOpenApi(app: FastifyInstance): void {
             isMaster: { type: 'boolean' },
             roles: { type: 'array', items: { type: 'string' } },
             permissions: { type: 'array', items: { type: 'string' } },
+            defaultCompanyId: { type: 'string', format: 'uuid', nullable: true },
+            companies: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string', format: 'uuid' },
+                  legalName: { type: 'string' },
+                  tradeName: { type: 'string', nullable: true },
+                  documentNumber: { type: 'string' },
+                  companyType: { type: 'string', enum: ['MAIN', 'BRANCH'] },
+                  isDefault: { type: 'boolean' },
+                  accessScope: { type: 'string', enum: ['OPERATIONAL', 'VIEW_ONLY'] },
+                },
+              },
+            },
           },
         },
         ListResponse: {
@@ -197,6 +213,8 @@ export function registerOpenApi(app: FastifyInstance): void {
           responses: { '200': { description: 'Usuario autenticado', content: { 'application/json': { schema: { $ref: '#/components/schemas/User' } } } } },
         },
       },
+      '/api/v1/companies': masterDataPath('Empresas'),
+      '/api/v1/company-parameters': masterDataPath('Parametros por empresa'),
       '/api/v1/suppliers': masterDataPath('Fornecedores'),
       '/api/v1/financial-categories': masterDataPath('Categorias financeiras'),
       '/api/v1/cost-centers': masterDataPath('Centros de custo'),
@@ -229,11 +247,73 @@ export function registerOpenApi(app: FastifyInstance): void {
         reason: { type: 'string', minLength: 3, maxLength: 1000 },
       }),
       '/api/v1/payments': {
+        get: {
+          tags: ['Financeiro'],
+          summary: 'Lista pagamentos realizados.',
+          security: bearerSecurity,
+          parameters: listParameters([
+            { name: 'status', in: 'query', schema: { type: 'string', enum: ['EFFECTIVE', 'REVERSED'] } },
+            { name: 'paidFrom', in: 'query', schema: { type: 'string', format: 'date' } },
+            { name: 'paidTo', in: 'query', schema: { type: 'string', format: 'date' } },
+            { name: 'supplierId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'companyId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          ]),
+          responses: { '200': { description: 'Lista paginada de pagamentos' } },
+        },
         post: {
           tags: ['Financeiro'],
           summary: 'Registra pagamento de parcela.',
           security: bearerSecurity,
           responses: { '201': { description: 'Pagamento criado' } },
+        },
+      },
+      '/api/v1/payments/{paymentId}': {
+        get: {
+          tags: ['Financeiro'],
+          summary: 'Consulta detalhe de um pagamento realizado.',
+          security: bearerSecurity,
+          parameters: [{ name: 'paymentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': { description: 'Detalhe do pagamento' }, '404': { description: 'Pagamento nao encontrado' } },
+        },
+      },
+      '/api/v1/payments/{paymentId}/attachments': {
+        post: {
+          tags: ['Financeiro'],
+          summary: 'Anexa comprovante local ao pagamento.',
+          security: bearerSecurity,
+          parameters: [{ name: 'paymentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: {
+            required: true,
+            content: { 'multipart/form-data': { schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } }, required: ['file'] } } },
+          },
+          responses: { '201': { description: 'Comprovante anexado' } },
+        },
+      },
+      '/api/v1/payments/{paymentId}/reverse': actionPath('Financeiro', 'Estorna pagamento realizado', {
+        reason: { type: 'string', minLength: 3, maxLength: 1000 },
+      }),
+      '/api/v1/attachments/{id}/download': {
+        get: {
+          tags: ['Financeiro'],
+          summary: 'Baixa arquivo de anexo autenticado.',
+          security: bearerSecurity,
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': { description: 'Arquivo do anexo' }, '404': { description: 'Anexo nao encontrado' } },
+        },
+      },
+      '/api/v1/payable-installments/eligible-for-payment': {
+        get: {
+          tags: ['Financeiro'],
+          summary: 'Lista parcelas elegiveis para baixa individual.',
+          security: bearerSecurity,
+          parameters: listParameters([
+            { name: 'status', in: 'query', schema: { type: 'string', enum: ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'] } },
+            { name: 'dueFrom', in: 'query', schema: { type: 'string', format: 'date' } },
+            { name: 'dueTo', in: 'query', schema: { type: 'string', format: 'date' } },
+            { name: 'supplierId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'companyId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          ]),
+          responses: { '200': { description: 'Lista paginada de parcelas elegiveis' } },
         },
       },
       '/api/v1/payment-batches': {

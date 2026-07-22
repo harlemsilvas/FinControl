@@ -18,6 +18,8 @@ const environmentSchema = z.object({
   AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   AUTH_ISSUER: z.string().min(1).default('fincontrol-api'),
   AUTH_AUDIENCE: z.string().min(1).default('fincontrol'),
+  ATTACHMENT_STORAGE_ROOT: z.string().min(1).default('/opt/fincontrol/storage'),
+  ATTACHMENT_MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

@@ -23,14 +23,14 @@ function repository(overrides: Partial<AuthRepository> = {}): AuthRepository {
 describe('AuthService', () => {
   it('creates a session and tokens for valid credentials', async () => {
     const user: AuthUser = { id: 'user-id', fullName: 'Master', email: 'master@example.com',
-      passwordHash: await hashPassword('valid-password'), isMaster: true, roles: ['MASTER'], permissions: [] };
+      passwordHash: await hashPassword('valid-password'), isMaster: true, roles: ['MASTER'], permissions: [], companies: [], defaultCompanyId: null };
     const createSession = vi.fn().mockResolvedValue('session-id');
     const audit = vi.fn().mockResolvedValue(undefined);
     const repo = repository({ findActiveUserByEmail: vi.fn().mockResolvedValue(user), createSession, audit });
     const result = await new AuthService(repo, new TokenService(environment))
       .login(user.email, 'valid-password', context);
     expect(result).toMatchObject({ tokenType: 'Bearer', expiresIn: 900,
-      user: { id: 'user-id', isMaster: true } });
+      user: { id: 'user-id', isMaster: true, companies: [], defaultCompanyId: null } });
     expect(createSession).toHaveBeenCalledOnce();
     expect(audit).toHaveBeenCalledWith('LOGIN_SUCCEEDED', 'user-id', 'user-id', context,
       { sessionId: 'session-id' });
