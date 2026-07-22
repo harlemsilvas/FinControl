@@ -92,9 +92,38 @@ BEGIN
         RAISE EXCEPTION 'Expected 6 seeded roles, found %', v_count;
     END IF;
 
-    SELECT count(*) INTO v_count FROM administracao.permissions;
-    IF v_count <> 16 THEN
-        RAISE EXCEPTION 'Expected 16 seeded permissions, found %', v_count;
+    WITH expected_permissions(code) AS (
+        VALUES
+            ('PAYABLE_TITLE_CREATE'),
+            ('PAYABLE_TITLE_UPDATE'),
+            ('PAYABLE_TITLE_CANCEL'),
+            ('PAYABLE_TITLE_APPROVE'),
+            ('PAYMENT_CREATE'),
+            ('PAYMENT_REVERSE'),
+            ('PAYMENT_BATCH_MANAGE'),
+            ('DUPLICATE_OVERRIDE'),
+            ('PHYSICAL_MAINTENANCE'),
+            ('AUDIT_VIEW'),
+            ('MASTER_DATA_VIEW'),
+            ('MASTER_DATA_MANAGE'),
+            ('PAYABLE_TITLE_VIEW'),
+            ('PAYABLE_ATTACHMENT_MANAGE'),
+            ('PAYABLE_TAG_MANAGE'),
+            ('XML_IMPORT_MANAGE'),
+            ('BANK_ACCOUNT_MOVEMENT_VIEW'),
+            ('BANK_ACCOUNT_MOVEMENT_MANAGE')
+    ), missing_permissions AS (
+        SELECT code
+        FROM expected_permissions
+        EXCEPT
+        SELECT code
+        FROM administracao.permissions
+    )
+    SELECT count(*), string_agg(code, ', ' ORDER BY code)
+      INTO v_count, v_names
+    FROM missing_permissions;
+    IF v_count <> 0 THEN
+        RAISE EXCEPTION 'Missing seeded permissions: %', v_names;
     END IF;
 
     RAISE NOTICE 'PASS: schemas, public isolation, tables, constraints, functions, views and seeds';
