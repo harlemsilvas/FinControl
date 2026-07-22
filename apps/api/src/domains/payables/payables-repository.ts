@@ -6,6 +6,7 @@ export interface TitleInput { supplierId: string; categoryId: string; documentTy
   documentNumber: string; documentSeries?: string | null; description: string; originCode?: string; issueDate: string; originalAmount: number;
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
+export interface XmlImportListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
 export interface XmlImportGenerateInput { categoryId: string; documentTypeId: string; paymentMethodId: string; paymentTermId?: string | null; costCenterId?: string | null; description?: string | null; duplicateConfirmed?: boolean }
 export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; recipientLegalName?: string | null; recipientDocumentNumber?: string | null; recipientStateRegistration?: string | null; recipientCityName?: string | null; recipientStateCode?: string | null; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; mainCompanyDocumentNumber?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
@@ -184,6 +185,72 @@ export class PayablesRepository {
     });
   }
 
+  async listXmlImports(page: number, pageSize: number, filters: XmlImportListFilters = {}): Promise<object> {
+    const values: unknown[] = [];
+    const conditions = ['x.deleted_at IS NULL'];
+    if (filters.search) {
+      values.push(`%${filters.search}%`);
+      conditions.push(`(x.access_key ILIKE $${values.length} OR x.document_number ILIKE $${values.length} OR x.document_series ILIKE $${values.length} OR x.supplier_legal_name ILIKE $${values.length} OR x.supplier_trade_name ILIKE $${values.length} OR x.recipient_legal_name ILIKE $${values.length})`);
+    }
+    if (filters.status) { values.push(filters.status); conditions.push(`s.code=$${values.length}`); }
+    if (filters.dueFrom) { values.push(filters.dueFrom); conditions.push(`x.due_date >= $${values.length}::date`); }
+    if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`x.due_date <= $${values.length}::date`); }
+    if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`x.supplier_id=$${values.length}`); }
+    if (filters.recipientKind) { values.push(filters.recipientKind); conditions.push(`x.recipient_kind=$${values.length}`); }
+    if (filters.recipientDocumentNumber) { values.push(filters.recipientDocumentNumber); conditions.push(`x.recipient_document_number=$${values.length}`); }
+    if (filters.importedFrom) { values.push(filters.importedFrom); conditions.push(`x.imported_at::date >= $${values.length}::date`); }
+    if (filters.importedTo) { values.push(filters.importedTo); conditions.push(`x.imported_at::date <= $${values.length}::date`); }
+    const where = conditions.join(' AND ');
+    const from = `FROM financeiro.xml_imports x
+      JOIN financeiro.xml_import_statuses s ON s.id=x.status_id
+      LEFT JOIN cadastros.suppliers supplier ON supplier.id=x.supplier_id
+      LEFT JOIN financeiro.payable_titles title ON title.id=x.generated_title_id`;
+    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
+    values.push(pageSize, (page - 1) * pageSize);
+    const result = await this.database.query(`SELECT x.*,s.code status_code,supplier.legal_name resolved_supplier_name,supplier.document_number resolved_supplier_document_number,title.document_number generated_title_document_number
+      ${from} WHERE ${where}
+      ORDER BY x.imported_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
+    return { data: result.rows.map((row) => ({ ...api(row), hasGeneratedTitle: Boolean(row.generated_title_id) })), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
+  }
+
+  async getXmlImport(id: string): Promise<object | null> {
+    const result = await this.database.query(`SELECT x.*,s.code status_code,supplier.legal_name resolved_supplier_name,supplier.document_number resolved_supplier_document_number,title.document_number generated_title_document_number
+      FROM financeiro.xml_imports x
+      JOIN financeiro.xml_import_statuses s ON s.id=x.status_id
+      LEFT JOIN cadastros.suppliers supplier ON supplier.id=x.supplier_id
+      LEFT JOIN financeiro.payable_titles title ON title.id=x.generated_title_id
+      WHERE x.id=$1 AND x.deleted_at IS NULL`, [id]);
+    const row = result.rows[0];
+    if (!row) return null;
+    const installments = await this.database.query(`SELECT * FROM financeiro.xml_import_installments WHERE xml_import_id=$1 ORDER BY installment_number`, [id]);
+    return { ...api(row), hasGeneratedTitle: Boolean(row.generated_title_id), installments: installments.rows.map(api) };
+  }
+
+  async reprocessXmlImport(id: string, userId: string): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      const current = await tx.query<{ generated_title_id: string | null } & Record<string, unknown>>(`SELECT * FROM financeiro.xml_imports WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, [id]);
+      const row = current.rows[0];
+      if (!row) throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'XML import not found', statusCode: 404 });
+      if (row.generated_title_id) throw new ApplicationError({ code: 'XML_IMPORT_ALREADY_GENERATED', message: 'XML import already generated a payable title', statusCode: 409 });
+      const result = await tx.query(`UPDATE financeiro.xml_imports SET status_id=(SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),error_message=NULL,processed_at=NULL WHERE id=$1 RETURNING *`, [id]);
+      const next = result.rows[0]!;
+      await this.audit(tx,'XML_IMPORT',id,'REPROCESSED',userId,api(row),api(next));
+      return api(next);
+    });
+  }
+
+  async deleteXmlImport(id: string, userId: string): Promise<void> {
+    await this.database.transaction(async (tx) => {
+      const current = await tx.query<{ generated_title_id: string | null } & Record<string, unknown>>(`SELECT * FROM financeiro.xml_imports WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, [id]);
+      const row = current.rows[0];
+      if (!row) throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'XML import not found', statusCode: 404 });
+      if (row.generated_title_id) throw new ApplicationError({ code: 'XML_IMPORT_ALREADY_GENERATED', message: 'XML import already generated a payable title', statusCode: 409 });
+      const result = await tx.query(`UPDATE financeiro.xml_imports SET deleted_at=CURRENT_TIMESTAMP,deleted_by=$2 WHERE id=$1 AND deleted_at IS NULL RETURNING *`, [id,userId]);
+      const next = result.rows[0]!;
+      await this.audit(tx,'XML_IMPORT',id,'DELETED',userId,api(row),api(next));
+    });
+  }
+
   private async findOrCreateXmlSupplier(tx: QueryExecutor, input: XmlImportInput, userId: string): Promise<{ id: string; created: boolean; entity: Record<string, unknown> } | null> {
     const documentNumber = input.supplierDocumentNumber?.replace(/\D+/g, '') ?? '';
     if (!/^\d{11}$/.test(documentNumber) && !/^\d{14}$/.test(documentNumber)) return null;
@@ -215,7 +282,7 @@ export class PayablesRepository {
   async generatePayableFromXml(xmlImportId: string, input: XmlImportGenerateInput, userId: string): Promise<object> {
     return this.database.transaction(async (tx) => {
       const xmlResult = await tx.query<{ id: string; access_key: string | null; supplier_id: string | null; generated_title_id: string | null; supplier_legal_name: string | null; document_number: string | null; document_series: string | null; issue_date: string | Date | null; due_date: string | Date | null; invoice_total_amount: string | null; payment_amount: string | null; raw_xml: string | null } & Record<string, unknown>>(
-        `SELECT * FROM financeiro.xml_imports WHERE id=$1 FOR UPDATE`, [xmlImportId]);
+        `SELECT * FROM financeiro.xml_imports WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, [xmlImportId]);
       const xml = xmlResult.rows[0];
       if (!xml) throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'XML import not found', statusCode: 404 });
       if (xml.generated_title_id) throw new ApplicationError({ code: 'XML_IMPORT_ALREADY_GENERATED', message: 'XML import already generated a payable title', statusCode: 409 });

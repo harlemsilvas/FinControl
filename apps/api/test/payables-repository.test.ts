@@ -75,4 +75,37 @@ describe('PayablesRepository business safeguards',()=>{
     expect(installmentValues?.[5]).toBe('payment-method-id');
   });
 
+  it('lists xml imports with pagination and active-record filter',async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'1'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'xml-id',status_code:'RECEIVED',generated_title_id:null,recipient_kind:'MAIN'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.listXmlImports(2,10,{status:'RECEIVED',recipientKind:'MAIN'}) as {data:{id:string;hasGeneratedTitle:boolean}[];page:number;pageSize:number;total:number};
+    expect(result.page).toBe(2);
+    expect(result.pageSize).toBe(10);
+    expect(result.total).toBe(1);
+    expect(result.data[0]?.id).toBe('xml-id');
+    expect(result.data[0]?.hasGeneratedTitle).toBe(false);
+    expect(query.mock.calls[0]?.[0]).toContain('x.deleted_at IS NULL');
+    expect(query.mock.calls[1]?.[0]).toContain('ORDER BY x.imported_at DESC');
+  });
+
+  it('reprocesses an xml import that has not generated a payable title',async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'xml-id',generated_title_id:null,status_id:'old-status'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'xml-id',generated_title_id:null,error_message:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.reprocessXmlImport('xml-id','user-id') as {id:string};
+    expect(result.id).toBe('xml-id');
+    expect(query.mock.calls[1]?.[0]).toContain("code='RECEIVED'");
+    expect(query.mock.calls[2]?.[0]).toContain('INSERT INTO administracao.audit_events');
+  });
+
+  it('blocks xml import deletion when a payable title was already generated',async()=>{
+    const query=vi.fn().mockResolvedValueOnce({rows:[{id:'xml-id',generated_title_id:'title-id'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    await expect(repo.deleteXmlImport('xml-id','user-id')).rejects.toMatchObject({code:'XML_IMPORT_ALREADY_GENERATED',statusCode:409});
+  });
+
 });
