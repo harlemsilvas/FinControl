@@ -9,6 +9,8 @@ import { SuppliersPage } from '../master-data/suppliers-page';
 import { resources } from '../master-data/resources';
 import { PayablesListPage } from '../payables/payables-list-page';
 import { PayableFormPage } from '../payables/payable-form-page';
+import { PaymentsPage } from '../payables/payments-page';
+import { XmlImportsListPage } from '../payables/xml-imports-list-page';
 import { AgendaPage } from '../intelligence/agenda-page';
 import { PlannedFeaturePage } from '../pages/planned-feature-page';
 import { plannedFeatures } from '../pages/planned-features';
@@ -28,6 +30,8 @@ export const router = createBrowserRouter(
             { path: 'dashboard', element: <DashboardPage /> },
             { path: 'agenda', element: <AgendaPage /> },
             { path: 'payables', element: <PayablesListPage /> },
+            { path: 'payments', element: <PaymentsPage /> },
+            { path: 'xml-imports', element: <XmlImportsListPage /> },
             { path: 'payables/new', element: <PayableFormPage /> },
             { path: 'payables/:id', element: <PayableFormPage /> },
             { path: 'suppliers', element: <SuppliersPage /> },

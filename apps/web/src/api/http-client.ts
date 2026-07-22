@@ -6,11 +6,15 @@ import { environment } from '../config/environment';
 export interface ApiErrorBody { error:{code:string;message:string;requestId:string;details?:unknown} }
 export class ApiError extends Error { constructor(readonly status:number,readonly code:string,message:string,readonly requestId?:string,readonly details?:unknown){super(message);this.name='ApiError';} }
 export const httpClient=axios.create({baseURL:environment.VITE_API_URL,timeout:15000,headers:{Accept:'application/json'}});
-httpClient.interceptors.request.use((config)=>{const token=sessionStore.getSnapshot()?.accessToken;if(token)config.headers.Authorization=`Bearer ${token}`;return config;});
+httpClient.interceptors.request.use((config)=>{
+  const token=sessionStore.getSnapshot()?.accessToken;
+  if(token)config.headers.Authorization=`Bearer ${token}`;
+  return config;
+});
 interface RetryConfig extends InternalAxiosRequestConfig { _retry?:boolean }
 let refreshing:Promise<void>|null=null;
 async function renewSession():Promise<void>{const token=sessionStore.getRefreshToken();if(!token)throw new Error('Refresh token ausente');const response=await axios.post<SessionResponse>(`${environment.VITE_API_URL.replace(/\/$/,'')}/auth/refresh`,{refreshToken:token});sessionStore.set(response.data);}
-interface SessionResponse {accessToken:string;refreshToken:string;user:{id:string;fullName:string;email:string;isMaster:boolean;roles:string[];permissions:string[]}}
+interface SessionResponse {accessToken:string;refreshToken:string;user:{id:string;fullName:string;email:string;isMaster:boolean;roles:string[];permissions:string[];companies?:{id:string;legalName:string;tradeName:string|null;documentNumber:string;companyType:'MAIN'|'BRANCH';isDefault:boolean;accessScope:'OPERATIONAL'|'VIEW_ONLY'}[];defaultCompanyId?:string|null}}
 httpClient.interceptors.response.use(response=>response,async(error:AxiosError<ApiErrorBody>)=>{
   const config=error.config as RetryConfig|undefined;
   if(error.response?.status===401&&config&&!config._retry&&Boolean(config.headers.Authorization)&&sessionStore.getRefreshToken()){

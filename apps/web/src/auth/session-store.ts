@@ -1,4 +1,5 @@
-export interface SessionUser { id:string;fullName:string;email:string;isMaster:boolean;roles:string[];permissions:string[] }
+export interface SessionCompany { id:string;legalName:string;tradeName:string|null;documentNumber:string;companyType:'MAIN'|'BRANCH';isDefault:boolean;accessScope:'OPERATIONAL'|'VIEW_ONLY' }
+export interface SessionUser { id:string;fullName:string;email:string;isMaster:boolean;roles:string[];permissions:string[];companies?:SessionCompany[];defaultCompanyId?:string|null }
 export interface Session { accessToken:string;refreshToken:string;user:SessionUser }
 type Listener=()=>void;
 const storageKey='fincontrol.refresh-token';

@@ -31,10 +31,10 @@ Traduzir o backlog em uma lista prática de execução com arquivos-alvo reais d
 
 ### A2. Especificação funcional da listagem
 
-- [ ] Criar documento funcional da página `XMLs Importados`
-- [ ] Confirmar filtros obrigatórios da listagem
-- [ ] Confirmar ações por linha
-- [ ] Confirmar estrutura de detalhamento por XML
+- [x] Criar documento funcional da página `XMLs Importados`
+- [x] Confirmar filtros obrigatórios da listagem
+- [x] Confirmar ações por linha
+- [x] Confirmar estrutura de detalhamento por XML
 
 Arquivos previstos:
 - `docs/XML-IMPORTS-LIST-PAGE.md`
@@ -43,17 +43,17 @@ Arquivos previstos:
 
 - [x] Confirmar ausência de `deleted_at` e `deleted_by` em `financeiro.xml_imports`
 - [x] Criar migration nova de soft delete
-- [ ] Validar migration localmente no banco
+- [x] Validar migration localmente no banco
 
 Arquivos:
 - [202607211800_financeiro_add_xml_import_soft_delete.sql](/mnt/c/Projetos/FinControl/database/migrations/202607211800_financeiro_add_xml_import_soft_delete.sql)
 
 ### A4. Evolução do endpoint `GET /api/v1/xml-imports`
 
-- [ ] Adicionar schema de query com paginação e filtros
-- [ ] Substituir SQL fixo por repository dedicado
-- [ ] Filtrar apenas registros não excluídos
-- [ ] Retornar payload paginado
+- [x] Adicionar schema de query com paginação e filtros
+- [x] Substituir SQL fixo por repository dedicado
+- [x] Filtrar apenas registros não excluídos
+- [x] Retornar payload paginado
 
 Arquivos-alvo:
 - [payables-routes.ts](/mnt/c/Projetos/FinControl/apps/api/src/domains/payables/payables-routes.ts)
@@ -61,9 +61,9 @@ Arquivos-alvo:
 
 ### A5. Novo endpoint `GET /api/v1/xml-imports/:id`
 
-- [ ] Criar rota de detalhe
-- [ ] Retornar parcelas associadas
-- [ ] Bloquear acesso a registro excluído
+- [x] Criar rota de detalhe
+- [x] Retornar parcelas associadas
+- [x] Bloquear acesso a registro excluído
 
 Arquivos-alvo:
 - [payables-routes.ts](/mnt/c/Projetos/FinControl/apps/api/src/domains/payables/payables-routes.ts)
@@ -71,9 +71,9 @@ Arquivos-alvo:
 
 ### A6. Novo endpoint `POST /api/v1/xml-imports/:id/reprocess`
 
-- [ ] Definir regra de reprocessamento permitida
-- [ ] Implementar mutação com auditoria
-- [ ] Cobrir cenários bloqueados
+- [x] Definir regra de reprocessamento permitida
+- [x] Implementar mutação com auditoria
+- [x] Cobrir cenários bloqueados
 
 Arquivos-alvo:
 - [payables-routes.ts](/mnt/c/Projetos/FinControl/apps/api/src/domains/payables/payables-routes.ts)
@@ -81,9 +81,9 @@ Arquivos-alvo:
 
 ### A7. Novo endpoint `DELETE /api/v1/xml-imports/:id`
 
-- [ ] Implementar exclusão lógica
-- [ ] Bloquear exclusão quando já houver título gerado
-- [ ] Registrar auditoria
+- [x] Implementar exclusão lógica
+- [x] Bloquear exclusão quando já houver título gerado
+- [x] Registrar auditoria
 
 Arquivos-alvo:
 - [payables-routes.ts](/mnt/c/Projetos/FinControl/apps/api/src/domains/payables/payables-routes.ts)
@@ -91,20 +91,22 @@ Arquivos-alvo:
 
 ### A8. Refatoração do repository
 
-- [ ] Criar `listXmlImports`
-- [ ] Criar `getXmlImport`
-- [ ] Criar `reprocessXmlImport`
-- [ ] Criar `deleteXmlImport`
+- [x] Criar `listXmlImports`
+- [x] Criar `getXmlImport`
+- [x] Criar `reprocessXmlImport`
+- [x] Criar `deleteXmlImport`
 
 Arquivo-alvo:
 - [payables-repository.ts](/mnt/c/Projetos/FinControl/apps/api/src/domains/payables/payables-repository.ts)
 
 ### A9. Página `XMLs Importados`
 
-- [ ] Criar página de listagem
-- [ ] Criar filtros e paginação
-- [ ] Exibir `MAIN`, `BRANCH` e `UNKNOWN`
-- [ ] Integrar ações de reprocessar e excluir
+- [x] Criar página de listagem
+- [x] Criar filtros e paginação
+- [x] Exibir `MAIN`, `BRANCH` e `UNKNOWN`
+- [x] Integrar ações de reprocessar e excluir
+- [x] Disponibilizar importação XML diretamente pela página
+- [x] Preencher o modal `Gerar conta a pagar` com parâmetros da empresa resolvida pelo CNPJ do destinatário
 
 Arquivos-alvo:
 - `apps/web/src/payables/xml-imports-list-page.tsx`
@@ -113,10 +115,10 @@ Arquivos-alvo:
 
 ### A10. Testes do Bloco A
 
-- [ ] Cobrir API de listagem detalhada
-- [ ] Cobrir reprocessamento
-- [ ] Cobrir exclusão lógica
-- [ ] Cobrir tela nova no frontend
+- [x] Cobrir API de listagem detalhada
+- [x] Cobrir reprocessamento
+- [x] Cobrir exclusão lógica
+- [x] Cobrir tela nova no frontend
 
 Arquivos prováveis:
 - `apps/api/test/http-contract.test.ts`
@@ -127,32 +129,52 @@ Arquivos prováveis:
 
 ### B1. Escopo funcional mínimo
 
-- [ ] Congelar escopo inicial
-- [ ] Documentar limites do primeiro ciclo
+- [x] Congelar escopo inicial do primeiro ciclo: cadastro de empresas próprias com tipos `MAIN`/`BRANCH`
+- [x] Documentar limite: `UNKNOWN` permanece apenas como classificação de XML importado, não como tipo de empresa cadastrada
 
 ### B2. Modelo de dados
 
-- [ ] Modelar `cadastros.companies`
-- [ ] Modelar `cadastros.company_parameters`
-- [ ] Modelar `administracao.user_companies`
+- [x] Modelar `cadastros.companies`
+- [x] Modelar `cadastros.company_parameters`
+- [x] Modelar `administracao.user_companies`
 
 ### B3. Migrations
 
-- [ ] Criar migrations do domínio de empresas
-- [ ] Validar constraints de matriz/filial
+- [x] Criar migration inicial do domínio de empresas
+- [x] Validar constraints de matriz/filial na migration
+- [x] Criar backfill para vincular XMLs antigos à empresa pelo CNPJ do destinatário
 
 ### B4. Segurança
 
-- [ ] Definir permissões do novo domínio
-- [ ] Criar seed de permissões
+- [x] Definir uso inicial das permissões genéricas `MASTER_DATA_VIEW` e `MASTER_DATA_MANAGE`
+- [ ] Criar seed de permissões específicas, se o escopo evoluir para permissões por empresa
 
 ### B5 a B12. API, frontend e contexto
 
-- [ ] Implementar API de empresas
-- [ ] Implementar parâmetros por empresa
-- [ ] Implementar vínculo usuário-empresa
-- [ ] Implementar telas oficiais
-- [ ] Preparar contexto de sessão por empresa
+- [x] Implementar API de empresas via cadastro mestre `/api/v1/companies`
+- [x] Implementar parâmetros por empresa via cadastro mestre `/api/v1/company-parameters`
+- [x] Implementar fundação persistente do vínculo usuário-empresa
+- [x] Implementar tela oficial inicial em `/companies`
+- [x] Implementar tela inicial de parâmetros em `/company-parameters`
+- [x] Preparar contexto inicial de sessão por empresa em login/refresh/me
+- [x] Documentar que empresa ativa por sessão fica como feature futura, não como regra global atual
+- [ ] Implementar filtros explícitos por empresa ou todas nas telas operacionais e relatórios
+- [x] Documentar seleção de empresa/conta bancária no fluxo futuro de baixa e caixa
+- [x] Fechar decisões do MVP de saldo oficial: bloqueio por saldo insuficiente, saldo inicial por movimento e repasses por centro de custo
+- [x] Implementar movimentos de conta bancária e saldo oficial por conta
+- [x] Implementar entrada de saldo por repasse de marketplace/manual
+- [x] Implementar transferência entre contas bancárias com rastreabilidade
+- [x] Implementar endpoint de parcelas elegíveis para baixa
+- [x] Validar compatibilidade entre empresa do título e conta bancária no `POST /payments`
+- [x] Deduzir saldo oficial da conta bancária no `POST /payments`
+- [x] Restaurar saldo oficial por movimento compensatório no estorno de pagamento
+- [x] Implementar tela `/payments` com baixa manual individual
+- [x] Implementar lançamento de saldo inicial pela tela `/payments`
+- [x] Implementar histórico/listagem de pagamentos realizados
+- [x] Implementar estorno individual de pagamento pela tela `/payments`
+- [x] Implementar detalhe de pagamento com composição, conta bancária, movimentos de tesouraria e comprovantes vinculados
+- [x] Implementar anexação/download de comprovante no detalhe do pagamento com storage local privado
+- [ ] Implementar sincronização futura de comprovantes com Google Drive sem bloquear o fluxo operacional
 
 ## Estado atual
 

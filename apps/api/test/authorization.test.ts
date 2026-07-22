@@ -4,7 +4,7 @@ import { createAuthenticate, requirePermission } from '../src/domains/auth/auth-
 import type { AuthRepository, AuthUser } from '../src/domains/auth/auth-repository.js';
 import type { TokenService } from '../src/domains/auth/token-service.js';
 
-const baseUser: AuthUser = { id:'user-id',fullName:'User',email:'user@example.com',passwordHash:null,isMaster:false,roles:[],permissions:[] };
+const baseUser: AuthUser = { id:'user-id',fullName:'User',email:'user@example.com',passwordHash:null,isMaster:false,roles:[],permissions:[],companies:[],defaultCompanyId:null };
 function request(user:AuthUser|null):FastifyRequest{return {authUser:user,authSessionId:null,headers:{}} as FastifyRequest;}
 
 describe('authorization guards',()=>{

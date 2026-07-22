@@ -59,10 +59,21 @@ function formatPhone(value: string): string {
   return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 7) + '-' + digits.slice(7);
 }
 
+function formatPostalCode(value: string): string {
+  const digits = digitsOnly(value).slice(0, 8);
+  return digits.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
+}
+
 function supplierTypeLabel(value: unknown): string {
   if (value === 'INDIVIDUAL') return 'Pessoa física';
   if (value === 'COMPANY') return 'Pessoa jurídica';
   if (value === 'FOREIGN') return 'Estrangeiro';
+  return display(value);
+}
+
+function companyTypeLabel(value: unknown): string {
+  if (value === 'MAIN') return 'Matriz';
+  if (value === 'BRANCH') return 'Filial';
   return display(value);
 }
 
@@ -82,8 +93,10 @@ function displayColumn(column: ResourceColumnConfig, entity: Entity): string {
     if (supplierType === 'COMPANY') return formatCnpj(value);
     return value;
   }
+  if (column.format === 'companyDocument') return typeof value === 'string' && value !== '' ? formatCnpj(value) : '—';
   if (column.format === 'phone') return typeof value === 'string' && value !== '' ? formatPhone(value) : '—';
   if (column.format === 'supplierType') return supplierTypeLabel(value);
+  if (column.format === 'companyType') return companyTypeLabel(value);
   if (column.format === 'activeStatus') return typeof value === 'boolean' ? (value ? 'Ativo' : 'Inativo') : '—';
   return display(value);
 }
@@ -105,8 +118,14 @@ function formatFieldValue(field: FieldConfig, value: unknown, supplierType: Supp
     return value;
   }
   if (field.mask === 'phone' && typeof value === 'string') return formatPhone(value);
+  if (field.mask === 'postalCode' && typeof value === 'string') return formatPostalCode(value);
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null) return value;
-  return field.type === 'checkbox' ? field.name === 'isActive' : undefined;
+  return emptyFieldValue(field);
+}
+
+function emptyFieldValue(field: FieldConfig): FormValues[string] {
+  if (field.type === 'checkbox') return field.name === 'isActive';
+  return '';
 }
 
 function textValue(value: unknown): string {
@@ -134,6 +153,7 @@ function validateField(field: FieldConfig, value: unknown, supplierType: Supplie
     const digits = digitsOnly(textValue(value));
     return digits.length === 10 || digits.length === 11 ? true : 'Informe DDD e um telefone válido.';
   }
+  if (field.mask === 'postalCode') return digitsOnly(textValue(value)).length === 8 ? true : 'CEP deve conter 8 dígitos.';
   if (field.mask === 'supplierDocument') {
     if (supplierType === 'INDIVIDUAL') return digitsOnly(textValue(value)).length === 11 ? true : 'CPF deve conter 11 dígitos.';
     if (supplierType === 'COMPANY') return digitsOnly(textValue(value)).length === 14 ? true : 'CNPJ deve conter 14 dígitos.';
@@ -160,7 +180,7 @@ function FormField({ field, register, setValue, control, errors }: { field: Fiel
 
   const options = field.options ?? lookup.data?.map((item) => ({ value: display(item[field.lookup!.value]), label: display(item[field.lookup!.label]) })) ?? [];
   if (field.type === 'select') {
-    return <label className="grid gap-1.5 text-sm font-medium text-slate-700">{field.label}<select className="min-h-10 rounded-lg border border-slate-300 bg-white px-3" {...register(field.name, { required: field.required ? 'Campo obrigatório.' : false })}><option value="">Selecione</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{errorMessage && <span className="text-xs text-red-700">{errorMessage}</span>}</label>;
+    return <label className="grid gap-1.5 text-sm font-medium text-slate-700">{field.label}<select className="min-h-10 rounded-lg border border-slate-300 bg-white px-3" {...register(field.name, { required: field.required ? 'Campo obrigatório.' : false, setValueAs: (value: unknown) => value === '' ? undefined : value })}><option value="">Selecione</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{field.helperText && <span className="text-xs font-normal text-slate-500">{field.helperText}</span>}{errorMessage && <span className="text-xs text-red-700">{errorMessage}</span>}</label>;
   }
 
   return <label className="grid gap-1.5 text-sm font-medium text-slate-700">{field.label}<input type={field.type ?? 'text'} inputMode={field.inputMode} maxLength={field.maxLength} placeholder={field.placeholder} className="min-h-10 rounded-lg border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register(field.name, {
@@ -174,6 +194,7 @@ function FormField({ field, register, setValue, control, errors }: { field: Fiel
         return;
       }
       if (field.mask === 'phone') setValue(field.name, formatPhone(current), { shouldDirty: true, shouldValidate: true });
+      if (field.mask === 'postalCode') setValue(field.name, formatPostalCode(current), { shouldDirty: true, shouldValidate: true });
     },
     setValueAs: (value: unknown) => field.type === 'number' ? (value === '' ? undefined : Number(value)) : value === '' ? undefined : value,
   })} />{field.helperText && <span className="text-xs font-normal text-slate-500">{field.helperText}</span>}{errorMessage && <span className="text-xs text-red-700">{errorMessage}</span>}</label>;
@@ -199,7 +220,10 @@ export function MasterDataPage({ config }: { config: ResourceConfig }): ReactEle
   useEffect(() => {
     if (editing !== undefined) {
       const supplierType = (editing?.supplierType as SupplierType | undefined) ?? 'COMPANY';
-      const values: FormValues = Object.fromEntries(config.fields.map((field) => [field.name, formatFieldValue(field, editing?.[field.name], supplierType)]));
+      const values: FormValues = Object.fromEntries(config.fields.map((field) => [
+        field.name,
+        editing === null ? emptyFieldValue(field) : formatFieldValue(field, editing?.[field.name], supplierType),
+      ]));
       reset(values);
     }
   }, [editing, config, reset]);
@@ -208,18 +232,31 @@ export function MasterDataPage({ config }: { config: ResourceConfig }): ReactEle
     mutationFn: async (values: FormValues) => editing?.id ? httpClient.patch(`/api/v1${config.path}/${entityId(editing)}`, values) : httpClient.post(`/api/v1${config.path}`, values),
     onSuccess: async () => {
       setEditing(undefined);
-      await queryClient.invalidateQueries({ queryKey: ['master-data', config.path] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['master-data', config.path] }),
+        queryClient.invalidateQueries({ queryKey: ['lookup'] }),
+      ]);
     },
   });
 
   const remove = useMutation({
     mutationFn: async (entity: Entity) => httpClient.delete(`/api/v1${config.path}/${entityId(entity)}`),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ['master-data', config.path] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['master-data', config.path] }),
+        queryClient.invalidateQueries({ queryKey: ['lookup'] }),
+      ]);
+    },
   });
 
   const reactivate = useMutation({
     mutationFn: async (entity: Entity) => httpClient.post(`/api/v1${config.path}/${entityId(entity)}/reactivate`),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ['master-data', config.path] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['master-data', config.path] }),
+        queryClient.invalidateQueries({ queryKey: ['lookup'] }),
+      ]);
+    },
   });
 
   const submit = handleSubmit(async (values) => save.mutateAsync(values));

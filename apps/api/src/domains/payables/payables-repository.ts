@@ -1,5 +1,6 @@
 import { ApplicationError } from '../../common/errors/application-error.js';
 import type { Database, QueryExecutor } from '../../infrastructure/database/database.js';
+import type { StoredAttachment } from '../../infrastructure/storage/attachment-storage.js';
 
 export interface InstallmentInput { installmentNumber: number; installmentCount: number; amount: number; dueDate: string; paymentMethodId: string; notes?: string | null }
 export interface TitleInput { supplierId: string; categoryId: string; documentTypeId: string; paymentTermId?: string | null; costCenterId?: string | null;
@@ -7,13 +8,19 @@ export interface TitleInput { supplierId: string; categoryId: string; documentTy
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
 export interface XmlImportListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
+export interface PaymentEligibleInstallmentFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; companyId?: string }
+export interface PaymentListFilters { search?: string; status?: string; paidFrom?: string; paidTo?: string; supplierId?: string; companyId?: string }
+export interface PaymentInput { installmentId: string; batchId?: string | null; bankAccountId: string; paymentMethodId: string; paymentDate: string; principalAmount: number; interestAmount?: number; penaltyAmount?: number; discountAmount?: number; additionalAmount?: number; transactionNumber?: string | null; overpaymentConfirmed?: boolean }
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
-export interface XmlImportGenerateInput { categoryId: string; documentTypeId: string; paymentMethodId: string; paymentTermId?: string | null; costCenterId?: string | null; description?: string | null; duplicateConfirmed?: boolean }
+export interface XmlImportGenerateInput { categoryId?: string | null; documentTypeId?: string | null; paymentMethodId?: string | null; paymentTermId?: string | null; costCenterId?: string | null; description?: string | null; duplicateConfirmed?: boolean }
 export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; recipientLegalName?: string | null; recipientDocumentNumber?: string | null; recipientStateRegistration?: string | null; recipientCityName?: string | null; recipientStateCode?: string | null; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; mainCompanyDocumentNumber?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
+interface ResolvedCompany { id: string; companyType: 'MAIN' | 'BRANCH'; legalName: string; tradeName: string | null; parameters: CompanyParameters | null }
+interface CompanyParameters { defaultFinancialCategoryId: string | null; defaultPaymentMethodId: string | null; defaultPaymentTermId: string | null; defaultCostCenterId: string | null; defaultDocumentTypeId: string | null; defaultBankAccountId: string | null; xmlAutoCreateSupplier: boolean; xmlRequireKnownRecipient: boolean }
 
 function camel(key: string): string { return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()); }
 function api(row: Record<string, unknown>): Record<string, unknown> { return Object.fromEntries(Object.entries(row).map(([key, value]) => [camel(key), value])); }
 function cents(value: number): number { return Math.round(value * 100); }
+function moneyAmount(input: PaymentInput): number { return input.principalAmount + (input.interestAmount ?? 0) + (input.penaltyAmount ?? 0) + (input.additionalAmount ?? 0) - (input.discountAmount ?? 0); }
 
 export class PayablesRepository {
   constructor(private readonly database: Database) {}
@@ -64,6 +71,144 @@ export class PayablesRepository {
       this.database.query(`SELECT p.*,ps.code status_code FROM financeiro.payments p JOIN financeiro.payment_statuses ps ON ps.id=p.status_id JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id WHERE i.payable_title_id=$1 ORDER BY p.payment_date`, [id]),
     ]);
     return { ...api(title.rows[0]), installments: installments.rows.map(api), tags: tags.rows.map(api), attachments: attachments.rows.map(api), approvals: approvals.rows.map(api), payments: payments.rows.map(api) };
+  }
+
+  async listPaymentEligibleInstallments(page: number, pageSize: number, filters: PaymentEligibleInstallmentFilters = {}): Promise<object> {
+    const values: unknown[] = [];
+    const conditions = ['i.deleted_at IS NULL', 't.deleted_at IS NULL', 'i.open_balance > 0', "ims.code IN ('OPEN','OVERDUE','PARTIALLY_PAID')", "ts.code <> 'CANCELLED'"];
+    if (filters.search) {
+      values.push(`%${filters.search}%`);
+      conditions.push(`(t.document_number ILIKE $${values.length} OR t.description ILIKE $${values.length} OR s.legal_name ILIKE $${values.length})`);
+    }
+    if (filters.status) { values.push(filters.status); conditions.push(`ims.code=$${values.length}`); }
+    if (filters.dueFrom) { values.push(filters.dueFrom); conditions.push(`i.due_date >= $${values.length}::date`); }
+    if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`i.due_date <= $${values.length}::date`); }
+    if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
+    if (filters.companyId) { values.push(filters.companyId); conditions.push(`t.company_id=$${values.length}`); }
+    const where = conditions.join(' AND ');
+    const from = `FROM financeiro.payable_installments i
+      JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
+      JOIN cadastros.suppliers s ON s.id=t.supplier_id
+      JOIN cadastros.financial_categories c ON c.id=t.category_id
+      JOIN cadastros.payment_methods pm ON pm.id=i.payment_method_id
+      JOIN financeiro.payable_installment_statuses ims ON ims.id=i.status_id
+      JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
+      LEFT JOIN cadastros.companies company ON company.id=t.company_id`;
+    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
+    values.push(pageSize, (page - 1) * pageSize);
+    const result = await this.database.query(`SELECT
+        i.id installment_id,i.payable_title_id,t.company_id,COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
+        t.supplier_id,s.legal_name supplier_name,t.category_id,c.name category_name,t.document_number,t.document_series,t.description,
+        i.installment_number,i.installment_count,i.amount::text amount,i.open_balance::text open_balance,i.due_date,
+        i.payment_method_id,pm.name payment_method_name,ims.code installment_status_code,ts.code title_status_code
+      ${from} WHERE ${where}
+      ORDER BY i.due_date ASC,t.document_number ASC,i.installment_number ASC
+      LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
+    return { data: result.rows.map(api), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
+  }
+
+  async listPayments(page: number, pageSize: number, filters: PaymentListFilters = {}): Promise<object> {
+    const values: unknown[] = [];
+    const conditions = ['t.deleted_at IS NULL', 'i.deleted_at IS NULL'];
+    if (filters.search) {
+      values.push(`%${filters.search}%`);
+      conditions.push(`(t.document_number ILIKE $${values.length} OR t.description ILIKE $${values.length} OR s.legal_name ILIKE $${values.length} OR p.transaction_number ILIKE $${values.length})`);
+    }
+    if (filters.status) { values.push(filters.status); conditions.push(`ps.code=$${values.length}`); }
+    if (filters.paidFrom) { values.push(filters.paidFrom); conditions.push(`p.payment_date >= $${values.length}::date`); }
+    if (filters.paidTo) { values.push(filters.paidTo); conditions.push(`p.payment_date <= $${values.length}::date`); }
+    if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
+    if (filters.companyId) { values.push(filters.companyId); conditions.push(`t.company_id=$${values.length}`); }
+    const where = conditions.join(' AND ');
+    const from = `FROM financeiro.payments p
+      JOIN financeiro.payment_statuses ps ON ps.id=p.status_id
+      JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id
+      JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
+      JOIN cadastros.suppliers s ON s.id=t.supplier_id
+      JOIN cadastros.payment_methods pm ON pm.id=p.payment_method_id
+      JOIN tesouraria.bank_accounts ba ON ba.id=p.bank_account_id
+      JOIN tesouraria.banks b ON b.id=ba.bank_id
+      LEFT JOIN cadastros.companies company ON company.id=t.company_id
+      LEFT JOIN financeiro.payment_reversals pr ON pr.payment_id=p.id`;
+    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
+    values.push(pageSize, (page - 1) * pageSize);
+    const result = await this.database.query(`SELECT
+        p.id,p.payable_installment_id,p.bank_account_id,p.payment_method_id,p.payment_date,p.principal_amount::text principal_amount,
+        p.interest_amount::text interest_amount,p.penalty_amount::text penalty_amount,p.discount_amount::text discount_amount,
+        p.additional_amount::text additional_amount,p.movement_amount::text movement_amount,p.transaction_number,p.created_at,
+        ps.code status_code,pr.id reversal_id,pr.reason reversal_reason,pr.reversed_at,
+        i.installment_number,i.installment_count,t.id payable_title_id,t.company_id,
+        COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
+        s.legal_name supplier_name,t.document_number,t.document_series,t.description,
+        pm.name payment_method_name,ba.account_name,b.name bank_name
+      ${from} WHERE ${where}
+      ORDER BY p.payment_date DESC,p.created_at DESC,p.id DESC
+      LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
+    return { data: result.rows.map((row) => ({ ...api(row), isReversed: Boolean(row.reversal_id) })), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
+  }
+
+  async getPayment(id: string): Promise<object | null> {
+    const result = await this.database.query(`SELECT
+        p.id,p.payable_installment_id,p.bank_account_id,p.payment_method_id,p.payment_date,p.principal_amount::text principal_amount,
+        p.interest_amount::text interest_amount,p.penalty_amount::text penalty_amount,p.discount_amount::text discount_amount,
+        p.additional_amount::text additional_amount,p.movement_amount::text movement_amount,p.transaction_number,p.overpayment_confirmed,p.created_at,
+        ps.code status_code,pr.id reversal_id,pr.reason reversal_reason,pr.reversed_at,
+        i.installment_number,i.installment_count,i.amount::text installment_amount,i.open_balance::text installment_open_balance,i.due_date,
+        t.id payable_title_id,t.company_id,t.category_id,c.name category_name,t.cost_center_id,cc.name cost_center_name,
+        COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
+        s.id supplier_id,s.legal_name supplier_name,t.document_number,t.document_series,t.description,
+        pm.name payment_method_name,ba.account_name,ba.account_number,b.name bank_name
+      FROM financeiro.payments p
+      JOIN financeiro.payment_statuses ps ON ps.id=p.status_id
+      JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id
+      JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
+      JOIN cadastros.suppliers s ON s.id=t.supplier_id
+      JOIN cadastros.financial_categories c ON c.id=t.category_id
+      JOIN cadastros.payment_methods pm ON pm.id=p.payment_method_id
+      JOIN tesouraria.bank_accounts ba ON ba.id=p.bank_account_id
+      JOIN tesouraria.banks b ON b.id=ba.bank_id
+      LEFT JOIN cadastros.cost_centers cc ON cc.id=t.cost_center_id
+      LEFT JOIN cadastros.companies company ON company.id=t.company_id
+      LEFT JOIN financeiro.payment_reversals pr ON pr.payment_id=p.id
+      WHERE p.id=$1`, [id]);
+    const row = result.rows[0];
+    if (!row) return null;
+    const [bankMovements, attachments] = await Promise.all([
+      this.database.query(`SELECT m.*,ba.account_name,b.name bank_name
+        FROM tesouraria.bank_account_movements m
+        JOIN tesouraria.bank_accounts ba ON ba.id=m.bank_account_id
+        JOIN tesouraria.banks b ON b.id=ba.bank_id
+        WHERE m.related_payment_id=$1
+        ORDER BY m.created_at ASC,m.id ASC`, [id]),
+      this.database.query(`SELECT * FROM financeiro.attachments WHERE payment_id=$1 AND deleted_at IS NULL ORDER BY created_at DESC`, [id]),
+    ]);
+    return {
+      ...api(row),
+      isReversed: Boolean(row.reversal_id),
+      bankMovements: bankMovements.rows.map(api),
+      attachments: attachments.rows.map(api),
+    };
+  }
+
+  async addPaymentAttachment(paymentId: string, attachment: StoredAttachment, userId: string): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      const payment = await tx.query(`SELECT id FROM financeiro.payments WHERE id=$1`, [paymentId]);
+      if (!payment.rowCount) throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'Payment not found', statusCode: 404 });
+      const result = await tx.query(`INSERT INTO financeiro.attachments (
+          payment_id,attachment_type_id,original_name,stored_name,relative_path,mime_type,size_bytes,file_hash,created_by
+        ) VALUES (
+          $1,(SELECT id FROM cadastros.attachment_types WHERE code='PAYMENT_RECEIPT'),$2,$3,$4,$5,$6,$7,$8
+        ) RETURNING *`, [paymentId,attachment.originalName,attachment.storedName,attachment.relativePath,attachment.mimeType,attachment.sizeBytes,attachment.fileHash,userId]);
+      const row = api(result.rows[0]!);
+      await this.audit(tx,'ATTACHMENT',row.id as string,'CREATED_PAYMENT_RECEIPT',userId,null,row);
+      return row;
+    });
+  }
+
+  async getAttachment(id: string): Promise<object | null> {
+    const result = await this.database.query(`SELECT * FROM financeiro.attachments WHERE id=$1 AND deleted_at IS NULL`, [id]);
+    const row = result.rows[0];
+    return row ? api(row) : null;
   }
 
   async duplicates(supplierId: string, documentNumber: string, documentSeries: string | null, installmentNumber?: number): Promise<object[]> {
@@ -132,20 +277,43 @@ export class PayablesRepository {
     await tx.query(`UPDATE financeiro.payable_installments SET status_id=(SELECT id FROM financeiro.payable_installment_statuses WHERE code='CANCELLED'),updated_by=$2 WHERE payable_title_id=$1`,[id,userId]);
     await this.audit(tx,'PAYABLE_TITLE',id,'CANCELLED',userId,null,{reason}); }); }
 
-  async addPayment(data:Record<string,unknown>,userId:string):Promise<object>{return this.database.transaction(async(tx)=>{
-    const installment=await tx.query<{open_balance:string;title_status:string}&Record<string,unknown>>(`SELECT i.open_balance::text,ts.code title_status FROM financeiro.payable_installments i JOIN financeiro.payable_titles t ON t.id=i.payable_title_id JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id WHERE i.id=$1 FOR UPDATE`,[data.installmentId]);
+  async addPayment(data:PaymentInput,userId:string):Promise<object>{return this.database.transaction(async(tx)=>{
+    const installment=await tx.query<{open_balance:string;title_status:string;company_id:string|null;cost_center_id:string|null;document_number:string;document_series:string|null;supplier_name:string;installment_number:number;installment_count:number}&Record<string,unknown>>(`SELECT i.open_balance::text,ts.code title_status,t.company_id,t.cost_center_id,t.document_number,t.document_series,s.legal_name supplier_name,i.installment_number,i.installment_count
+      FROM financeiro.payable_installments i
+      JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
+      JOIN cadastros.suppliers s ON s.id=t.supplier_id
+      JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
+      WHERE i.id=$1 AND i.deleted_at IS NULL AND t.deleted_at IS NULL FOR UPDATE`,[data.installmentId]);
     const current=installment.rows[0]; if(!current) throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Installment not found',statusCode:404});
     if(current.title_status==='CANCELLED') throw new ApplicationError({code:'TITLE_CANCELLED',message:'Cancelled titles cannot receive payments',statusCode:409});
+    if(!current.company_id) throw new ApplicationError({code:'PAYABLE_COMPANY_REQUIRED',message:'Payable title must be linked to a company before payment',statusCode:409});
     if(Number(data.principalAmount)>Number(current.open_balance)&&!data.overpaymentConfirmed) throw new ApplicationError({code:'OVERPAYMENT_CONFIRMATION_REQUIRED',message:'Payment exceeds open balance',statusCode:409});
+    const bank=await tx.query<{company_id:string|null;account_name:string}&Record<string,unknown>>(`SELECT company_id,account_name FROM tesouraria.bank_accounts WHERE id=$1 AND is_active AND deleted_at IS NULL FOR UPDATE`,[data.bankAccountId]);
+    const bankAccount=bank.rows[0]; if(!bankAccount) throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Bank account not found',statusCode:404});
+    if(!bankAccount.company_id) throw new ApplicationError({code:'BANK_ACCOUNT_COMPANY_REQUIRED',message:'Bank account must be linked to a company',statusCode:409});
+    if(bankAccount.company_id!==current.company_id) throw new ApplicationError({code:'PAYMENT_BANK_ACCOUNT_COMPANY_MISMATCH',message:'Bank account must belong to the same company as the payable title',statusCode:409});
+    const movementAmount=moneyAmount(data);
+    if(movementAmount<=0) throw new ApplicationError({code:'VALIDATION_ERROR',message:'Payment movement amount must be greater than zero',statusCode:400});
+    const balance=await tx.query<{official_balance:string}&Record<string,unknown>>(`SELECT official_balance::text FROM tesouraria.v_bank_account_balances WHERE bank_account_id=$1`,[data.bankAccountId]);
+    if(Number(balance.rows[0]?.official_balance ?? 0)<movementAmount) throw new ApplicationError({code:'INSUFFICIENT_BANK_BALANCE',message:'Bank account has insufficient official balance',statusCode:409});
     const result=await tx.query(`INSERT INTO financeiro.payments (payable_installment_id,payment_batch_id,bank_account_id,payment_method_id,payment_date,principal_amount,interest_amount,penalty_amount,discount_amount,additional_amount,transaction_number,overpayment_confirmed,overpayment_confirmed_by,overpayment_confirmed_at,status_id,created_by,updated_by)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $12 THEN $13::uuid END,CASE WHEN $12 THEN CURRENT_TIMESTAMP END,(SELECT id FROM financeiro.payment_statuses WHERE code='EFFECTIVE'),$13,$13) RETURNING *`,
     [data.installmentId,data.batchId??null,data.bankAccountId,data.paymentMethodId,data.paymentDate,data.principalAmount,data.interestAmount??0,data.penaltyAmount??0,data.discountAmount??0,data.additionalAmount??0,data.transactionNumber??null,data.overpaymentConfirmed??false,userId]);
-    const row=result.rows[0]!; await this.audit(tx,'PAYMENT',row.id as string,'CREATED',userId,null,api(row)); return api(row);});}
+    const row=result.rows[0]!;
+    const movement=await this.insertPaymentBankMovement(tx,row.id as string,data.bankAccountId,current.company_id,current.cost_center_id,data.paymentDate,movementAmount,
+      `Pagamento ${current.document_number}${current.document_series ? `/${current.document_series}` : ''} ${current.installment_number}/${current.installment_count} - ${current.supplier_name}`.slice(0,255),data.transactionNumber??null,userId);
+    const next={...api(row),bankMovement:movement};
+    await this.audit(tx,'PAYMENT',row.id as string,'CREATED',userId,null,next); return next;});}
 
   async reversePayment(id:string,reason:string,userId:string):Promise<object>{return this.database.transaction(async(tx)=>{
+    const payment=await tx.query<{id:string;status_code:string}&Record<string,unknown>>(`SELECT p.*,ps.code status_code FROM financeiro.payments p JOIN financeiro.payment_statuses ps ON ps.id=p.status_id WHERE p.id=$1 FOR UPDATE`,[id]);
+    const current=payment.rows[0]; if(!current) throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Payment not found',statusCode:404});
+    const already=await tx.query(`SELECT 1 FROM financeiro.payment_reversals WHERE payment_id=$1 LIMIT 1`,[id]);
+    if(already.rowCount) throw new ApplicationError({code:'PAYMENT_ALREADY_REVERSED',message:'Payment was already reversed',statusCode:409});
     const result=await tx.query(`INSERT INTO financeiro.payment_reversals(payment_id,reason,reversed_by) VALUES($1,$2,$3) RETURNING *`,[id,reason,userId]);
     await tx.query(`UPDATE financeiro.payments SET status_id=(SELECT id FROM financeiro.payment_statuses WHERE code='REVERSED'),updated_by=$2 WHERE id=$1`,[id,userId]);
-    const row=result.rows[0]!; await this.audit(tx,'PAYMENT',id,'REVERSED',userId,null,{reason}); return api(row);});}
+    const reversedMovements=await this.reversePaymentBankMovements(tx,id,reason,userId);
+    const row=result.rows[0]!; await this.audit(tx,'PAYMENT',id,'REVERSED',userId,api(current),{reason,reversedMovements}); return {...api(row),reversedMovements};});}
 
   async createXmlImport(input: XmlImportInput, userId: string): Promise<object> {
     return this.database.transaction(async (tx) => {
@@ -154,21 +322,22 @@ export class PayablesRepository {
         if (duplicate.rowCount) throw new ApplicationError({ code: 'XML_IMPORT_DUPLICATE', message: 'XML access key already imported', statusCode: 409 });
       }
 
+      const company = await this.resolveCompanyByDocument(tx, input.recipientDocumentNumber);
       const supplier = await this.findOrCreateXmlSupplier(tx, input, userId);
       const result = await tx.query(`INSERT INTO financeiro.xml_imports (
-        access_key,supplier_id,attachment_id,raw_xml,source_file_name,source_mime_type,source_size_bytes,source_file_hash,
+        access_key,supplier_id,company_id,attachment_id,raw_xml,source_file_name,source_mime_type,source_size_bytes,source_file_hash,
         supplier_legal_name,supplier_trade_name,supplier_document_number,supplier_state_registration,supplier_city_name,supplier_state_code,
         recipient_legal_name,recipient_document_number,recipient_state_registration,recipient_city_name,recipient_state_code,recipient_kind,main_company_document_number,
         document_model,document_number,document_series,issue_date,operation_date,due_date,
         products_amount,freight_amount,insurance_amount,discount_amount,other_amount,invoice_total_amount,payment_amount,currency_code,parsed_data,
         status_id,imported_by
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$37
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,
+        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$38
       ) RETURNING *`, [
-        input.accessKey ?? null,supplier?.id ?? null,input.attachmentId ?? null,input.rawXml ?? null,input.sourceFileName ?? null,input.sourceMimeType ?? null,input.sourceSizeBytes ?? null,input.sourceFileHash ?? null,
+        input.accessKey ?? null,supplier?.id ?? null,company?.id ?? null,input.attachmentId ?? null,input.rawXml ?? null,input.sourceFileName ?? null,input.sourceMimeType ?? null,input.sourceSizeBytes ?? null,input.sourceFileHash ?? null,
         input.supplierLegalName ?? null,input.supplierTradeName ?? null,input.supplierDocumentNumber ?? null,input.supplierStateRegistration ?? null,input.supplierCityName ?? null,input.supplierStateCode ?? null,
-        input.recipientLegalName ?? null,input.recipientDocumentNumber ?? null,input.recipientStateRegistration ?? null,input.recipientCityName ?? null,input.recipientStateCode ?? null,input.recipientKind ?? 'UNKNOWN',input.mainCompanyDocumentNumber ?? null,
+        input.recipientLegalName ?? null,input.recipientDocumentNumber ?? null,input.recipientStateRegistration ?? null,input.recipientCityName ?? null,input.recipientStateCode ?? null,company?.companyType ?? 'UNKNOWN',input.mainCompanyDocumentNumber ?? null,
         input.documentModel ?? null,input.documentNumber ?? null,input.documentSeries ?? null,input.issueDate ?? null,input.operationDate ?? null,input.dueDate ?? null,
         input.productsAmount ?? null,input.freightAmount ?? null,input.insuranceAmount ?? null,input.discountAmount ?? null,input.otherAmount ?? null,input.invoiceTotalAmount ?? null,input.paymentAmount ?? null,input.currencyCode ?? 'BRL',JSON.stringify(input.parsedData ?? {}),
         userId
@@ -181,7 +350,7 @@ export class PayablesRepository {
         installments.push(api(installment.rows[0]!));
       }
       await this.audit(tx,'XML_IMPORT',row.id as string,'CREATED',userId,null,{...api(row),installments,supplier:supplier?.entity ?? null,supplierWasCreated:supplier?.created ?? false});
-      return { ...api(row), installments, supplier: supplier?.entity ?? null, supplierWasCreated: supplier?.created ?? false };
+      return { ...api(row), installments, supplier: supplier?.entity ?? null, supplierWasCreated: supplier?.created ?? false, company: this.publicCompany(company), companyParameters: company?.parameters ?? null };
     });
   }
 
@@ -210,7 +379,7 @@ export class PayablesRepository {
     const result = await this.database.query(`SELECT x.*,s.code status_code,supplier.legal_name resolved_supplier_name,supplier.document_number resolved_supplier_document_number,title.document_number generated_title_document_number
       ${from} WHERE ${where}
       ORDER BY x.imported_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
-    return { data: result.rows.map((row) => ({ ...api(row), hasGeneratedTitle: Boolean(row.generated_title_id) })), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
+    return { data: await Promise.all(result.rows.map((row) => this.xmlImportApi(row, this.database))), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
   }
 
   async getXmlImport(id: string): Promise<object | null> {
@@ -223,7 +392,7 @@ export class PayablesRepository {
     const row = result.rows[0];
     if (!row) return null;
     const installments = await this.database.query(`SELECT * FROM financeiro.xml_import_installments WHERE xml_import_id=$1 ORDER BY installment_number`, [id]);
-    return { ...api(row), hasGeneratedTitle: Boolean(row.generated_title_id), installments: installments.rows.map(api) };
+    return { ...await this.xmlImportApi(row, this.database), installments: installments.rows.map(api) };
   }
 
   async reprocessXmlImport(id: string, userId: string): Promise<object> {
@@ -281,7 +450,7 @@ export class PayablesRepository {
 
   async generatePayableFromXml(xmlImportId: string, input: XmlImportGenerateInput, userId: string): Promise<object> {
     return this.database.transaction(async (tx) => {
-      const xmlResult = await tx.query<{ id: string; access_key: string | null; supplier_id: string | null; generated_title_id: string | null; supplier_legal_name: string | null; document_number: string | null; document_series: string | null; issue_date: string | Date | null; due_date: string | Date | null; invoice_total_amount: string | null; payment_amount: string | null; raw_xml: string | null } & Record<string, unknown>>(
+      const xmlResult = await tx.query<{ id: string; access_key: string | null; supplier_id: string | null; company_id: string | null; recipient_document_number: string | null; generated_title_id: string | null; supplier_legal_name: string | null; document_number: string | null; document_series: string | null; issue_date: string | Date | null; due_date: string | Date | null; invoice_total_amount: string | null; payment_amount: string | null; raw_xml: string | null } & Record<string, unknown>>(
         `SELECT * FROM financeiro.xml_imports WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, [xmlImportId]);
       const xml = xmlResult.rows[0];
       if (!xml) throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'XML import not found', statusCode: 404 });
@@ -294,17 +463,28 @@ export class PayablesRepository {
       const documentSeries = xml.document_series ? String(xml.document_series).slice(0, 30) : null;
       const issueDate = this.toDateString(xml.issue_date) ?? new Date().toISOString().slice(0, 10);
       const description = input.description?.trim() || `NFe ${documentNumber}${xml.supplier_legal_name ? ` - ${xml.supplier_legal_name}` : ''}`;
+      const company = await this.resolveXmlCompany(tx, xml);
+      const companyId = company?.id ?? xml.company_id ?? null;
+      const parameters = company?.parameters ?? null;
+      const categoryId = input.categoryId ?? parameters?.defaultFinancialCategoryId;
+      const documentTypeId = input.documentTypeId ?? parameters?.defaultDocumentTypeId;
+      const paymentMethodId = input.paymentMethodId ?? parameters?.defaultPaymentMethodId;
+      const paymentTermId = input.paymentTermId ?? parameters?.defaultPaymentTermId ?? null;
+      const costCenterId = input.costCenterId ?? parameters?.defaultCostCenterId ?? null;
+      if (!categoryId) throw new ApplicationError({ code: 'XML_IMPORT_CATEGORY_REQUIRED', message: 'Financial category is required to generate a payable title', statusCode: 400 });
+      if (!documentTypeId) throw new ApplicationError({ code: 'XML_IMPORT_DOCUMENT_TYPE_REQUIRED', message: 'Document type is required to generate a payable title', statusCode: 400 });
+      if (!paymentMethodId) throw new ApplicationError({ code: 'XML_IMPORT_PAYMENT_METHOD_REQUIRED', message: 'Payment method is required to generate payable installments', statusCode: 400 });
 
       const duplicate = await tx.query(`SELECT 1 FROM financeiro.payable_titles WHERE supplier_id=$1 AND lower(trim(document_number))=lower(trim($2))
         AND coalesce(lower(trim(document_series)),'')=coalesce(lower(trim($3)),'') AND deleted_at IS NULL LIMIT 1`, [xml.supplier_id,documentNumber,documentSeries]);
       if (duplicate.rowCount && !input.duplicateConfirmed) throw new ApplicationError({ code: 'POSSIBLE_DUPLICATE', message: 'A possible duplicate title exists', statusCode: 409 });
 
-      const title = await tx.query(`INSERT INTO financeiro.payable_titles (supplier_id,category_id,document_type_id,payment_term_id,cost_center_id,
+      const title = await tx.query(`INSERT INTO financeiro.payable_titles (supplier_id,company_id,category_id,document_type_id,payment_term_id,cost_center_id,
         document_number,document_series,description,origin_code,issue_date,original_amount,discount_amount,additional_amount,status_id,notes,
         duplicate_warning_confirmed,duplicate_warning_confirmed_by,duplicate_warning_confirmed_at,created_by,updated_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'XML',$9,$10,0,0,(SELECT id FROM financeiro.payable_title_statuses WHERE code='OPEN'),$11,$12,
-        CASE WHEN $12 THEN $13::uuid END,CASE WHEN $12 THEN CURRENT_TIMESTAMP END,$13,$13) RETURNING *`,
-      [xml.supplier_id,input.categoryId,input.documentTypeId,input.paymentTermId ?? null,input.costCenterId ?? null,documentNumber,documentSeries,description,issueDate,amount,
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'XML',$10,$11,0,0,(SELECT id FROM financeiro.payable_title_statuses WHERE code='OPEN'),$12,$13,
+        CASE WHEN $13 THEN $14::uuid END,CASE WHEN $13 THEN CURRENT_TIMESTAMP END,$14,$14) RETURNING *`,
+      [xml.supplier_id,companyId,categoryId,documentTypeId,paymentTermId,costCenterId,documentNumber,documentSeries,description,issueDate,amount,
         `Gerado a partir da importação XML ${xml.access_key ?? xml.id}.`,input.duplicateConfirmed ?? false,userId]);
       const titleRow = title.rows[0]!;
 
@@ -315,10 +495,10 @@ export class PayablesRepository {
         await tx.query(`INSERT INTO financeiro.payable_installments
           (payable_title_id,installment_number,installment_count,amount,due_date,payment_method_id,open_balance,status_id,notes,created_by,updated_by)
           VALUES ($1,$2,$3,$4,$5,$6,$4,(SELECT id FROM financeiro.payable_installment_statuses WHERE code=CASE WHEN $5::date<CURRENT_DATE THEN 'OVERDUE' ELSE 'OPEN' END),$7,$8,$8)`,
-        [titleRow.id,item.installmentNumber,item.installmentCount,item.amount,item.dueDate,input.paymentMethodId,item.notes,userId]);
+        [titleRow.id,item.installmentNumber,item.installmentCount,item.amount,item.dueDate,paymentMethodId,item.notes,userId]);
       }
 
-      await tx.query(`UPDATE financeiro.xml_imports SET generated_title_id=$2,status_id=(SELECT id FROM financeiro.xml_import_statuses WHERE code='PROCESSED'),processed_at=CURRENT_TIMESTAMP WHERE id=$1`, [xmlImportId,titleRow.id]);
+      await tx.query(`UPDATE financeiro.xml_imports SET company_id=COALESCE(company_id,$3),generated_title_id=$2,status_id=(SELECT id FROM financeiro.xml_import_statuses WHERE code='PROCESSED'),processed_at=CURRENT_TIMESTAMP WHERE id=$1`, [xmlImportId,titleRow.id,companyId]);
       await this.audit(tx,'PAYABLE_TITLE',titleRow.id as string,'CREATED_FROM_XML_IMPORT',userId,null,{...api(titleRow),xmlImportId,installments});
       await this.audit(tx,'XML_IMPORT',xmlImportId,'GENERATED_PAYABLE_TITLE',userId,null,{generatedTitleId:titleRow.id});
       return { ...api(titleRow), installments, xmlImportId };
@@ -343,6 +523,106 @@ export class PayablesRepository {
     if (value instanceof Date) return value.toISOString().slice(0, 10);
     return String(value).slice(0, 10);
   }
+
+  private async resolveCompanyByDocument(tx: QueryExecutor, documentNumber: string | null | undefined): Promise<ResolvedCompany | null> {
+    const normalized = documentNumber?.replace(/\D+/g, '') ?? '';
+    if (!/^\d{14}$/.test(normalized)) return null;
+    const result = await tx.query<{ id: string; company_type: 'MAIN' | 'BRANCH'; legal_name: string; trade_name: string | null } & Record<string, unknown>>(
+      `SELECT id,company_type,legal_name,trade_name FROM cadastros.companies
+       WHERE document_number=$1 AND is_active AND deleted_at IS NULL LIMIT 1`,
+      [normalized],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return { id: row.id, companyType: row.company_type, legalName: row.legal_name, tradeName: row.trade_name, parameters: await this.loadCompanyParameters(tx, row.id) };
+  }
+
+  private async resolveCompanyById(tx: QueryExecutor, companyId: string | null | undefined): Promise<ResolvedCompany | null> {
+    if (!companyId) return null;
+    const result = await tx.query<{ id: string; company_type: 'MAIN' | 'BRANCH'; legal_name: string; trade_name: string | null } & Record<string, unknown>>(
+      `SELECT id,company_type,legal_name,trade_name FROM cadastros.companies
+       WHERE id=$1 AND is_active AND deleted_at IS NULL LIMIT 1`,
+      [companyId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return { id: row.id, companyType: row.company_type, legalName: row.legal_name, tradeName: row.trade_name, parameters: await this.loadCompanyParameters(tx, row.id) };
+  }
+
+  private async resolveXmlCompany(tx: QueryExecutor, row: Record<string, unknown>): Promise<ResolvedCompany | null> {
+    return await this.resolveCompanyById(tx, row.company_id as string | null | undefined)
+      ?? this.resolveCompanyByDocument(tx, row.recipient_document_number as string | null | undefined);
+  }
+
+  private async loadCompanyParameters(tx: QueryExecutor, companyId: string | null | undefined): Promise<CompanyParameters | null> {
+    if (!companyId) return null;
+    const result = await tx.query(`SELECT * FROM cadastros.company_parameters
+      WHERE company_id=$1 AND is_active AND deleted_at IS NULL LIMIT 1`, [companyId]);
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      defaultFinancialCategoryId: row.default_financial_category_id as string | null,
+      defaultPaymentMethodId: row.default_payment_method_id as string | null,
+      defaultPaymentTermId: row.default_payment_term_id as string | null,
+      defaultCostCenterId: row.default_cost_center_id as string | null,
+      defaultDocumentTypeId: row.default_document_type_id as string | null,
+      defaultBankAccountId: row.default_bank_account_id as string | null,
+      xmlAutoCreateSupplier: row.xml_auto_create_supplier !== false,
+      xmlRequireKnownRecipient: row.xml_require_known_recipient === true,
+    };
+  }
+
+  private publicCompany(company: ResolvedCompany | null): object | null {
+    return company ? { id: company.id, companyType: company.companyType, legalName: company.legalName, tradeName: company.tradeName } : null;
+  }
+
+  private async xmlImportApi(row: Record<string, unknown>, executor: QueryExecutor): Promise<Record<string, unknown>> {
+    const company = await this.resolveXmlCompany(executor, row);
+    return {
+      ...api(row),
+      hasGeneratedTitle: Boolean(row.generated_title_id),
+      company: this.publicCompany(company),
+      companyParameters: company?.parameters ?? null,
+    };
+  }
+
+  private async insertPaymentBankMovement(tx:QueryExecutor,paymentId:string,bankAccountId:string,companyId:string,costCenterId:string|null,paymentDate:string,amount:number,description:string,referenceNumber:string|null,userId:string):Promise<object>{
+    const result=await tx.query(`INSERT INTO tesouraria.bank_account_movements (
+        bank_account_id,company_id,cost_center_id,related_payment_id,movement_type,direction,movement_date,amount,description,reference_number,is_system_generated,created_by
+      ) VALUES ($1,$2,$3,$4,'PAYABLE_PAYMENT','OUT',$5,$6,$7,$8,true,$9) RETURNING *`,
+    [bankAccountId,companyId,costCenterId,paymentId,paymentDate,amount,description.slice(0,255),referenceNumber,userId]);
+    const movement=api(result.rows[0]!);
+    await tx.query(`INSERT INTO administracao.audit_events(domain_code,entity_name,entity_id,action_code,previous_data,new_data,user_id,source_code)
+      VALUES('DOM-003','BANK_ACCOUNT_MOVEMENT',$1,'CREATED_FROM_PAYMENT',NULL,$2,$3,'API')`,
+    [movement.id,JSON.stringify(movement),userId]);
+    return movement;
+  }
+
+  private async reversePaymentBankMovements(tx:QueryExecutor,paymentId:string,reason:string,userId:string):Promise<object[]>{
+    const movements=await tx.query<{id:string;bank_account_id:string;company_id:string;cost_center_id:string|null;direction:'IN'|'OUT';amount:string;movement_date:string;description:string;reference_number:string|null}&Record<string,unknown>>(
+      `SELECT *
+       FROM tesouraria.bank_account_movements
+       WHERE related_payment_id=$1 AND movement_type='PAYABLE_PAYMENT'
+       FOR UPDATE`,
+      [paymentId],
+    );
+    const reversed:object[]=[];
+    for(const movement of movements.rows){
+      const existing=await tx.query(`SELECT 1 FROM tesouraria.bank_account_movements WHERE reversal_of_movement_id=$1 LIMIT 1`,[movement.id]);
+      if(existing.rowCount) throw new ApplicationError({code:'BANK_MOVEMENT_ALREADY_REVERSED',message:'Bank account movement was already reversed',statusCode:409});
+      const reversal=await tx.query(`INSERT INTO tesouraria.bank_account_movements (
+          bank_account_id,company_id,cost_center_id,related_payment_id,reversal_of_movement_id,movement_type,direction,movement_date,amount,description,reference_number,notes,is_system_generated,created_by
+        ) VALUES ($1,$2,$3,$4,$5,'REVERSAL',$6,CURRENT_DATE,$7,$8,$9,$10,true,$11) RETURNING *`,
+      [movement.bank_account_id,movement.company_id,movement.cost_center_id,paymentId,movement.id,movement.direction==='IN'?'OUT':'IN',Number(movement.amount),`Estorno pagamento: ${reason}`.slice(0,255),movement.reference_number,reason,userId]);
+      const entity=api(reversal.rows[0]!);
+      await tx.query(`INSERT INTO administracao.audit_events(domain_code,entity_name,entity_id,action_code,previous_data,new_data,user_id,source_code)
+        VALUES('DOM-003','BANK_ACCOUNT_MOVEMENT',$1,'REVERSED_FROM_PAYMENT_REVERSAL',NULL,$2,$3,'API')`,
+      [entity.id,JSON.stringify(entity),userId]);
+      reversed.push(entity);
+    }
+    return reversed;
+  }
+
   async execute(sql:string,values:readonly unknown[]=[]):Promise<object[]>{const result=await this.database.query(sql,values);return result.rows.map(api);}
   async executeOne(sql:string,values:readonly unknown[]=[]):Promise<object>{const rows=await this.execute(sql,values);if(!rows[0])throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Resource not found',statusCode:404});return rows[0];}
   async record(entity:string,id:string,action:string,userId:string,data:object):Promise<void>{await this.audit(this.database,entity,id,action,userId,null,data);}

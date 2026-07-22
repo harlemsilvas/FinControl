@@ -21,6 +21,8 @@ const environment: Environment = {
   AUTH_REFRESH_TOKEN_TTL_DAYS: 30,
   AUTH_ISSUER: 'fincontrol-api',
   AUTH_AUDIENCE: 'fincontrol',
+  ATTACHMENT_STORAGE_ROOT: '/tmp/fincontrol-test-storage',
+  ATTACHMENT_MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
 };
 
 const apps: ReturnType<typeof buildApp>[] = [];

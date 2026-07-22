@@ -20,6 +20,14 @@ interface XmlImportResult {
   id: string;
   supplier?: { id: string; legalName?: string; documentNumber?: string } | null;
   supplierWasCreated?: boolean;
+  company?: { id: string; legalName?: string; tradeName?: string | null; companyType?: RecipientKind } | null;
+  companyParameters?: {
+    defaultFinancialCategoryId?: string | null;
+    defaultDocumentTypeId?: string | null;
+    defaultPaymentMethodId?: string | null;
+    defaultPaymentTermId?: string | null;
+    defaultCostCenterId?: string | null;
+  } | null;
 }
 
 interface GeneratedPayableResult {
@@ -107,7 +115,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
   const costCenters = useLookup('/cost-centers', lookupsEnabled);
 
   const kind = recipientKind(parsed, mainCompanyDocument);
-  const canImport = Boolean(parsed && /^\d{44}$/.test(parsed.accessKey) && digitsOnly(mainCompanyDocument) && !importResult);
+  const canImport = Boolean(parsed && /^\d{44}$/.test(parsed.accessKey) && !importResult);
   const canGenerate = Boolean(importResult?.id && categoryId && documentTypeId && paymentMethodId && !generatedPayable);
 
   const importMutation = useMutation({
@@ -152,9 +160,15 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
     },
     onSuccess: async (data) => {
       setImportResult(data);
+      setCategoryId(data.companyParameters?.defaultFinancialCategoryId ?? '');
+      setDocumentTypeId(data.companyParameters?.defaultDocumentTypeId ?? '');
+      setPaymentMethodId(data.companyParameters?.defaultPaymentMethodId ?? '');
+      setPaymentTermId(data.companyParameters?.defaultPaymentTermId ?? '');
+      setCostCenterId(data.companyParameters?.defaultCostCenterId ?? '');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['payables'] }),
         queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+        queryClient.invalidateQueries({ queryKey: ['xml-imports'] }),
       ]);
     },
   });
@@ -177,6 +191,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
       setDuplicatePending(false);
       setGeneratedPayable(data);
       await queryClient.invalidateQueries({ queryKey: ['payables'] });
+      await queryClient.invalidateQueries({ queryKey: ['xml-imports'] });
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === 'POSSIBLE_DUPLICATE') setDuplicatePending(true);
@@ -238,7 +253,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
         <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-slate-950">Importar XML de NFe</h2>
-            <p className="mt-1 text-sm text-slate-600">Leia o XML, confira chave, fornecedor, destinatário, valores e vencimentos antes de gravar.</p>
+            <p className="mt-1 text-sm text-slate-600">Leia o XML, confira chave, fornecedor, destinatário, valores e vencimentos antes de gravar. A empresa será resolvida pelo CNPJ cadastrado em Empresas.</p>
           </div>
           <button type="button" className="text-2xl text-slate-400 hover:text-slate-700" onClick={onClose} aria-label="Fechar">×</button>
         </div>
@@ -249,8 +264,8 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
             <input type="file" accept=".xml,text/xml,application/xml" onChange={(event) => void handleFile(event.target.files?.[0])} className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
           </label>
           <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
-            CNPJ matriz do sistema
-            <input value={mainCompanyDocument} onChange={(event) => setMainCompanyDocument(event.target.value)} placeholder="Somente números" className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm" />
+            CNPJ matriz para conferência visual
+            <input value={mainCompanyDocument} onChange={(event) => setMainCompanyDocument(event.target.value)} placeholder="Opcional" className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm" />
           </label>
         </div>
 
@@ -261,6 +276,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
           <strong>XML importado com sucesso.</strong>{' '}
           {importResult.supplier ? importResult.supplierWasCreated ? 'Fornecedor cadastrado automaticamente a partir do emitente da NFe.' : 'Fornecedor já cadastrado foi localizado pelo documento do emitente.' : 'Fornecedor não foi vinculado porque o XML não trouxe CNPJ/CPF válido do emitente.'}
           {importResult.supplier ? <span className="mt-1 block">Fornecedor: <strong>{importResult.supplier.legalName ?? '—'}</strong> · {formatDocument(importResult.supplier.documentNumber)}</span> : null}
+          {importResult.company ? <span className="mt-1 block">Empresa: <strong>{importResult.company.tradeName || importResult.company.legalName || '—'}</strong> · {importResult.company.companyType === 'MAIN' ? 'Matriz' : 'Filial'}</span> : <span className="mt-1 block text-amber-700">Empresa não encontrada em Cadastros &gt; Empresas para o CNPJ destinatário do XML.</span>}
         </div>}
         {generatedPayable && <div role="status" className="mt-4 rounded-xl bg-blue-50 p-3 text-sm text-blue-800">
           <strong>Conta a pagar gerada.</strong>{' '}
