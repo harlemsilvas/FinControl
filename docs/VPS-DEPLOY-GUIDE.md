@@ -57,14 +57,31 @@ readlink -f /var/www/hrmmotos.com.br/fincontrol/current
 Depois que o codigo estiver commitado e enviado ao GitHub:
 
 1. Acessar `Actions` no GitHub.
-2. Abrir o workflow `Deploy VPS Native`.
+2. Abrir o workflow `Deploy Production`.
 3. Clicar em `Run workflow`.
-4. Informar `deploy_ref` com uma branch, tag ou commit.
-5. Manter `run_checks=true`, salvo emergencia operacional.
-6. Digitar `DEPLOY` em `confirmation`.
-7. Aprovar o environment `production`, se houver revisores configurados.
+4. Selecionar a branch `main` no campo `Use workflow from`.
+5. Aprovar o environment `production`, se houver revisores configurados.
 
-O workflow resolve o `deploy_ref` para um commit imutavel e chama na VPS:
+O workflow sempre publica o commit atual de `main`. Ele resolve `main` para um
+commit imutavel e chama na VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
+```
+
+### Deploy de branch ou commit especifico
+
+Para homologar uma branch/commit fora de `main`, usar o workflow `Deploy VPS
+Native`:
+
+1. Selecionar a branch que contem o workflow no campo `Use workflow from`.
+2. Informar `deploy_ref` com uma branch, tag ou commit, ou deixar vazio para o
+   commit da branch selecionada.
+3. Manter `run_checks=true`, salvo emergencia operacional.
+4. Digitar `DEPLOY` em `confirmation`.
+5. Aprovar o environment `production`, se houver revisores configurados.
+
+Esse workflow tambem resolve o alvo para um commit imutavel e chama na VPS:
 
 ```bash
 sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
