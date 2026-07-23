@@ -29,6 +29,7 @@ Correcoes incorporadas durante a validacao:
 - `deploy/vps/pm2/ecosystem.config.cjs`: configuracao PM2 do `fincontrol-api`.
 - `deploy/vps/systemd/pm2-fincontrol.service`: servico systemd dedicado ao PM2 do usuario `fincontrol`.
 - `.github/workflows/deploy-vps.yml`: workflow manual ja existente para chamar `/opt/fincontrol/bin/deploy`.
+- `.github/workflows/deploy-production.yml`: workflow manual simplificado que sempre publica a branch `main`.
 
 ## Instalar na VPS
 
@@ -171,6 +172,31 @@ script oficial da VPS, que:
 Novas migrations devem continuar seguindo a convencao atual de nome por data,
 sempre posteriores a ultima migration aplicada e versionada em
 `database/migrations/`.
+
+### Deploy Production sem campos
+
+O workflow `.github/workflows/deploy-production.yml` deve ser o caminho padrao
+quando `main` estiver estabilizada.
+
+Ele nao solicita `deploy_ref` nem confirmacao textual. Ao clicar em `Run
+workflow`, ele:
+
+1. faz checkout de `main`;
+2. resolve `main` para um commit SHA imutavel;
+3. executa checks completos;
+4. aguarda aprovacao do environment `production`, se configurada;
+5. chama `/opt/fincontrol/bin/deploy COMMIT_SHA` na VPS.
+
+Esse workflow depende dos mesmos secrets do environment `production`:
+
+- `VPS_HOST`;
+- `VPS_USER`;
+- `VPS_SSH_KEY`;
+- `VPS_KNOWN_HOSTS`.
+
+Manter o workflow flexivel `Deploy VPS Native` para casos de homologacao ou
+deploy controlado de uma branch/commit especifico. Usar `Deploy Production`
+para rotina normal de producao.
 
 Essa e a principal pendencia apos o deploy controlado manual validado.
 
