@@ -14,16 +14,285 @@ export interface PaymentInput { installmentId: string; batchId?: string | null; 
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
 export interface XmlImportGenerateInput { categoryId?: string | null; documentTypeId?: string | null; paymentMethodId?: string | null; paymentTermId?: string | null; costCenterId?: string | null; description?: string | null; duplicateConfirmed?: boolean }
 export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; recipientLegalName?: string | null; recipientDocumentNumber?: string | null; recipientStateRegistration?: string | null; recipientCityName?: string | null; recipientStateCode?: string | null; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; mainCompanyDocumentNumber?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
+export interface RecurrenceInput { companyId: string; supplierId: string; categoryId: string; costCenterId?: string | null; documentTypeId: string; paymentMethodId: string; paymentTermId?: string | null; description: string; baseDocumentNumber?: string | null; baseAmount: number; frequencyCode: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL'; startDate: string; endDate?: string | null; maxOccurrences?: number | null; dueDay?: number | null; isOpenEnded?: boolean; notes?: string | null }
+export interface RecurrenceListFilters { search?: string; status?: string; companyId?: string; supplierId?: string; frequencyCode?: string }
+export interface RecurrenceGenerationInput { untilDate?: string | null; occurrenceCount?: number | null }
 interface ResolvedCompany { id: string; companyType: 'MAIN' | 'BRANCH'; legalName: string; tradeName: string | null; parameters: CompanyParameters | null }
 interface CompanyParameters { defaultFinancialCategoryId: string | null; defaultPaymentMethodId: string | null; defaultPaymentTermId: string | null; defaultCostCenterId: string | null; defaultDocumentTypeId: string | null; defaultBankAccountId: string | null; xmlAutoCreateSupplier: boolean; xmlRequireKnownRecipient: boolean }
+interface RecurrenceRow extends Record<string, unknown> { id: string; company_id: string; supplier_id: string; category_id: string; cost_center_id: string | null; document_type_id: string; payment_method_id: string; payment_term_id: string | null; description: string; base_document_number: string | null; base_amount: string; frequency_code: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL'; start_date: string | Date; end_date: string | Date | null; max_occurrences: number | null; due_day: number | null; generation_window_months: number; status_code: string; generated_count: string }
 
 function camel(key: string): string { return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()); }
 function api(row: Record<string, unknown>): Record<string, unknown> { return Object.fromEntries(Object.entries(row).map(([key, value]) => [camel(key), value])); }
 function cents(value: number): number { return Math.round(value * 100); }
 function moneyAmount(input: PaymentInput): number { return input.principalAmount + (input.interestAmount ?? 0) + (input.penaltyAmount ?? 0) + (input.additionalAmount ?? 0) - (input.discountAmount ?? 0); }
+function dateString(value: string | Date | null | undefined): string | null { return value instanceof Date ? value.toISOString().slice(0, 10) : value ?? null; }
+function parseDate(value: string): Date { const [year, month, day] = value.split('-').map(Number); return new Date(Date.UTC(year!, month! - 1, day!)); }
+function formatDate(value: Date): string { return value.toISOString().slice(0, 10); }
+function daysInMonth(year: number, month: number): number { return new Date(Date.UTC(year, month + 1, 0)).getUTCDate(); }
+function addDays(value: string, days: number): string { const date = parseDate(value); date.setUTCDate(date.getUTCDate() + days); return formatDate(date); }
+function addMonths(value: string, months: number, dueDay?: number | null): string {
+  const date = parseDate(value);
+  const target = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+  target.setUTCDate(Math.min(dueDay ?? date.getUTCDate(), daysInMonth(target.getUTCFullYear(), target.getUTCMonth())));
+  return formatDate(target);
+}
+function minDate(...values: (string | null | undefined)[]): string { return values.filter((value): value is string => Boolean(value)).sort()[0]!; }
+function recurrenceDocumentNumber(baseDocumentNumber: string | null, occurrenceDate: string): string {
+  const suffix = occurrenceDate.replaceAll('-', '');
+  const prefix = (baseDocumentNumber?.trim() || 'REC').slice(0, 80 - suffix.length - 1);
+  return `${prefix}-${suffix}`;
+}
 
 export class PayablesRepository {
   constructor(private readonly database: Database) {}
+
+  async listRecurrences(page: number, pageSize: number, filters: RecurrenceListFilters = {}): Promise<object> {
+    const values: unknown[] = [];
+    const conditions = ['r.deleted_at IS NULL'];
+    if (filters.search) {
+      values.push(`%${filters.search}%`);
+      conditions.push(`(r.description ILIKE $${values.length} OR r.base_document_number ILIKE $${values.length} OR s.legal_name ILIKE $${values.length} OR coalesce(company.trade_name,company.legal_name) ILIKE $${values.length})`);
+    }
+    if (filters.status) { values.push(filters.status); conditions.push(`rs.code=$${values.length}`); }
+    if (filters.companyId) { values.push(filters.companyId); conditions.push(`r.company_id=$${values.length}`); }
+    if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`r.supplier_id=$${values.length}`); }
+    if (filters.frequencyCode) { values.push(filters.frequencyCode); conditions.push(`r.frequency_code=$${values.length}`); }
+    const where = conditions.join(' AND ');
+    const from = `FROM financeiro.payable_recurrences r
+      JOIN financeiro.payable_recurrence_statuses rs ON rs.id=r.status_id
+      JOIN cadastros.companies company ON company.id=r.company_id
+      JOIN cadastros.suppliers s ON s.id=r.supplier_id
+      JOIN cadastros.financial_categories c ON c.id=r.category_id
+      JOIN cadastros.document_types dt ON dt.id=r.document_type_id
+      JOIN cadastros.payment_methods pm ON pm.id=r.payment_method_id
+      LEFT JOIN cadastros.cost_centers cc ON cc.id=r.cost_center_id
+      LEFT JOIN cadastros.payment_terms pt ON pt.id=r.payment_term_id
+      LEFT JOIN LATERAL (
+        SELECT count(*)::integer generated_count,max(occurrence_date) last_occurrence_date
+        FROM financeiro.payable_recurrence_titles rt WHERE rt.recurrence_id=r.id
+      ) generated ON true`;
+    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
+    values.push(pageSize, (page - 1) * pageSize);
+    const result = await this.database.query(`SELECT r.*,rs.code status_code,rs.name status_name,
+        COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
+        s.legal_name supplier_name,c.name category_name,dt.name document_type_name,pm.name payment_method_name,
+        cc.name cost_center_name,pt.name payment_term_name,
+        COALESCE(generated.generated_count,0) generated_count,generated.last_occurrence_date
+      ${from} WHERE ${where}
+      ORDER BY r.next_occurrence_date NULLS LAST,r.created_at DESC
+      LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
+    return { data: result.rows.map(api), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
+  }
+
+  async getRecurrence(id: string): Promise<object | null> {
+    const result = await this.database.query(`SELECT r.*,rs.code status_code,rs.name status_name,
+        COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
+        s.legal_name supplier_name,c.name category_name,dt.name document_type_name,pm.name payment_method_name,
+        cc.name cost_center_name,pt.name payment_term_name
+      FROM financeiro.payable_recurrences r
+      JOIN financeiro.payable_recurrence_statuses rs ON rs.id=r.status_id
+      JOIN cadastros.companies company ON company.id=r.company_id
+      JOIN cadastros.suppliers s ON s.id=r.supplier_id
+      JOIN cadastros.financial_categories c ON c.id=r.category_id
+      JOIN cadastros.document_types dt ON dt.id=r.document_type_id
+      JOIN cadastros.payment_methods pm ON pm.id=r.payment_method_id
+      LEFT JOIN cadastros.cost_centers cc ON cc.id=r.cost_center_id
+      LEFT JOIN cadastros.payment_terms pt ON pt.id=r.payment_term_id
+      WHERE r.id=$1 AND r.deleted_at IS NULL`, [id]);
+    const row = result.rows[0];
+    if (!row) return null;
+    const titles = await this.listRecurrenceTitles(id);
+    return { ...api(row), titles };
+  }
+
+  async createRecurrence(input: RecurrenceInput, userId: string): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      await this.assertRecurrenceReferences(tx, input);
+      const result = await tx.query(`INSERT INTO financeiro.payable_recurrences (
+          company_id,supplier_id,category_id,cost_center_id,document_type_id,payment_method_id,payment_term_id,
+          description,base_document_number,base_amount,frequency_code,start_date,end_date,max_occurrences,due_day,
+          is_open_ended,next_occurrence_date,status_id,notes,created_by,updated_by
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$12,
+          (SELECT id FROM financeiro.payable_recurrence_statuses WHERE code='ACTIVE'),$17,$18,$18
+        ) RETURNING *`, [
+        input.companyId,input.supplierId,input.categoryId,input.costCenterId ?? null,input.documentTypeId,input.paymentMethodId,input.paymentTermId ?? null,
+        input.description,input.baseDocumentNumber ?? null,input.baseAmount,input.frequencyCode,input.startDate,input.endDate ?? null,input.maxOccurrences ?? null,
+        input.dueDay ?? null,input.isOpenEnded ?? false,input.notes ?? null,userId,
+      ]);
+      const row = result.rows[0]!;
+      await this.audit(tx,'PAYABLE_RECURRENCE',row.id as string,'CREATED',userId,null,api(row));
+      return api(row);
+    });
+  }
+
+  async updateRecurrence(id: string, input: Partial<RecurrenceInput>, userId: string): Promise<object> {
+    const mapping: Record<string,string> = { companyId:'company_id',supplierId:'supplier_id',categoryId:'category_id',costCenterId:'cost_center_id',documentTypeId:'document_type_id',paymentMethodId:'payment_method_id',paymentTermId:'payment_term_id',description:'description',baseDocumentNumber:'base_document_number',baseAmount:'base_amount',frequencyCode:'frequency_code',startDate:'start_date',endDate:'end_date',maxOccurrences:'max_occurrences',dueDay:'due_day',isOpenEnded:'is_open_ended',notes:'notes' };
+    const entries = Object.entries(input).filter((entry) => entry[1] !== undefined && mapping[entry[0]]).map(([key,value]) => [mapping[key]!, value] as const);
+    if (!entries.length) throw new ApplicationError({ code:'VALIDATION_ERROR', message:'At least one field is required', statusCode:400 });
+    return this.database.transaction(async (tx) => {
+      const existing = await tx.query<{ id:string; generated_count:string; status_code:string } & Record<string, unknown>>(`SELECT r.*,rs.code status_code,
+          (SELECT count(*)::text FROM financeiro.payable_recurrence_titles rt WHERE rt.recurrence_id=r.id) generated_count
+        FROM financeiro.payable_recurrences r JOIN financeiro.payable_recurrence_statuses rs ON rs.id=r.status_id
+        WHERE r.id=$1 AND r.deleted_at IS NULL FOR UPDATE`, [id]);
+      const current = existing.rows[0];
+      if (!current) throw new ApplicationError({ code:'RESOURCE_NOT_FOUND', message:'Recurrence not found', statusCode:404 });
+      if (['CANCELLED','FINISHED'].includes(current.status_code)) throw new ApplicationError({ code:'RECURRENCE_TERMINAL', message:'Terminal recurrences cannot be updated', statusCode:409 });
+      const generated = Number(current.generated_count) > 0;
+      if (generated && entries.some(([column]) => ['company_id','supplier_id','frequency_code'].includes(column)))
+        throw new ApplicationError({ code:'RECURRENCE_LOCKED_FIELDS', message:'Company, supplier and frequency cannot change after generated titles', statusCode:409 });
+      await this.assertRecurrenceReferences(tx, { ...api(current), ...input } as unknown as RecurrenceInput);
+      const values = entries.map((entry) => entry[1]);
+      values.push(userId,id);
+      const result = await tx.query(`UPDATE financeiro.payable_recurrences SET ${entries.map((entry,index)=>`${entry[0]}=$${index+1}`).join(',')},updated_by=$${values.length-1} WHERE id=$${values.length} AND deleted_at IS NULL RETURNING *`, values);
+      const row = result.rows[0]!;
+      await this.audit(tx,'PAYABLE_RECURRENCE',id,'UPDATED',userId,api(current),api(row));
+      return api(row);
+    });
+  }
+
+  async changeRecurrenceStatus(id: string, statusCode: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED', userId: string, reason?: string | null): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      const current = await tx.query<{ status_code:string } & Record<string, unknown>>(`SELECT r.*,rs.code status_code FROM financeiro.payable_recurrences r JOIN financeiro.payable_recurrence_statuses rs ON rs.id=r.status_id WHERE r.id=$1 AND r.deleted_at IS NULL FOR UPDATE`, [id]);
+      const row = current.rows[0];
+      if (!row) throw new ApplicationError({ code:'RESOURCE_NOT_FOUND', message:'Recurrence not found', statusCode:404 });
+      if (row.status_code === 'CANCELLED' || row.status_code === 'FINISHED') throw new ApplicationError({ code:'RECURRENCE_TERMINAL', message:'Terminal recurrences cannot change status', statusCode:409 });
+      if (statusCode === 'ACTIVE' && row.status_code !== 'SUSPENDED') throw new ApplicationError({ code:'RECURRENCE_REACTIVATE_INVALID', message:'Only suspended recurrences can be reactivated', statusCode:409 });
+      const result = await tx.query(`UPDATE financeiro.payable_recurrences SET status_id=(SELECT id FROM financeiro.payable_recurrence_statuses WHERE code=$2),is_active=($2<>'CANCELLED'),updated_by=$3 WHERE id=$1 RETURNING *`, [id,statusCode,userId]);
+      const next = result.rows[0]!;
+      const action = statusCode === 'ACTIVE' ? 'REACTIVATED' : statusCode;
+      await this.audit(tx,'PAYABLE_RECURRENCE',id,action,userId,api(row),{...api(next),reason: reason ?? null});
+      return api(next);
+    });
+  }
+
+  async listRecurrenceTitles(recurrenceId: string): Promise<object[]> {
+    const result = await this.database.query(`SELECT rt.*,t.document_number,t.document_series,t.description,t.total_amount::text total_amount,ts.code status_code,
+        i.due_date,i.installment_number,i.installment_count,i.open_balance::text open_balance
+      FROM financeiro.payable_recurrence_titles rt
+      JOIN financeiro.payable_titles t ON t.id=rt.payable_title_id
+      JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
+      LEFT JOIN financeiro.payable_installments i ON i.payable_title_id=t.id AND i.deleted_at IS NULL
+      WHERE rt.recurrence_id=$1
+      ORDER BY rt.sequence_number ASC,i.installment_number ASC`, [recurrenceId]);
+    return result.rows.map(api);
+  }
+
+  async previewRecurrenceGeneration(id: string, input: RecurrenceGenerationInput, userId: string): Promise<object> {
+    const recurrence = await this.loadRecurrenceForGeneration(this.database, id);
+    const occurrences = await this.calculatePendingOccurrences(this.database, recurrence, input);
+    await this.audit(this.database,'PAYABLE_RECURRENCE',id,'GENERATION_PREVIEWED',userId,null,{ input, occurrences });
+    return { recurrenceId: id, occurrences, total: occurrences.length };
+  }
+
+  async generateRecurrenceTitles(id: string, input: RecurrenceGenerationInput, userId: string): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      const recurrence = await this.loadRecurrenceForGeneration(tx, id, true);
+      const occurrences = await this.calculatePendingOccurrences(tx, recurrence, input);
+      if (!occurrences.length) throw new ApplicationError({ code:'RECURRENCE_NO_OCCURRENCES_TO_GENERATE', message:'There are no pending occurrences to generate', statusCode:409 });
+      const generated: object[] = [];
+      for (const occurrence of occurrences) {
+        const title = await tx.query(`INSERT INTO financeiro.payable_titles (
+            supplier_id,company_id,category_id,document_type_id,payment_term_id,cost_center_id,
+            document_number,document_series,description,origin_code,issue_date,original_amount,discount_amount,additional_amount,status_id,notes,created_by,updated_by
+          ) VALUES (
+            $1,$2,$3,$4,$5,$6,$7,NULL,$8,'RECURRENCE',CURRENT_DATE,$9,0,0,
+            (SELECT id FROM financeiro.payable_title_statuses WHERE code='OPEN'),$10,$11,$11
+          ) RETURNING *`, [
+          recurrence.supplier_id,recurrence.company_id,recurrence.category_id,recurrence.document_type_id,recurrence.payment_term_id,recurrence.cost_center_id,
+          occurrence.documentNumber,recurrence.description,occurrence.amount,
+          `Gerado a partir da recorrência ${id} para a ocorrência ${occurrence.occurrenceDate}.`,userId,
+        ]);
+        const titleRow = title.rows[0]!;
+        await tx.query(`INSERT INTO financeiro.payable_installments (
+            payable_title_id,installment_number,installment_count,amount,due_date,payment_method_id,open_balance,status_id,notes,created_by,updated_by
+          ) VALUES (
+            $1,1,1,$2,$3,$4,$2,
+            (SELECT id FROM financeiro.payable_installment_statuses WHERE code=CASE WHEN $3::date<CURRENT_DATE THEN 'OVERDUE' ELSE 'OPEN' END),
+            $5,$6,$6
+          )`, [titleRow.id,occurrence.amount,occurrence.dueDate,recurrence.payment_method_id,'Parcela 1/1 gerada por recorrência.',userId]);
+        await tx.query(`INSERT INTO financeiro.payable_recurrence_titles (
+            recurrence_id,payable_title_id,occurrence_date,sequence_number,generated_by,notes
+          ) VALUES ($1,$2,$3,$4,$5,$6)`, [id,titleRow.id,occurrence.occurrenceDate,occurrence.sequenceNumber,userId,'Título gerado pelo MVP de contas recorrentes.']);
+        const item = { ...api(titleRow), occurrenceDate: occurrence.occurrenceDate, sequenceNumber: occurrence.sequenceNumber, installment: { installmentNumber: 1, installmentCount: 1, amount: occurrence.amount, dueDate: occurrence.dueDate, paymentMethodId: recurrence.payment_method_id } };
+        generated.push(item);
+        await this.audit(tx,'PAYABLE_TITLE',titleRow.id as string,'CREATED_FROM_RECURRENCE',userId,null,item);
+      }
+      const lastOccurrence = occurrences.at(-1)!.occurrenceDate;
+      const nextOccurrence = this.nextOccurrenceAfter(recurrence, lastOccurrence);
+      await tx.query(`UPDATE financeiro.payable_recurrences SET last_generated_until=$2,next_occurrence_date=$3,updated_by=$4 WHERE id=$1`, [id,lastOccurrence,nextOccurrence,userId]);
+      await this.audit(tx,'PAYABLE_RECURRENCE',id,'GENERATED_TITLES',userId,null,{ input, generatedCount: generated.length, lastOccurrence, nextOccurrence });
+      return { recurrenceId: id, generated, total: generated.length };
+    });
+  }
+
+  private async loadRecurrenceForGeneration(executor: QueryExecutor, id: string, forUpdate = false): Promise<RecurrenceRow> {
+    const result = await executor.query<RecurrenceRow>(`SELECT r.*,rs.code status_code,
+        (SELECT count(*)::text FROM financeiro.payable_recurrence_titles rt WHERE rt.recurrence_id=r.id) generated_count
+      FROM financeiro.payable_recurrences r
+      JOIN financeiro.payable_recurrence_statuses rs ON rs.id=r.status_id
+      WHERE r.id=$1 AND r.deleted_at IS NULL ${forUpdate ? 'FOR UPDATE' : ''}`, [id]);
+    const recurrence = result.rows[0];
+    if (!recurrence) throw new ApplicationError({ code:'RESOURCE_NOT_FOUND', message:'Recurrence not found', statusCode:404 });
+    if (recurrence.status_code !== 'ACTIVE') throw new ApplicationError({ code:'RECURRENCE_NOT_ACTIVE', message:'Only active recurrences can generate titles', statusCode:409 });
+    return recurrence;
+  }
+
+  private async calculatePendingOccurrences(executor: QueryExecutor, recurrence: RecurrenceRow, input: RecurrenceGenerationInput): Promise<{ occurrenceDate: string; dueDate: string; sequenceNumber: number; documentNumber: string; amount: number }[]> {
+    if (!input.untilDate && !input.occurrenceCount) throw new ApplicationError({ code:'RECURRENCE_GENERATION_TARGET_REQUIRED', message:'Until date or occurrence count is required', statusCode:400 });
+    const today = new Date().toISOString().slice(0, 10);
+    const maxWindowDate = addMonths(today, Math.min(Number(recurrence.generation_window_months || 6), 6));
+    if (input.untilDate && input.untilDate > maxWindowDate) throw new ApplicationError({ code:'RECURRENCE_GENERATION_WINDOW_EXCEEDED', message:'Generation is limited to at most 6 months ahead', statusCode:400 });
+    const stopDate = minDate(input.untilDate ?? maxWindowDate, maxWindowDate, dateString(recurrence.end_date));
+    const existingResult = await executor.query<{ occurrence_date: string | Date; sequence_number: number } & Record<string, unknown>>(`SELECT occurrence_date,sequence_number FROM financeiro.payable_recurrence_titles WHERE recurrence_id=$1 ORDER BY occurrence_date`, [recurrence.id]);
+    const existingDates = new Set(existingResult.rows.map((row) => dateString(row.occurrence_date)!));
+    const generatedCount = Number(recurrence.generated_count || 0);
+    const remainingAllowed = recurrence.max_occurrences == null ? Number.POSITIVE_INFINITY : Math.max(0, recurrence.max_occurrences - generatedCount);
+    const requestedCount = input.occurrenceCount ?? Number.POSITIVE_INFINITY;
+    const limit = Math.min(requestedCount, remainingAllowed);
+    if (limit <= 0) return [];
+    const result: { occurrenceDate: string; dueDate: string; sequenceNumber: number; documentNumber: string; amount: number }[] = [];
+    let occurrence = dateString(recurrence.start_date)!;
+    let sequence = generatedCount + 1;
+    for (let safety = 0; safety < 1000 && occurrence <= stopDate && result.length < limit; safety += 1) {
+      if (!existingDates.has(occurrence)) {
+        result.push({ occurrenceDate: occurrence, dueDate: occurrence, sequenceNumber: sequence, documentNumber: recurrenceDocumentNumber(recurrence.base_document_number, occurrence), amount: Number(recurrence.base_amount) });
+        sequence += 1;
+      }
+      occurrence = this.nextOccurrenceAfter(recurrence, occurrence);
+    }
+    return result;
+  }
+
+  private nextOccurrenceAfter(recurrence: Pick<RecurrenceRow,'frequency_code'|'due_day'>, occurrenceDate: string): string {
+    if (recurrence.frequency_code === 'WEEKLY') return addDays(occurrenceDate, 7);
+    if (recurrence.frequency_code === 'BIWEEKLY') return addDays(occurrenceDate, 14);
+    return addMonths(occurrenceDate, recurrence.frequency_code === 'ANNUAL' ? 12 : 1, recurrence.due_day);
+  }
+
+  private async assertRecurrenceReferences(tx: QueryExecutor, input: RecurrenceInput): Promise<void> {
+    if (!input.isOpenEnded && !input.endDate && !input.maxOccurrences) {
+      throw new ApplicationError({ code:'RECURRENCE_TERMINATION_REQUIRED', message:'End date, max occurrences or open-ended confirmation is required', statusCode:400 });
+    }
+    if (input.endDate && input.endDate < input.startDate) {
+      throw new ApplicationError({ code:'RECURRENCE_INVALID_END_DATE', message:'End date cannot be before start date', statusCode:400 });
+    }
+    if (['MONTHLY','ANNUAL'].includes(input.frequencyCode) && !input.dueDay) {
+      throw new ApplicationError({ code:'RECURRENCE_DUE_DAY_REQUIRED', message:'Due day is required for monthly and annual recurrences', statusCode:400 });
+    }
+    const checks = await Promise.all([
+      tx.query(`SELECT 1 FROM cadastros.companies WHERE id=$1 AND is_active AND deleted_at IS NULL`, [input.companyId]),
+      tx.query(`SELECT 1 FROM cadastros.suppliers WHERE id=$1 AND is_active AND deleted_at IS NULL`, [input.supplierId]),
+      tx.query(`SELECT 1 FROM cadastros.financial_categories WHERE id=$1 AND is_active AND deleted_at IS NULL`, [input.categoryId]),
+      tx.query(`SELECT 1 FROM cadastros.document_types WHERE id=$1 AND is_active`, [input.documentTypeId]),
+      tx.query(`SELECT 1 FROM cadastros.payment_methods WHERE id=$1 AND is_active`, [input.paymentMethodId]),
+      input.costCenterId ? tx.query(`SELECT 1 FROM cadastros.cost_centers WHERE id=$1 AND is_active AND deleted_at IS NULL`, [input.costCenterId]) : Promise.resolve({ rows: [{}], rowCount: 1 }),
+      input.paymentTermId ? tx.query(`SELECT 1 FROM cadastros.payment_terms WHERE id=$1 AND is_active`, [input.paymentTermId]) : Promise.resolve({ rows: [{}], rowCount: 1 }),
+    ]);
+    const labels = ['Company','Supplier','Category','Document type','Payment method','Cost center','Payment term'];
+    const missing = checks.findIndex((result) => result.rowCount === 0);
+    if (missing >= 0) throw new ApplicationError({ code:'RECURRENCE_REFERENCE_INVALID', message:`${labels[missing]} is inactive or does not exist`, statusCode:400 });
+  }
 
   async list(page: number, pageSize: number, filters: PayableListFilters = {}): Promise<object> {
     const values: unknown[] = [];
