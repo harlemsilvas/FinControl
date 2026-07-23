@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import type { OptionResponse } from '../intelligence/contracts';
 import { currency, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
+import { isTerminalRecurrence, RecurrenceActionsLauncher } from './recurrence-actions';
 import { XmlImportDialog } from './xml-import-dialog';
 
 const statuses = ['OPEN', 'OVERDUE', 'IN_APPROVAL', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'] as const;
@@ -70,6 +71,9 @@ function documentLabel(item: PayableListItem): string {
 function optionLabel(item: { name?: string; legalName?: string; id: string }): string {
   return item.legalName ?? item.name ?? item.id;
 }
+function recurrenceStatusLabel(status?: string | null): string {
+  return status === 'FINISHED' ? 'Série finalizada' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
+}
 
 export function PayablesListPage(): ReactElement {
   const initialRange = rangeForPreset('month');
@@ -83,6 +87,7 @@ export function PayablesListPage(): ReactElement {
   const [supplierId, setSupplierId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [xmlImportOpen, setXmlImportOpen] = useState(false);
+  const [feedback, setFeedback] = useState('');
 
   const query = useQuery({
     queryKey: ['payables', page, pageSize, search, status, dueFrom, dueTo, supplierId, categoryId],
@@ -187,6 +192,8 @@ export function PayablesListPage(): ReactElement {
         </div>
       </header>
 
+      {feedback && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</div>}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {metricCards.map((metric) => (
           <Card key={metric.label}>
@@ -272,19 +279,19 @@ export function PayablesListPage(): ReactElement {
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
           {query.isLoading ? <p className="py-12 text-center text-slate-500">Carregando…</p> : query.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar as contas.</p> : <>
-            <div className="hidden grid-cols-[44px_116px_1.4fr_120px_150px_130px_120px_96px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
+            <div className="hidden grid-cols-[44px_116px_1.4fr_120px_150px_130px_120px_160px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
               <span /><span>Vencimento</span><span>Fornecedor / Descrição</span><span>Documento</span><span>Categoria</span><span>Forma</span><span className="text-right">Valor</span><span className="text-right">Ações</span>
             </div>
             <div className="divide-y divide-slate-100">
-              {rows.map((item) => <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[44px_116px_1.4fr_120px_150px_130px_120px_96px] xl:items-center">
+              {rows.map((item) => <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[44px_116px_1.4fr_120px_150px_130px_120px_160px] xl:items-center">
                 <label className="hidden xl:block"><span className="sr-only">Selecionar {documentLabel(item)}</span><input type="checkbox" className="size-4 rounded border-slate-300 text-blue-600" disabled title="Seleção em lote será conectada em etapa futura" /></label>
                 <span className="font-semibold text-slate-700">{datePtBr(item.firstDueDate ?? item.issueDate)}</span>
-                <span className="min-w-0"><Link to={`/payables/${item.id}`} className="block truncate font-bold text-slate-950 hover:text-blue-700 hover:underline">{item.supplierName}</Link><span className="block truncate text-xs text-slate-500">{item.description}</span></span>
+                <span className="min-w-0"><Link to={`/payables/${item.id}`} className="block truncate font-bold text-slate-950 hover:text-blue-700 hover:underline">{item.supplierName}</Link><span className="block truncate text-xs text-slate-500">{item.description}</span>{item.recurrenceId ? <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${isTerminalRecurrence(item.recurrenceStatusCode) ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{recurrenceStatusLabel(item.recurrenceStatusCode)}</span> : null}</span>
                 <span className="font-semibold text-slate-700">{documentLabel(item)}</span>
                 <span className="truncate text-slate-600">{item.categoryName}</span>
                 <span className="truncate text-slate-600">{item.paymentMethodName ?? '—'}</span>
                 <span className="font-black text-slate-950 xl:text-right">{currency(item.openBalance)}</span>
-                <span className="flex items-center gap-3 xl:justify-end"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyle[item.statusCode] ?? statusStyle.OPEN}`}>{statusLabel(item.statusCode)}</span><Link className="font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`}>Ver</Link></span>
+                <span className="flex items-center gap-3 xl:justify-end"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyle[item.statusCode] ?? statusStyle.OPEN}`}>{statusLabel(item.statusCode)}</span>{item.recurrenceId && !isTerminalRecurrence(item.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={item} onFeedback={setFeedback} /> : null}<Link className="font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`}>Ver</Link></span>
               </div>)}
               {rows.length === 0 && <p className="py-12 text-center text-slate-500">Nenhuma conta encontrada.</p>}
             </div>

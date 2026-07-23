@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -58,6 +60,18 @@ const mocks = vi.hoisted(() => ({
     if (url === '/api/v1/payment-methods') return Promise.resolve({ data: { data: [{ id: 'payment-method-1', name: 'Boleto' }] } });
     if (url === '/api/v1/payment-terms') return Promise.resolve({ data: { data: [{ id: 'payment-term-1', name: 'Mensal' }] } });
     if (url === '/api/v1/cost-centers') return Promise.resolve({ data: { data: [{ id: 'cost-center-1', name: 'Administrativo' }] } });
+    if (url === '/api/v1/recurrences/rec-1/cancellation-preview') {
+      return Promise.resolve({
+        data: {
+          recurrenceId: 'rec-1',
+          total: 2,
+          titles: [
+            { payableTitleId: 'title-1', occurrenceDate: '2026-08-05', sequenceNumber: 2, documentNumber: 'ALUGUEL-HRM-20260805', documentSeries: null, description: 'Aluguel loja principal', statusCode: 'OPEN', dueDate: '2026-08-05', openBalance: '2500.00', installmentCount: 1 },
+            { payableTitleId: 'title-2', occurrenceDate: '2026-09-05', sequenceNumber: 3, documentNumber: 'ALUGUEL-HRM-20260905', documentSeries: null, description: 'Aluguel loja principal', statusCode: 'OPEN', dueDate: '2026-09-05', openBalance: '2500.00', installmentCount: 1 },
+          ],
+        },
+      });
+    }
     return Promise.resolve({ data: { data: [] } });
   }),
   post: vi.fn((url: string) => {
@@ -90,6 +104,9 @@ const mocks = vi.hoisted(() => ({
     }
     if (url === '/api/v1/recurrences/rec-2/reactivate') {
       return Promise.resolve({ data: { id: 'rec-2', statusCode: 'ACTIVE' } });
+    }
+    if (url === '/api/v1/recurrences/rec-1/cancel') {
+      return Promise.resolve({ data: { id: 'rec-1', cancelledFutureTitles: 1, cancelledFutureTitlesRequested: true } });
     }
     return Promise.resolve({ data: {} });
   }),
@@ -124,22 +141,22 @@ describe('RecurrencesPage', () => {
   it('renders recurrence list with summary cards and row actions', async () => {
     renderPage();
 
-    expect(await screen.findByRole('heading', { name: 'Contas Recorrentes' })).toBeInTheDocument();
-    expect(await screen.findByText('Aluguel loja principal')).toBeInTheDocument();
-    expect(screen.getByText('Link dedicado')).toBeInTheDocument();
-    expect(screen.getByText('2 registros encontrados.')).toBeInTheDocument();
-    expect(screen.getByText('Ativas na página')).toBeInTheDocument();
-    expect(screen.getByText('Suspensas na página')).toBeInTheDocument();
-    expect(screen.getByText('R$ 2.899,90')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Gerar' })[0]).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Reativar' })).toBeEnabled();
+    expect(await screen.findByRole('heading', { name: 'Contas Recorrentes' })).toBeTruthy();
+    expect(await screen.findByText('Aluguel loja principal')).toBeTruthy();
+    expect(screen.getByText('Link dedicado')).toBeTruthy();
+    expect(screen.getByText('2 registros encontrados.')).toBeTruthy();
+    expect(screen.getByText('Ativas na página')).toBeTruthy();
+    expect(screen.getByText('Suspensas na página')).toBeTruthy();
+    expect(screen.getByText('R$ 2.899,90')).toBeTruthy();
+    expect((screen.getAllByRole('button', { name: 'Gerar' })[0] as HTMLButtonElement | undefined)?.disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Reativar' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('creates a new recurrence from the modal form', async () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: '+ Nova recorrência' }));
-    expect(await screen.findByText('Nova recorrência')).toBeInTheDocument();
+    expect(await screen.findByText('Nova recorrência')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Empresa'), { target: { value: 'company-1' } });
     fireEvent.change(screen.getByLabelText('Fornecedor'), { target: { value: 'supplier-1' } });
@@ -187,12 +204,33 @@ describe('RecurrencesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pré-visualizar' }));
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/preview-generation', { occurrenceCount: 2, untilDate: undefined }));
-    expect(await screen.findByText('ALUGUEL-HRM-20260805')).toBeInTheDocument();
-    expect(screen.getByText('ALUGUEL-HRM-20260905')).toBeInTheDocument();
+    expect(await screen.findByText('ALUGUEL-HRM-20260805')).toBeTruthy();
+    expect(screen.getByText('ALUGUEL-HRM-20260905')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar geração' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar geração de 2' }));
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/generate', { occurrenceCount: 2, untilDate: undefined }));
-    expect(await screen.findByText('2 títulos gerados com sucesso.')).toBeInTheDocument();
+    expect(await screen.findByText('2 títulos gerados com sucesso.')).toBeTruthy();
+  });
+
+  it('cancels a recurrence with optional future-title cancellation', async () => {
+    renderPage();
+
+    const cancelButtons = await screen.findAllByRole('button', { name: 'Cancelar' });
+    fireEvent.click(cancelButtons[0]!);
+
+    expect(await screen.findByRole('dialog', { name: 'Cancelar recorrência' })).toBeTruthy();
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/cancellation-preview'));
+    expect(await screen.findByText('ALUGUEL-HRM-20260805')).toBeTruthy();
+    expect(screen.getByText('ALUGUEL-HRM-20260905')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Motivo do cancelamento'), { target: { value: 'Fornecedor substituído por novo contrato.' } });
+    fireEvent.click(screen.getByLabelText('Também cancelar títulos futuros em aberto'));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar recorrência e títulos futuros' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/cancel', {
+      reason: 'Fornecedor substituído por novo contrato.',
+      cancelFutureTitles: true,
+    }));
+    expect(await screen.findByText('Recorrência cancelada. 1 título futuro em aberto também foi cancelado.')).toBeTruthy();
   });
 });

@@ -1,10 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Database, QueryExecutor } from '../src/infrastructure/database/database.js';
-import { PayablesRepository, type TitleInput, type XmlImportInput } from '../src/domains/payables/payables-repository.js';
+import { PayablesRepository, type RecurrenceInput, type TitleInput, type XmlImportInput } from '../src/domains/payables/payables-repository.js';
 
 const validTitle: TitleInput = { supplierId:'00000000-0000-0000-0000-000000000001',categoryId:'00000000-0000-0000-0000-000000000002',
   documentTypeId:'00000000-0000-0000-0000-000000000003',documentNumber:'NF-1',description:'Serviço',issueDate:'2026-07-16',
   originalAmount:100,installments:[{installmentNumber:1,installmentCount:1,amount:100,dueDate:'2026-07-30',paymentMethodId:'00000000-0000-0000-0000-000000000004'}] };
+const validRecurrence: RecurrenceInput = {
+  companyId: '00000000-0000-0000-0000-000000000011',
+  supplierId: '00000000-0000-0000-0000-000000000001',
+  categoryId: '00000000-0000-0000-0000-000000000002',
+  documentTypeId: '00000000-0000-0000-0000-000000000003',
+  paymentMethodId: '00000000-0000-0000-0000-000000000004',
+  description: 'Aluguel da matriz',
+  baseDocumentNumber: 'ALUGUEL-HRM',
+  baseAmount: 2500,
+  frequencyCode: 'MONTHLY',
+  startDate: '2026-07-05',
+  endDate: '2026-12-05',
+  dueDay: 5,
+  isOpenEnded: false,
+  notes: 'Contrato administrativo',
+};
 
 function database(executor:QueryExecutor):Database{return {query:async(text,values)=>executor.query(text,values),checkHealth:vi.fn(),close:vi.fn(),
   transaction:async<T>(work:(tx:QueryExecutor)=>Promise<T>)=>work(executor)};}
@@ -81,6 +97,120 @@ describe('PayablesRepository business safeguards',()=>{
     const repo=new PayablesRepository(database({query}));
     await expect(repo.addPayment({installmentId:'installment',bankAccountId:'bank',paymentMethodId:'method',paymentDate:'2026-07-22',principalAmount:100},'user-id'))
       .rejects.toMatchObject({code:'INSUFFICIENT_BANK_BALANCE',statusCode:409});
+  });
+
+  it('cancels a recurrence without touching already generated titles when the option is disabled', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: 'rec-1', status_code: 'ACTIVE' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'rec-1', status_id: 'cancelled', is_active: false }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const repo = new PayablesRepository(database({ query }));
+    const result = await repo.cancelRecurrence('rec-1', { reason: 'Encerramento do contrato', cancelFutureTitles: false }, 'user-id') as { cancelledFutureTitles: number; cancelledFutureTitlesRequested: boolean };
+    expect(result.cancelledFutureTitles).toBe(0);
+    expect(result.cancelledFutureTitlesRequested).toBe(false);
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls[1]?.[0]).toContain("code='CANCELLED'");
+  });
+
+  it('previews future generated titles eligible for cancellation', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: 'rec-1' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ payable_title_id: 'title-1', occurrence_date: '2026-08-05', sequence_number: 2, document_number: 'ALUGUEL-HRM-20260805', document_series: null, description: 'Aluguel loja principal', status_code: 'OPEN', due_date: '2026-08-05', open_balance: '2500.00', installment_count: 1 }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const repo = new PayablesRepository(database({ query }));
+    const result = await repo.previewRecurrenceCancellation('rec-1', 'user-id') as { recurrenceId: string; total: number; titles: { payableTitleId: string; documentNumber: string }[] };
+    expect(result.recurrenceId).toBe('rec-1');
+    expect(result.total).toBe(1);
+    expect(result.titles[0]?.payableTitleId).toBe('title-1');
+    expect(result.titles[0]?.documentNumber).toBe('ALUGUEL-HRM-20260805');
+    expect(query.mock.calls[2]?.[0]).toContain('FROM financeiro.payable_recurrence_titles');
+  });
+
+  it('revises a recurrence from a future date and creates a successor series', async () => {
+    const queryMock = vi.fn(async (sql: string, _values?: readonly unknown[]) => {
+      if (sql.includes('FROM financeiro.payable_recurrences r')) return Promise.resolve({ rows: [{ ...validRecurrence, id: 'rec-1', company_id: validRecurrence.companyId, supplier_id: validRecurrence.supplierId, category_id: validRecurrence.categoryId, cost_center_id: null, document_type_id: validRecurrence.documentTypeId, payment_method_id: validRecurrence.paymentMethodId, payment_term_id: null, description: validRecurrence.description, base_document_number: validRecurrence.baseDocumentNumber, base_amount: '2500.00', frequency_code: validRecurrence.frequencyCode, start_date: validRecurrence.startDate, end_date: validRecurrence.endDate, max_occurrences: null, due_day: 5, generation_window_months: 6, status_code: 'ACTIVE', generated_count: '1', is_open_ended: false, next_occurrence_date: '2026-08-01', notes: validRecurrence.notes }], rowCount: 1 });
+      if (sql.includes('FROM financeiro.payable_recurrence_titles rt')) return Promise.resolve({ rows: [{ payable_title_id: 'title-1' }], rowCount: 1 });
+      if (sql.includes('JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id')) return Promise.resolve({ rows: [], rowCount: 0 });
+      if (sql.includes('UPDATE financeiro.payable_titles SET status_id')) return Promise.resolve({ rows: [{ id: 'title-1' }], rowCount: 1 });
+      if (sql.includes('UPDATE financeiro.payable_installments SET status_id')) return Promise.resolve({ rows: [], rowCount: 1 });
+      if (sql.includes('INSERT INTO financeiro.payable_recurrences')) return Promise.resolve({ rows: [{ id: 'rec-2', description: 'Aluguel reajustado' }], rowCount: 1 });
+      return Promise.resolve({ rows: [{ ok: 1 }], rowCount: 1 });
+    });
+    const query = queryMock as QueryExecutor['query'];
+    const repo = new PayablesRepository(database({ query }));
+    const result = await repo.reviseRecurrenceFromDate('rec-1', {
+      effectiveDate: '2026-08-05',
+      description: 'Aluguel reajustado',
+      baseAmount: 2750,
+      companyId: validRecurrence.companyId,
+      supplierId: validRecurrence.supplierId,
+      categoryId: validRecurrence.categoryId,
+      documentTypeId: validRecurrence.documentTypeId,
+      paymentMethodId: validRecurrence.paymentMethodId,
+      frequencyCode: validRecurrence.frequencyCode,
+      dueDay: 5,
+      reason: 'Reajuste anual',
+      cancelFutureTitles: true,
+    }, 'user-id') as { previousRecurrenceId: string; recurrenceId: string; effectiveDate: string; cancelledFutureTitles: number };
+    expect(result.previousRecurrenceId).toBe('rec-1');
+    expect(result.recurrenceId).toBe('rec-2');
+    expect(result.effectiveDate).toBe('2026-08-05');
+    expect(result.cancelledFutureTitles).toBe(1);
+    expect(queryMock.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes('UPDATE financeiro.payable_recurrences SET'))).toBe(true);
+    expect(queryMock.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO financeiro.payable_recurrences'))).toBe(true);
+  });
+
+  it('keeps predecessor end date valid when revision starts on the original recurrence start date', async () => {
+    const queryMock = vi.fn(async (sql: string, _values?: readonly unknown[]) => {
+      if (sql.includes('FROM financeiro.payable_recurrences r')) return Promise.resolve({ rows: [{ ...validRecurrence, id: 'rec-1', company_id: validRecurrence.companyId, supplier_id: validRecurrence.supplierId, category_id: validRecurrence.categoryId, cost_center_id: null, document_type_id: validRecurrence.documentTypeId, payment_method_id: validRecurrence.paymentMethodId, payment_term_id: null, description: validRecurrence.description, base_document_number: validRecurrence.baseDocumentNumber, base_amount: '2500.00', frequency_code: validRecurrence.frequencyCode, start_date: '2026-07-24', end_date: '2026-12-24', max_occurrences: null, due_day: 24, generation_window_months: 6, status_code: 'ACTIVE', generated_count: '1', is_open_ended: false, next_occurrence_date: '2026-07-24', notes: validRecurrence.notes }], rowCount: 1 });
+      if (sql.includes('FROM financeiro.payable_recurrence_titles rt')) return Promise.resolve({ rows: [], rowCount: 0 });
+      if (sql.includes('INSERT INTO financeiro.payable_recurrences')) return Promise.resolve({ rows: [{ id: 'rec-2', description: 'Conta revisada' }], rowCount: 1 });
+      return Promise.resolve({ rows: [{ ok: 1 }], rowCount: 1 });
+    });
+    const repo = new PayablesRepository(database({ query: queryMock as QueryExecutor['query'] }));
+    await repo.reviseRecurrenceFromDate('rec-1', {
+      effectiveDate: '2026-07-24',
+      description: 'Conta revisada',
+      baseAmount: 4590,
+      companyId: validRecurrence.companyId,
+      supplierId: validRecurrence.supplierId,
+      categoryId: validRecurrence.categoryId,
+      documentTypeId: validRecurrence.documentTypeId,
+      paymentMethodId: validRecurrence.paymentMethodId,
+      frequencyCode: validRecurrence.frequencyCode,
+      dueDay: 24,
+      endDate: '2028-07-27',
+      maxOccurrences: 2,
+      reason: 'Revisão operacional',
+      cancelFutureTitles: false,
+    }, 'user-id');
+    const predecessorUpdate = queryMock.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('UPDATE financeiro.payable_recurrences SET'));
+    expect(predecessorUpdate?.[1]?.[1]).toBe('2026-07-24');
+  });
+
+  it('cancels future generated titles together with the recurrence when requested', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: 'rec-1', status_code: 'ACTIVE' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ payable_title_id: 'title-1' }, { payable_title_id: 'title-2' }], rowCount: 2 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: 'title-1' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [{ id: 'title-2' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'rec-1', status_id: 'cancelled', is_active: false }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const repo = new PayablesRepository(database({ query }));
+    const result = await repo.cancelRecurrence('rec-1', { reason: 'Fornecedor substituído', cancelFutureTitles: true }, 'user-id') as { cancelledFutureTitles: number; cancelledFutureTitlesRequested: boolean };
+    expect(result.cancelledFutureTitles).toBe(2);
+    expect(result.cancelledFutureTitlesRequested).toBe(true);
+    expect(query.mock.calls[1]?.[0]).toContain('FROM financeiro.payable_recurrence_titles');
+    expect(query.mock.calls[3]?.[0]).toContain('UPDATE financeiro.payable_titles SET status_id');
+    expect(query.mock.calls[7]?.[0]).toContain('UPDATE financeiro.payable_titles SET status_id');
+    expect(query.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes("UPDATE financeiro.payable_recurrences SET status_id=(SELECT id FROM financeiro.payable_recurrence_statuses WHERE code='CANCELLED')"))).toBe(true);
   });
 
   it('reverses payment and creates a compensating bank movement',async()=>{
@@ -314,6 +444,124 @@ describe('PayablesRepository business safeguards',()=>{
     const query=vi.fn().mockResolvedValueOnce({rows:[{id:'xml-id',generated_title_id:'title-id'}],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     await expect(repo.deleteXmlImport('xml-id','user-id')).rejects.toMatchObject({code:'XML_IMPORT_ALREADY_GENERATED',statusCode:409});
+  });
+
+  it('lists recurrences with pagination and active-record filter', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'1'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',description:'Aluguel da matriz',status_code:'ACTIVE',company_name:'HRM Motos Matriz',supplier_name:'Imobiliaria Centro Ltda',category_name:'Despesas Fixas',payment_method_name:'Boleto',generated_count:1,last_occurrence_date:'2026-07-05'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.listRecurrences(2,10,{status:'ACTIVE',companyId:'company-id'}) as {data:{id:string;statusCode:string;companyName:string}[];page:number;pageSize:number;total:number};
+    expect(result.page).toBe(2);
+    expect(result.pageSize).toBe(10);
+    expect(result.total).toBe(1);
+    expect(result.data[0]?.id).toBe('recurrence-id');
+    expect(result.data[0]?.statusCode).toBe('ACTIVE');
+    expect(result.data[0]?.companyName).toBe('HRM Motos Matriz');
+    expect(query.mock.calls[0]?.[0]).toContain('r.deleted_at IS NULL');
+    expect(query.mock.calls[1]?.[0]).toContain('ORDER BY r.next_occurrence_date NULLS LAST');
+  });
+
+  it('rejects recurrence creation without termination criteria', async()=>{
+    const repo=new PayablesRepository(database({query:vi.fn()}));
+    await expect(repo.createRecurrence({...validRecurrence,endDate:null,maxOccurrences:null,isOpenEnded:false},'user-id'))
+      .rejects.toMatchObject({code:'RECURRENCE_TERMINATION_REQUIRED',statusCode:400});
+  });
+
+  it('rejects open-ended recurrence when end date or max occurrences are also informed', async()=>{
+    const repo=new PayablesRepository(database({query:vi.fn()}));
+    await expect(repo.createRecurrence({...validRecurrence,isOpenEnded:true,endDate:'2026-12-05'},'user-id'))
+      .rejects.toMatchObject({code:'RECURRENCE_OPEN_ENDED_CONFLICT',statusCode:400});
+  });
+
+  it('creates a recurrence with audit trail after validating references', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',description:'Aluguel da matriz',frequency_code:'MONTHLY',due_day:5}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.createRecurrence(validRecurrence,'user-id') as {id:string;description:string;frequencyCode:string;dueDay:number};
+    expect(result.id).toBe('recurrence-id');
+    expect(result.description).toBe('Aluguel da matriz');
+    expect(result.frequencyCode).toBe('MONTHLY');
+    expect(result.dueDay).toBe(5);
+    expect(query.mock.calls[5]?.[0]).toContain('INSERT INTO financeiro.payable_recurrences');
+    expect(query.mock.calls[6]?.[0]).toContain('INSERT INTO administracao.audit_events');
+  });
+
+  it('blocks recurrence reactivation when current status is not suspended', async()=>{
+    const query=vi.fn().mockResolvedValueOnce({rows:[{id:'recurrence-id',status_code:'ACTIVE'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    await expect(repo.changeRecurrenceStatus('recurrence-id','ACTIVE','user-id'))
+      .rejects.toMatchObject({code:'RECURRENCE_REACTIVATE_INVALID',statusCode:409});
+  });
+
+  it('blocks recurrence suspension when current status is not active', async()=>{
+    const query=vi.fn().mockResolvedValueOnce({rows:[{id:'recurrence-id',status_code:'SUSPENDED'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    await expect(repo.changeRecurrenceStatus('recurrence-id','SUSPENDED','user-id'))
+      .rejects.toMatchObject({code:'RECURRENCE_SUSPEND_INVALID',statusCode:409});
+  });
+
+  it('previews pending recurrence occurrences respecting existing generated dates', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',start_date:'2026-07-05',end_date:'2026-12-05',base_amount:'2500.00',base_document_number:'ALUGUEL-HRM',frequency_code:'MONTHLY',due_day:5,status_code:'ACTIVE',generated_count:'1',max_occurrences:null,generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{occurrence_date:'2026-07-05',sequence_number:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.previewRecurrenceGeneration('recurrence-id',{occurrenceCount:2},'user-id') as {total:number;occurrences:{occurrenceDate:string;documentNumber:string;sequenceNumber:number}[]};
+    expect(result.total).toBe(2);
+    expect(result.occurrences[0]?.occurrenceDate).toBe('2026-08-05');
+    expect(result.occurrences[0]?.documentNumber).toBe('ALUGUEL-HRM-20260805');
+    expect(result.occurrences[0]?.sequenceNumber).toBe(2);
+    expect(query.mock.calls[2]?.[0]).toContain('INSERT INTO administracao.audit_events');
+  });
+
+  it('generates recurrence titles and updates the next occurrence', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',supplier_id:'supplier-id',company_id:'company-id',category_id:'category-id',document_type_id:'document-type-id',payment_term_id:'term-id',cost_center_id:'cost-center-id',payment_method_id:'payment-method-id',description:'Aluguel da matriz',base_amount:'2500.00',base_document_number:'ALUGUEL-HRM',start_date:'2026-07-05',end_date:'2026-12-05',frequency_code:'MONTHLY',due_day:5,status_code:'ACTIVE',generated_count:'1',max_occurrences:null,generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{occurrence_date:'2026-07-05',sequence_number:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'title-id',document_number:'ALUGUEL-HRM-20260805'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.generateRecurrenceTitles('recurrence-id',{occurrenceCount:1},'user-id') as {total:number;generated:{id:string;occurrenceDate:string;sequenceNumber:number}[]};
+    const titleValues=query.mock.calls[2]?.[1] as unknown[] | undefined;
+    const installmentValues=query.mock.calls[3]?.[1] as unknown[] | undefined;
+    const linkValues=query.mock.calls[4]?.[1] as unknown[] | undefined;
+    const updateValues=query.mock.calls[6]?.[1] as unknown[] | undefined;
+    expect(result.total).toBe(1);
+    expect(result.generated[0]?.id).toBe('title-id');
+    expect(result.generated[0]?.occurrenceDate).toBe('2026-08-05');
+    expect(result.generated[0]?.sequenceNumber).toBe(2);
+    expect(titleValues?.[1]).toBe('company-id');
+    expect(installmentValues?.[3]).toBe('payment-method-id');
+    expect(linkValues?.[2]).toBe('2026-08-05');
+    expect(updateValues?.[1]).toBe('2026-08-05');
+    expect(updateValues?.[2]).toBe('2026-09-05');
+  });
+
+  it('marks recurrence as finished when generation reaches the configured max occurrences', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',supplier_id:'supplier-id',company_id:'company-id',category_id:'category-id',document_type_id:'document-type-id',payment_term_id:'term-id',cost_center_id:'cost-center-id',payment_method_id:'payment-method-id',description:'Aluguel da matriz',base_amount:'2500.00',base_document_number:'ALUGUEL-HRM',start_date:'2026-08-05',end_date:null,frequency_code:'MONTHLY',due_day:5,status_code:'ACTIVE',generated_count:'0',max_occurrences:1,generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[{id:'title-id',document_number:'ALUGUEL-HRM-20260805'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.generateRecurrenceTitles('recurrence-id',{occurrenceCount:1},'user-id') as {total:number};
+    const updateValues=query.mock.calls[6]?.[1] as unknown[] | undefined;
+    expect(result.total).toBe(1);
+    expect(updateValues?.[2]).toBeNull();
+    expect(updateValues?.[4]).toBe(true);
   });
 
 });

@@ -34,6 +34,9 @@ interface RecurrenceListItem {
 interface GenerationOccurrence { occurrenceDate: string; dueDate: string; sequenceNumber: number; documentNumber: string; amount: number }
 interface GenerationPreview { recurrenceId: string; occurrences: GenerationOccurrence[]; total: number }
 interface GenerationResult { recurrenceId: string; generated: { id: string; documentNumber: string; occurrenceDate: string }[]; total: number }
+interface RecurrenceCancellationResult { id: string; cancelledFutureTitles: number; cancelledFutureTitlesRequested: boolean }
+interface CancellationPreviewTitle { payableTitleId: string; occurrenceDate: string; sequenceNumber: number; documentNumber: string; documentSeries?: string | null; description: string; statusCode: string; dueDate: string; openBalance: string | number; installmentCount: number }
+interface CancellationPreview { recurrenceId: string; titles: CancellationPreviewTitle[]; total: number }
 interface RecurrenceFormState {
   companyId: string;
   supplierId: string;
@@ -52,6 +55,11 @@ interface RecurrenceFormState {
   dueDay: string;
   isOpenEnded: boolean;
   notes: string;
+}
+interface CancelDialogState {
+  item: RecurrenceListItem;
+  reason: string;
+  cancelFutureTitles: boolean;
 }
 
 const frequencies: { value: FrequencyCode; label: string }[] = [
@@ -106,6 +114,13 @@ function statusLabel(value: RecurrenceStatus): string {
   return { ACTIVE: 'Ativa', SUSPENDED: 'Suspensa', CANCELLED: 'Cancelada', FINISHED: 'Finalizada' }[value];
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string' && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
 function useLookup(path: string, enabled = true) {
   return useQuery({
     queryKey: ['recurrences-lookup', path],
@@ -134,6 +149,10 @@ export function RecurrencesPage(): ReactElement {
   const [occurrenceCount, setOccurrenceCount] = useState('6');
   const [preview, setPreview] = useState<GenerationPreview | null>(null);
   const [message, setMessage] = useState('');
+  const [createError, setCreateError] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [cancelDialog, setCancelDialog] = useState<CancelDialogState | null>(null);
+  const [cancelError, setCancelError] = useState('');
 
   const query = useQuery({
     queryKey: ['recurrences', page, pageSize, search, status, companyId, supplierId],
@@ -171,10 +190,18 @@ export function RecurrencesPage(): ReactElement {
       };
       return (await httpClient.post('/api/v1/recurrences', payload)).data;
     },
+    onMutate: () => {
+      setCreateError('');
+      setStatusMessage('');
+    },
     onSuccess: async () => {
       setFormOpen(false);
       setForm(emptyForm);
+      setMessage('Recorrência salva com sucesso. Agora você já pode gerar os próximos títulos com pré-visualização.');
       await queryClient.invalidateQueries({ queryKey: ['recurrences'] });
+    },
+    onError: (error) => {
+      setCreateError(errorMessage(error, 'Não foi possível salvar a recorrência. Revise os dados obrigatórios e as regras de prazo final.'));
     },
   });
 
@@ -184,7 +211,13 @@ export function RecurrencesPage(): ReactElement {
       const response = await httpClient.post<GenerationPreview>(`/api/v1/recurrences/${generateFor.id}/preview-generation`, generationPayload());
       return response.data;
     },
-    onSuccess: setPreview,
+    onMutate: () => {
+      setStatusMessage('');
+    },
+    onSuccess: (result) => {
+      setPreview(result);
+      setStatusMessage(result.total > 0 ? `${result.total} ocorrência${result.total === 1 ? '' : 's'} pronta${result.total === 1 ? '' : 's'} para revisão antes da geração.` : 'Não há novas ocorrências dentro dos limites informados.');
+    },
   });
 
   const generate = useMutation({
@@ -195,6 +228,7 @@ export function RecurrencesPage(): ReactElement {
     },
     onSuccess: async (result) => {
       setMessage(`${result.total} título${result.total === 1 ? '' : 's'} gerado${result.total === 1 ? '' : 's'} com sucesso.`);
+      setStatusMessage('');
       setGenerateFor(null);
       setPreview(null);
       await Promise.all([
@@ -205,11 +239,56 @@ export function RecurrencesPage(): ReactElement {
   });
 
   const changeStatus = useMutation({
-    mutationFn: async ({ item, action }: { item: RecurrenceListItem; action: 'suspend' | 'reactivate' | 'cancel' }) => {
-      const body = action === 'reactivate' ? undefined : { reason: action === 'cancel' ? 'Cancelamento operacional da recorrência.' : 'Suspensão operacional da recorrência.' };
+    mutationFn: async ({ item, action, reason, cancelFutureTitles }: { item: RecurrenceListItem; action: 'suspend' | 'reactivate'; reason?: string; cancelFutureTitles?: boolean }) => {
+      const body = action === 'reactivate' ? undefined : { reason: reason ?? 'Suspensão operacional da recorrência.', cancelFutureTitles };
       return httpClient.post(`/api/v1/recurrences/${item.id}/${action}`, body);
     },
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ['recurrences'] }),
+    onSuccess: async (_result, variables) => {
+      setMessage(
+        variables.action === 'reactivate'
+          ? 'Recorrência reativada. Ela volta a ficar apta para novas gerações.'
+          : 'Recorrência suspensa. Os títulos já gerados permanecem intactos.',
+      );
+      await queryClient.invalidateQueries({ queryKey: ['recurrences'] });
+    },
+  });
+
+  const cancelRecurrence = useMutation({
+    mutationFn: async () => {
+      if (!cancelDialog) throw new Error('Recorrência não selecionada.');
+      const response = await httpClient.post<RecurrenceCancellationResult>(`/api/v1/recurrences/${cancelDialog.item.id}/cancel`, {
+        reason: cancelDialog.reason,
+        cancelFutureTitles: cancelDialog.cancelFutureTitles,
+      });
+      return response.data;
+    },
+    onMutate: () => {
+      setCancelError('');
+    },
+    onSuccess: async (result) => {
+      const titlesMessage = result.cancelledFutureTitlesRequested
+        ? `${result.cancelledFutureTitles} título${result.cancelledFutureTitles === 1 ? '' : 's'} futuro${result.cancelledFutureTitles === 1 ? '' : 's'} em aberto também foi${result.cancelledFutureTitles === 1 ? '' : 'ram'} cancelado${result.cancelledFutureTitles === 1 ? '' : 's'}.`
+        : 'Os títulos já gerados seguem no fluxo normal de contas a pagar.';
+      setMessage(`Recorrência cancelada. ${titlesMessage}`);
+      setCancelDialog(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['recurrences'] }),
+        queryClient.invalidateQueries({ queryKey: ['payables'] }),
+      ]);
+    },
+    onError: (error) => {
+      setCancelError(errorMessage(error, 'Não foi possível cancelar a recorrência com as opções informadas.'));
+    },
+  });
+
+  const cancellationPreview = useQuery({
+    queryKey: ['recurrences-cancellation-preview', cancelDialog?.item.id],
+    queryFn: async () => {
+      if (!cancelDialog) throw new Error('Recorrência não selecionada.');
+      return (await httpClient.get<CancellationPreview>(`/api/v1/recurrences/${cancelDialog.item.id}/cancellation-preview`)).data;
+    },
+    enabled: Boolean(cancelDialog),
+    staleTime: 30000,
   });
 
   const rows = query.data?.data ?? [];
@@ -227,6 +306,7 @@ export function RecurrencesPage(): ReactElement {
   function openCreate(): void {
     setForm(emptyForm);
     setMessage('');
+    setCreateError('');
     setFormOpen(true);
   }
 
@@ -236,6 +316,18 @@ export function RecurrencesPage(): ReactElement {
     setUntilDate('');
     setOccurrenceCount('6');
     setMessage('');
+    setStatusMessage('');
+  }
+
+  function openCancel(item: RecurrenceListItem): void {
+    setCancelDialog({
+      item,
+      reason: 'Cancelamento operacional da recorrência.',
+      cancelFutureTitles: false,
+    });
+    setCancelError('');
+    setMessage('');
+    setStatusMessage('');
   }
 
   function submit(event: FormEvent): void {
@@ -302,7 +394,7 @@ export function RecurrencesPage(): ReactElement {
         </div>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-          {query.isLoading ? <p className="py-12 text-center text-slate-500">Carregando...</p> : query.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar as recorrências.</p> : <>
+          {query.isLoading ? <div className="grid gap-2 py-12 text-center text-slate-500"><p className="font-semibold">Carregando recorrências...</p><p className="text-sm">Estamos buscando os modelos ativos, suspensos e finalizados.</p></div> : query.isError ? <div role="alert" className="grid gap-2 py-12 text-center text-red-700"><p className="font-semibold">Não foi possível carregar as recorrências.</p><p className="text-sm text-red-600">Tente novamente em instantes ou revise os filtros aplicados.</p></div> : <>
             <div className="hidden grid-cols-[1.4fr_1fr_140px_120px_130px_190px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
               <span>Descrição / Empresa</span><span>Fornecedor</span><span>Frequência</span><span className="text-right">Valor</span><span>Próxima</span><span className="text-right">Ações</span>
             </div>
@@ -316,10 +408,10 @@ export function RecurrencesPage(): ReactElement {
                 <span className="flex flex-wrap justify-start gap-2 xl:justify-end">
                   <Button variant="secondary" className="min-h-9 px-3" disabled={item.statusCode !== 'ACTIVE'} onClick={() => openGenerate(item)}>Gerar</Button>
                   {item.statusCode === 'SUSPENDED' ? <Button variant="secondary" className="min-h-9 px-3" onClick={() => changeStatus.mutate({ item, action: 'reactivate' })}>Reativar</Button> : <Button variant="secondary" className="min-h-9 px-3" disabled={item.statusCode !== 'ACTIVE'} onClick={() => changeStatus.mutate({ item, action: 'suspend' })}>Suspender</Button>}
-                  <Button variant="danger" className="min-h-9 px-3" disabled={item.statusCode === 'CANCELLED' || item.statusCode === 'FINISHED'} onClick={() => changeStatus.mutate({ item, action: 'cancel' })}>Cancelar</Button>
+                  <Button variant="danger" className="min-h-9 px-3" disabled={item.statusCode === 'CANCELLED' || item.statusCode === 'FINISHED'} onClick={() => openCancel(item)}>Cancelar</Button>
                 </span>
               </div>)}
-              {rows.length === 0 && <p className="py-12 text-center text-slate-500">Nenhuma recorrência encontrada.</p>}
+              {rows.length === 0 && <div className="grid gap-2 py-12 text-center text-slate-500"><p className="font-semibold">Nenhuma recorrência encontrada.</p><p className="text-sm">Ajuste os filtros ou cadastre um novo modelo recorrente para começar.</p></div>}
             </div>
           </>}
         </div>
@@ -358,7 +450,11 @@ export function RecurrencesPage(): ReactElement {
             <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"><input type="checkbox" checked={form.isOpenEnded} onChange={(event) => setForm((current) => ({ ...current, isOpenEnded: event.target.checked, endDate: event.target.checked ? '' : current.endDate, maxOccurrences: event.target.checked ? '' : current.maxOccurrences }))} /> Sem prazo final</label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700 xl:col-span-3"><span>Observações</span><input value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
           </div>
-          {create.isError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">Não foi possível salvar a recorrência. Confira os campos obrigatórios.</p>}
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            <p className="font-semibold">Antes de salvar</p>
+            <p className="mt-1">Você pode informar data final ou quantidade máxima. Se marcar <span className="font-semibold">Sem prazo final</span>, a geração continuará limitada a até 6 meses por operação.</p>
+          </div>
+          {createError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">{createError}</p>}
           <div className="mt-6 flex justify-end gap-3"><Button variant="secondary" onClick={() => setFormOpen(false)}>Cancelar</Button><Button type="submit" disabled={create.isPending}>{create.isPending ? 'Salvando...' : 'Salvar recorrência'}</Button></div>
         </form>
       </div>}
@@ -373,8 +469,13 @@ export function RecurrencesPage(): ReactElement {
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Gerar até</span><input type="date" value={untilDate} onChange={(event) => { setUntilDate(event.target.value); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Ou quantidade de ocorrências</span><input type="number" min="1" max="366" value={occurrenceCount} onChange={(event) => { setOccurrenceCount(event.target.value); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
           </div>
+          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-semibold">Como funciona a geração</p>
+            <p className="mt-1">Primeiro revise o preview. A confirmação cria os títulos e parcelas futuras com base nas ocorrências ainda não geradas.</p>
+          </div>
           <div className="mt-4 flex justify-end"><Button variant="secondary" disabled={previewMutation.isPending} onClick={() => previewMutation.mutate()}>{previewMutation.isPending ? 'Calculando...' : 'Pré-visualizar'}</Button></div>
           {previewMutation.isError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">Não foi possível gerar o preview. Verifique o limite de até 6 meses.</p>}
+          {statusMessage && <p className="mt-4 text-sm font-semibold text-slate-700">{statusMessage}</p>}
           {preview && <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
             <div className="grid grid-cols-[90px_1fr_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500"><span>Venc.</span><span>Documento</span><span className="text-right">Valor</span></div>
             <div className="divide-y divide-slate-100">
@@ -383,7 +484,50 @@ export function RecurrencesPage(): ReactElement {
             </div>
           </div>}
           {generate.isError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">Não foi possível gerar os títulos. Talvez não existam ocorrências pendentes.</p>}
-          <div className="mt-6 flex justify-end gap-3"><Button variant="secondary" onClick={() => setGenerateFor(null)}>Cancelar</Button><Button disabled={!preview?.occurrences.length || generate.isPending} onClick={() => generate.mutate()}>{generate.isPending ? 'Gerando...' : 'Confirmar geração'}</Button></div>
+          <div className="mt-6 flex justify-end gap-3"><Button variant="secondary" onClick={() => setGenerateFor(null)}>Cancelar</Button><Button disabled={!preview?.occurrences.length || generate.isPending} onClick={() => generate.mutate()}>{generate.isPending ? 'Gerando...' : preview?.occurrences.length ? `Confirmar geração de ${preview.occurrences.length}` : 'Confirmar geração'}</Button></div>
+        </div>
+      </div>}
+
+      {cancelDialog && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" role="dialog" aria-modal="true" aria-label="Cancelar recorrência">
+        <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div><h2 className="text-2xl font-black text-slate-950">Cancelar recorrência</h2><p className="mt-1 text-sm text-slate-500">{cancelDialog.item.description} • {cancelDialog.item.supplierName}</p></div>
+            <button type="button" className="text-2xl text-slate-400 hover:text-slate-700" onClick={() => setCancelDialog(null)} aria-label="Fechar cancelamento">×</button>
+          </div>
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            <p className="font-semibold">O que acontece ao cancelar</p>
+            <p className="mt-1">A série é encerrada de forma definitiva. Você pode manter os títulos já gerados no fluxo normal ou também cancelar somente os títulos futuros ainda em aberto.</p>
+          </div>
+          <label className="mt-4 grid gap-1.5 text-sm font-semibold text-slate-700">
+            <span>Motivo do cancelamento</span>
+            <textarea value={cancelDialog.reason} onChange={(event) => setCancelDialog((current) => current ? { ...current, reason: event.target.value } : current)} rows={4} className="rounded-2xl border border-slate-300 px-3 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          </label>
+          <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
+            <input aria-label="Também cancelar títulos futuros em aberto" type="checkbox" checked={cancelDialog.cancelFutureTitles} onChange={(event) => setCancelDialog((current) => current ? { ...current, cancelFutureTitles: event.target.checked } : current)} />
+            <span><span className="block font-semibold text-slate-900">Também cancelar títulos futuros em aberto</span><span className="mt-1 block text-slate-500">Somente títulos com vencimento após hoje e sem pagamento efetivo entram nessa ação. Títulos pagos, parcialmente pagos, vencidos ou já cancelados permanecem intactos.</span></span>
+          </label>
+          <div className="mt-4 rounded-2xl border border-slate-200">
+            <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">Prévia dos títulos futuros elegíveis</p>
+              <p className="mt-1 text-xs text-slate-500">Esta lista mostra exatamente os títulos que podem ser cancelados junto com a recorrência nesta data.</p>
+            </div>
+            {cancellationPreview.isLoading ? <div className="px-4 py-6 text-sm text-slate-500">Carregando títulos elegíveis...</div> : cancellationPreview.isError ? <div className="px-4 py-6 text-sm text-red-700">Não foi possível carregar a prévia dos títulos futuros.</div> : <div>
+              <div className="px-4 py-3 text-sm font-semibold text-slate-700">{cancellationPreview.data?.total ?? 0} título{(cancellationPreview.data?.total ?? 0) === 1 ? '' : 's'} futuro{(cancellationPreview.data?.total ?? 0) === 1 ? '' : 's'} elegível{(cancellationPreview.data?.total ?? 0) === 1 ? '' : 'is'}.</div>
+              <div className="divide-y divide-slate-100">
+                {cancellationPreview.data?.titles.map((title) => <div key={title.payableTitleId} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[120px_1fr_140px] md:items-center">
+                  <span className="font-semibold text-slate-700">{datePtBr(title.dueDate)}<span className="block text-xs text-slate-500">Seq. {title.sequenceNumber}</span></span>
+                  <span className="text-slate-900">{title.documentNumber}{title.documentSeries ? `/${title.documentSeries}` : ''}<span className="block text-xs text-slate-500">{title.description}</span></span>
+                  <span className="text-right font-black text-slate-900">{currency(title.openBalance)}</span>
+                </div>)}
+                {cancellationPreview.data && cancellationPreview.data.titles.length === 0 ? <div className="px-4 py-6 text-sm text-slate-500">Nenhum título futuro em aberto será afetado mesmo que a opção esteja marcada.</div> : null}
+              </div>
+            </div>}
+          </div>
+          {cancelError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">{cancelError}</p>}
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setCancelDialog(null)}>Voltar</Button>
+            <Button variant="danger" disabled={cancelRecurrence.isPending || cancellationPreview.isLoading || cancelDialog.reason.trim().length < 3} onClick={() => cancelRecurrence.mutate()}>{cancelRecurrence.isPending ? 'Cancelando...' : cancelDialog.cancelFutureTitles ? 'Cancelar recorrência e títulos futuros' : 'Cancelar recorrência'}</Button>
+          </div>
         </div>
       </div>}
     </div>
