@@ -3,10 +3,16 @@ name: Deploy VPS Native
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: Git tag or commit to deploy
-        required: true
+      deploy_ref:
+        description: Git branch, tag or commit to deploy. Leave empty to deploy the workflow commit.
+        required: false
+        default: ''
         type: string
+      run_checks:
+        description: Run CI checks before calling the VPS deploy script
+        required: true
+        default: true
+        type: boolean
       confirmation:
         description: Type DEPLOY to confirm
         required: true
@@ -20,19 +26,67 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  validate:
+  preflight:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      commit_sha: ${{ steps.resolve.outputs.commit_sha }}
     steps:
       - name: Validate explicit confirmation
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
-        run: test "$CONFIRMATION" = "DEPLOY"
+        run: |
+          if [ "$CONFIRMATION" != "DEPLOY" ]; then
+            echo "Type DEPLOY in the confirmation field to continue." >&2
+            exit 1
+          fi
+
+      - name: Validate deploy ref format
+        env:
+          DEPLOY_REF: ${{ inputs.deploy_ref }}
+        run: |
+          if [ -n "$DEPLOY_REF" ] && ! [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "Invalid deploy_ref. Use only letters, numbers, dot, underscore, slash or dash." >&2
+            exit 1
+          fi
+
+      - name: Checkout selected ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.deploy_ref || github.sha }}
+
+      - name: Resolve immutable commit
+        id: resolve
+        run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        if: ${{ inputs.run_checks }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ inputs.run_checks }}
+        run: npm ci
+
+      - name: Validate migrations
+        if: ${{ inputs.run_checks }}
+        run: bash scripts/validate-migrations.sh
+
+      - name: Run frontend/backend quality checks
+        if: ${{ inputs.run_checks }}
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
 
   deploy:
-    needs: validate
+    needs: preflight
     runs-on: ubuntu-latest
     environment: production
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Configure SSH
         env:
@@ -44,13 +98,16 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
       - name: Execute native controlled deployment
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          DEPLOY_REF: ${{ inputs.ref }}
+          COMMIT_SHA: ${{ needs.preflight.outputs.commit_sha }}
         run: |
-          [[ "$DEPLOY_REF" =~ ^[A-Za-z0-9._/-]+$ ]]
-          # The validated ref must be expanded locally.
-          # shellcheck disable=SC2029
-          ssh "$VPS_USER@$VPS_HOST" "sudo /opt/fincontrol/bin/deploy '$DEPLOY_REF'"
+          echo "Deploying immutable commit: $COMMIT_SHA"
+          ssh \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" \
+            "sudo -n /opt/fincontrol/bin/deploy '$COMMIT_SHA'"

@@ -95,6 +95,83 @@ Criar o environment `production` no GitHub e cadastrar:
 
 O workflow exige execucao manual e `confirmation=DEPLOY`.
 
+### Deploy manual pelo GitHub Actions
+
+O workflow `.github/workflows/deploy-vps.yml` executa:
+
+1. validacao da confirmacao textual;
+2. checkout do `deploy_ref` informado ou do commit do workflow;
+3. resolucao para um commit SHA imutavel;
+4. checks opcionais (`npm ci`, lint, typecheck, testes, build e validacao de migrations);
+5. chamada SSH para a VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
+```
+
+O `deploy_ref` pode ser uma branch, tag ou commit. A VPS sempre recebe o commit
+resolvido pelo Actions, nao a branch mutavel.
+
+### Sudo sem senha para o deploy
+
+Como o GitHub Actions nao e uma sessao interativa, o usuario SSH configurado em
+`VPS_USER` precisa conseguir executar o deploy sem prompt de senha.
+
+Criar um arquivo sudoers dedicado na VPS:
+
+```bash
+sudo visudo -f /etc/sudoers.d/fincontrol-github-actions
+```
+
+Conteudo recomendado, trocando `deploy` pelo usuario cadastrado em `VPS_USER`:
+
+```text
+deploy ALL=(root) NOPASSWD: /opt/fincontrol/bin/deploy
+```
+
+Validar na VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy --help
+```
+
+Se esse comando retornar erro de uso do script sem pedir senha, a permissao esta
+funcional. Se retornar erro de senha, o workflow falhara antes de alterar a
+aplicacao.
+
+### Segredos necessarios
+
+`VPS_HOST`:
+host ou IP publico da VPS.
+
+`VPS_USER`:
+usuario administrativo usado pelo Actions, por exemplo `deploy` ou `harlem`.
+
+`VPS_SSH_KEY`:
+chave privada SSH desse usuario. A chave publica correspondente deve estar em
+`~/.ssh/authorized_keys` na VPS.
+
+`VPS_KNOWN_HOSTS`:
+linha gerada por:
+
+```bash
+ssh-keyscan -H SEU_HOST_OU_IP
+```
+
+### Migrations
+
+Nao ha fluxo separado para migrations no Actions. O deploy continua chamando o
+script oficial da VPS, que:
+
+- valida ordem, unicidade e transacionalidade das migrations;
+- aplica apenas migrations pendentes;
+- registra checksum em `administracao.schema_versions`;
+- executa `database/scripts/verify_database.sql`.
+
+Novas migrations devem continuar seguindo a convencao atual de nome por data,
+sempre posteriores a ultima migration aplicada e versionada em
+`database/migrations/`.
+
 Essa e a principal pendencia apos o deploy controlado manual validado.
 
 ## Observacoes operacionais
