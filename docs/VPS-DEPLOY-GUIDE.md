@@ -52,6 +52,30 @@ readlink -f /var/www/hrmmotos.com.br/fincontrol/current
 
 ## Fazer deploy
 
+### Caminho preferencial: GitHub Actions
+
+Depois que o codigo estiver commitado e enviado ao GitHub:
+
+1. Acessar `Actions` no GitHub.
+2. Abrir o workflow `Deploy VPS Native`.
+3. Clicar em `Run workflow`.
+4. Informar `deploy_ref` com uma branch, tag ou commit.
+5. Manter `run_checks=true`, salvo emergencia operacional.
+6. Digitar `DEPLOY` em `confirmation`.
+7. Aprovar o environment `production`, se houver revisores configurados.
+
+O workflow resolve o `deploy_ref` para um commit imutavel e chama na VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
+```
+
+O script remoto continua sendo o unico responsavel por instalar dependencias,
+validar, aplicar migrations pendentes, publicar symlinks, recarregar PM2 e
+validar health checks.
+
+### Fallback: deploy por SSH
+
 Deploy da branch atual de trabalho:
 
 ```bash
