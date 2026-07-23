@@ -11,6 +11,7 @@ import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
 import { currency, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
 import { payableTabs } from './payable-form-contract';
+import { isTerminalRecurrence, RecurrenceActionsLauncher } from './recurrence-actions';
 
 interface Lookup {
   id: string;
@@ -225,6 +226,7 @@ export function PayableFormPage(): ReactElement {
   const [tab, setTab] = useState<Tab>('Dados da Conta');
   const [duplicatePayload, setDuplicatePayload] = useState<Values>();
   const [saveMode, setSaveMode] = useState<SaveMode>('close');
+  const [feedback, setFeedback] = useState('');
 
   const suppliers = useLookup('/suppliers');
   const categories = useLookup('/financial-categories');
@@ -434,6 +436,7 @@ export function PayableFormPage(): ReactElement {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {editing && detail.data?.recurrenceId && !isTerminalRecurrence(detail.data.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={detail.data} onFeedback={setFeedback} /> : null}
           {editing && detail.data?.statusCode !== 'CANCELLED' && (
             <Button type="button" variant="danger" onClick={() => void cancelTitle()}>
               Cancelar título
@@ -450,6 +453,8 @@ export function PayableFormPage(): ReactElement {
           </Button>
         </div>
       </header>
+
+      {feedback ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</div> : null}
 
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
         {tabs.map(item => (
