@@ -40,7 +40,8 @@ BEGIN
             ('financeiro', 'payment_reversals'), ('financeiro', 'payment_batches'),
             ('financeiro', 'approvals'), ('financeiro', 'attachments'),
             ('financeiro', 'tags'), ('financeiro', 'payable_title_tags'),
-            ('financeiro', 'xml_imports')
+            ('financeiro', 'xml_imports'), ('financeiro', 'payable_recurrence_statuses'),
+            ('financeiro', 'payable_recurrences'), ('financeiro', 'payable_recurrence_titles')
     ), missing AS (
         SELECT e.schema_name || '.' || e.object_name AS object_name
         FROM expected e
@@ -111,7 +112,12 @@ BEGIN
             ('PAYABLE_TAG_MANAGE'),
             ('XML_IMPORT_MANAGE'),
             ('BANK_ACCOUNT_MOVEMENT_VIEW'),
-            ('BANK_ACCOUNT_MOVEMENT_MANAGE')
+            ('BANK_ACCOUNT_MOVEMENT_MANAGE'),
+            ('RECURRENCE_VIEW'),
+            ('RECURRENCE_CREATE'),
+            ('RECURRENCE_UPDATE'),
+            ('RECURRENCE_CANCEL'),
+            ('RECURRENCE_GENERATE')
     ), missing_permissions AS (
         SELECT code
         FROM expected_permissions
