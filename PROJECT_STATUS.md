@@ -166,6 +166,22 @@ Estado consolidado:
 - Próximo checkpoint seguro: decidir se o deploy será manual por SHA da branch
   ou via merge para `main` e workflow `Deploy Production`.
 
+### Incidente de deploy observado
+
+- Durante tentativa de deploy do pacote publicado, a etapa `Verifying database`
+  falhou porque o banco não continha:
+  - `financeiro.payable_recurrence_statuses`;
+  - `financeiro.payable_recurrences`;
+  - `financeiro.payable_recurrence_titles`.
+- A migration que cria essas tabelas existe no pacote:
+  `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
+- Hipótese operacional principal: o banco/release marcou ou pulou migrations
+  antes de aplicar a migration de recorrências, ou o deploy executado na VPS
+  usou um estado de release/script diferente do pacote validado.
+- Próximo passo seguro: diagnosticar na VPS `schema_versions`, presença física
+  da migration na release e `to_regclass` das três tabelas antes de qualquer
+  correção manual.
+
 ## 5. Ordem de leitura e retomada
 
 Toda nova sessão deve começar por:
