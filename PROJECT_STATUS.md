@@ -3,8 +3,8 @@
 **Código:** DOC-11  
 **Versão:** 0.4  
 **Data:** 23/07/2026  
-**Status atual:** sistema além da Fase 16, com pacote local pós-Fase 16
-validado localmente e em preparação para publicação/deploy controlado
+**Status atual:** sistema além da Fase 16, com pacote pós-Fase 16 validado e
+publicado na branch de trabalho para preparação de deploy controlado
 
 ## 1. Objetivo deste arquivo
 
@@ -142,6 +142,10 @@ Estado consolidado:
   recurrence list fixture`.
 - Commit de qualidade para preflight de deploy: `c3df287 test: satisfy deploy
   quality checks`.
+- Commit documental de preflight: `975ca71 docs: record deploy preflight
+  checkpoint`.
+- Branch `feature/matriz-filial-xml` publicada em `origin` e configurada com
+  upstream.
 - Validações executadas antes do commit `c1fec93`:
   - `node ./node_modules/typescript/bin/tsc -p apps/api/tsconfig.json --noEmit`;
   - `node ./node_modules/typescript/bin/tsc -p apps/web/tsconfig.json --noEmit`;
@@ -159,8 +163,8 @@ Estado consolidado:
   como `.venv`, `.vscode`, conversões antigas de `.docx`, imagem movida e
   planilha em `docs/`; esses itens devem ser tratados com cuidado antes de
   publicação.
-- Próximo checkpoint seguro: versionar esta atualização de continuidade,
-  publicar a branch no GitHub e decidir deploy do SHA final validado.
+- Próximo checkpoint seguro: decidir se o deploy será manual por SHA da branch
+  ou via merge para `main` e workflow `Deploy Production`.
 
 ## 5. Ordem de leitura e retomada
 

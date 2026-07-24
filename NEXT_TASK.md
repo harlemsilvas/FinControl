@@ -1,14 +1,14 @@
 # FinControl — Next Task
 
 **Última atualização:** 23/07/2026  
-**Status:** pronto para publicação controlada  
+**Status:** branch publicada; aguardando decisão de deploy  
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Publicar o pacote pós-Fase 16 validado localmente e decidir o formato do deploy
-controlado.
+Decidir o formato do deploy controlado do pacote pós-Fase 16 já publicado na
+branch `feature/matriz-filial-xml`.
 
 ## Escopo desta tarefa
 
@@ -17,8 +17,10 @@ controlado.
   - `3fb353e docs: update continuity checkpoint`;
   - `a7b0a06 test(web): align recurrence list fixture`;
   - `c3df287 test: satisfy deploy quality checks`;
+  - `975ca71 docs: record deploy preflight checkpoint`;
 - manter fora do pacote os arquivos locais/artefatos ainda não conferidos;
-- enviar a branch com o SHA validado ao GitHub;
+- branch `feature/matriz-filial-xml` enviada ao GitHub e com upstream
+  configurado;
 - preparar o pacote para deploy controlado ou para uso do workflow
   `Deploy Production`, conforme decisão operacional.
 
@@ -29,11 +31,13 @@ controlado.
    - `.vscode/settings.json`;
    - arquivos `.docx` removidos/conversões não conferidas;
    - planilhas ou imagens não essenciais ao deploy.
-2. Confirmar se as migrations novas do pacote estão completas e ordenadas.
-3. Fazer `push` da branch com o SHA validado.
-4. Decidir entre:
+2. Decidir entre:
    - deploy controlado manual da branch/commit;
    - ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
+3. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
+   pois o workflow atual faz checkout fixo de `main`.
+4. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
+   o SHA publicado escolhido.
 
 ## Validações já executadas
 
