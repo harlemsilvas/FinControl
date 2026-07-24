@@ -170,6 +170,7 @@ describe('PayablesListPage', () => {
                 issueDate: '2026-07-01',
                 firstDueDate: '2026-08-05',
                 paymentMethodName: 'Boleto',
+                originCode: 'RECURRENCE',
                 recurrenceId: 'rec-terminal',
                 recurrenceOccurrenceDate: '2026-08-05',
                 recurrenceSequenceNumber: 1,
