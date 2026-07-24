@@ -4,3 +4,4 @@ export interface PayableDetail extends PayableListItem {supplierId:string;catego
 export interface ListResponse<T>{data:T[];page:number;pageSize:number;total:number}
 export function currency(value:string|number):string{return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value));}
 export function statusLabel(code:string):string{return {DRAFT:'Rascunho',OPEN:'Em aberto',IN_APPROVAL:'Em aprovação',APPROVED:'Aprovado',SCHEDULED:'Programado',PARTIALLY_PAID:'Parcialmente pago',PAID:'Pago',OVERDUE:'Atrasado',REJECTED:'Reprovado',CANCELLED:'Cancelado'}[code]??code;}
+export function isTerminalRecurrence(status?:string|null):boolean{return status==='CANCELLED'||status==='FINISHED';}

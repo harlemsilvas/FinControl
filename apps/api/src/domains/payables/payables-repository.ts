@@ -29,7 +29,7 @@ function api(row: Record<string, unknown>): Record<string, unknown> { return Obj
 function cents(value: number): number { return Math.round(value * 100); }
 function moneyAmount(input: PaymentInput): number { return input.principalAmount + (input.interestAmount ?? 0) + (input.penaltyAmount ?? 0) + (input.additionalAmount ?? 0) - (input.discountAmount ?? 0); }
 function dateString(value: string | Date | null | undefined): string | null { return value instanceof Date ? value.toISOString().slice(0, 10) : value ?? null; }
-function parseDate(value: string): Date { const [year, month, day] = value.split('-').map(Number); return new Date(Date.UTC(year!, month! - 1, day!)); }
+function parseDate(value: string): Date { const [year = 0, month = 1, day = 1] = value.split('-').map(Number); return new Date(Date.UTC(year, month - 1, day)); }
 function formatDate(value: Date): string { return value.toISOString().slice(0, 10); }
 function daysInMonth(year: number, month: number): number { return new Date(Date.UTC(year, month + 1, 0)).getUTCDate(); }
 function addDays(value: string, days: number): string { const date = parseDate(value); date.setUTCDate(date.getUTCDate() + days); return formatDate(date); }
