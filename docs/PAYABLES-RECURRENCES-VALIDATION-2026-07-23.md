@@ -169,8 +169,15 @@ Após o commit documental `3fb353e`, o `npm run typecheck` completo encontrou um
 mock de teste da listagem sem o campo `originCode`. O ajuste foi registrado no
 commit `a7b0a06 test(web): align recurrence list fixture`.
 
+Na preparação para deploy, o lint completo exigiu pequenos ajustes de tipagem,
+fixtures e timeout pontual do teste de health em ambiente WSL. Esses ajustes
+foram registrados no commit `c3df287 test: satisfy deploy quality checks`.
+
 Validação final observada:
 
+- `bash scripts/validate-migrations.sh`: aprovado, 53 migrations ordenadas,
+  únicas e transacionais;
+- `npm run lint`: aprovado;
 - `npm run typecheck`: aprovado;
 - `npm test`: aprovado, com API 79 testes aprovados e 5 testes de integração
   opt-in pulados; web 27 testes aprovados;
