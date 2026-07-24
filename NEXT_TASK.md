@@ -16,6 +16,7 @@ controlado.
   - `c1fec93 feat(payables): refine recurrence lifecycle actions`;
   - `3fb353e docs: update continuity checkpoint`;
   - `a7b0a06 test(web): align recurrence list fixture`;
+  - `c3df287 test: satisfy deploy quality checks`;
 - manter fora do pacote os arquivos locais/artefatos ainda não conferidos;
 - enviar a branch com o SHA validado ao GitHub;
 - preparar o pacote para deploy controlado ou para uso do workflow
@@ -37,9 +38,12 @@ controlado.
 ## Validações já executadas
 
 - `npm run typecheck`: aprovado.
+- `npm run lint`: aprovado.
 - `npm test`: aprovado, com API 79 testes aprovados e 5 testes de integração
   opt-in pulados; web 27 testes aprovados.
 - `npm run build`: aprovado.
+- `bash scripts/validate-migrations.sh`: aprovado, 53 migrations ordenadas,
+  únicas e transacionais.
 
 ## Critério de conclusão
 

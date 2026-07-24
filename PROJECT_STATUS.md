@@ -140,12 +140,17 @@ Estado consolidado:
   checkpoint`.
 - Commit de ajuste de teste pós-validação: `a7b0a06 test(web): align
   recurrence list fixture`.
+- Commit de qualidade para preflight de deploy: `c3df287 test: satisfy deploy
+  quality checks`.
 - Validações executadas antes do commit `c1fec93`:
   - `node ./node_modules/typescript/bin/tsc -p apps/api/tsconfig.json --noEmit`;
   - `node ./node_modules/typescript/bin/tsc -p apps/web/tsconfig.json --noEmit`;
   - `node ./node_modules/vitest/vitest.mjs run apps/api/test/payables-repository.test.ts apps/api/test/http-contract.test.ts apps/web/src/payables/payables-list-page.test.tsx apps/web/src/payables/payable-form-page.test.tsx apps/web/src/payables/recurrences-page.test.tsx`.
 - Resultado observado: 5 arquivos de teste e 59 testes aprovados.
-- Validação completa executada após `a7b0a06`:
+- Validação completa executada após `c3df287`:
+  - `bash scripts/validate-migrations.sh`: aprovado, 53 migrations ordenadas,
+    únicas e transacionais;
+  - `npm run lint`: aprovado;
   - `npm run typecheck`: aprovado;
   - `npm test`: aprovado, com API 79 testes aprovados e 5 testes de integração
     opt-in pulados; web 27 testes aprovados;
@@ -154,8 +159,8 @@ Estado consolidado:
   como `.venv`, `.vscode`, conversões antigas de `.docx`, imagem movida e
   planilha em `docs/`; esses itens devem ser tratados com cuidado antes de
   publicação.
-- Próximo checkpoint seguro: versionar esta atualização de continuidade e
-  decidir push/deploy do SHA final validado.
+- Próximo checkpoint seguro: versionar esta atualização de continuidade,
+  publicar a branch no GitHub e decidir deploy do SHA final validado.
 
 ## 5. Ordem de leitura e retomada
 
