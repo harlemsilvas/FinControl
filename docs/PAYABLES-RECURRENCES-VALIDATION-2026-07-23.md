@@ -163,6 +163,19 @@ Validacoes executadas antes do commit:
 
 Resultado observado: 5 arquivos de teste e 59 testes aprovados.
 
+### Validação completa de pacote
+
+Após o commit documental `3fb353e`, o `npm run typecheck` completo encontrou um
+mock de teste da listagem sem o campo `originCode`. O ajuste foi registrado no
+commit `a7b0a06 test(web): align recurrence list fixture`.
+
+Validação final observada:
+
+- `npm run typecheck`: aprovado;
+- `npm test`: aprovado, com API 79 testes aprovados e 5 testes de integração
+  opt-in pulados; web 27 testes aprovados;
+- `npm run build`: aprovado.
+
 ## Pendencias conhecidas
 
 - decidir se a geracao futura sera apenas manual no MVP ou se havera job

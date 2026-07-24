@@ -4,8 +4,7 @@
 **Versão:** 0.4  
 **Data:** 23/07/2026  
 **Status atual:** sistema além da Fase 16, com pacote local pós-Fase 16
-consolidado em commit funcional e em preparação para publicação/deploy
-controlado
+validado localmente e em preparação para publicação/deploy controlado
 
 ## 1. Objetivo deste arquivo
 
@@ -135,19 +134,28 @@ Estado consolidado:
 ## 4. Estado do código local em 23/07/2026
 
 - Branch ativa observada durante a retomada: `feature/matriz-filial-xml`.
-- Commit funcional mais recente: `c1fec93 feat(payables): refine recurrence
+- Commit funcional principal: `c1fec93 feat(payables): refine recurrence
   lifecycle actions`.
+- Commit documental de continuidade: `3fb353e docs: update continuity
+  checkpoint`.
+- Commit de ajuste de teste pós-validação: `a7b0a06 test(web): align
+  recurrence list fixture`.
 - Validações executadas antes do commit `c1fec93`:
   - `node ./node_modules/typescript/bin/tsc -p apps/api/tsconfig.json --noEmit`;
   - `node ./node_modules/typescript/bin/tsc -p apps/web/tsconfig.json --noEmit`;
   - `node ./node_modules/vitest/vitest.mjs run apps/api/test/payables-repository.test.ts apps/api/test/http-contract.test.ts apps/web/src/payables/payables-list-page.test.tsx apps/web/src/payables/payable-form-page.test.tsx apps/web/src/payables/recurrences-page.test.tsx`.
 - Resultado observado: 5 arquivos de teste e 59 testes aprovados.
+- Validação completa executada após `a7b0a06`:
+  - `npm run typecheck`: aprovado;
+  - `npm test`: aprovado, com API 79 testes aprovados e 5 testes de integração
+    opt-in pulados; web 27 testes aprovados;
+  - `npm run build`: aprovado, com build da API e build Vite do frontend.
 - O worktree contém arquivos paralelos fora do escopo funcional principal
   como `.venv`, `.vscode`, conversões antigas de `.docx`, imagem movida e
   planilha em `docs/`; esses itens devem ser tratados com cuidado antes de
   publicação.
-- Próximo checkpoint seguro: versionar os documentos de continuidade e, em
-  seguida, executar validação completa de pacote antes de push/deploy.
+- Próximo checkpoint seguro: versionar esta atualização de continuidade e
+  decidir push/deploy do SHA final validado.
 
 ## 5. Ordem de leitura e retomada
 
@@ -190,9 +198,8 @@ apagados nem confundidos com a tarefa ativa.
 
 ## 7. Próximo marco de projeto
 
-O próximo marco estratégico é publicar o pacote pós-Fase 16 já consolidado em
-commit funcional, mantendo a documentação de continuidade junto do pacote, para
-então:
+O próximo marco estratégico é publicar o pacote pós-Fase 16 já validado
+localmente, mantendo a documentação de continuidade junto do pacote, para então:
 
 - executar deploy controlado com SHA imutável;
 - ou publicar pela rotina `Deploy Production`, se `main` estiver pronta.
