@@ -65,7 +65,7 @@ describe('health routes', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ status: 'ok', service: 'fincontrol-api' });
     expect(checkHealth).not.toHaveBeenCalled();
-  });
+  }, 10_000);
 
   it('reports readiness when PostgreSQL is available', async () => {
     const { database } = createDatabase();

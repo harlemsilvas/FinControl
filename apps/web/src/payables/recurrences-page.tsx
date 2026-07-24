@@ -1,6 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useMemo, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
@@ -121,10 +120,10 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function useLookup(path: string, enabled = true) {
+function useLookup(path: string, enabled = true): UseQueryResult<LookupItem[]> {
   return useQuery({
     queryKey: ['recurrences-lookup', path],
-    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>(`/api/v1${path}`, { params: { pageSize: 100, active: true } })).data.data,
+    queryFn: async (): Promise<LookupItem[]> => (await httpClient.get<ListResponse<LookupItem>>(`/api/v1${path}`, { params: { pageSize: 100, active: true } })).data.data,
     enabled,
     staleTime: 60000,
   });
@@ -168,7 +167,7 @@ export function RecurrencesPage(): ReactElement {
   const costCenters = useLookup('/cost-centers', formOpen);
 
   const create = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<unknown> => {
       const payload = {
         companyId: form.companyId,
         supplierId: form.supplierId,
@@ -188,7 +187,7 @@ export function RecurrencesPage(): ReactElement {
         isOpenEnded: form.isOpenEnded,
         notes: form.notes || null,
       };
-      return (await httpClient.post('/api/v1/recurrences', payload)).data;
+      return (await httpClient.post<unknown>('/api/v1/recurrences', payload)).data;
     },
     onMutate: () => {
       setCreateError('');
@@ -291,7 +290,7 @@ export function RecurrencesPage(): ReactElement {
     staleTime: 30000,
   });
 
-  const rows = query.data?.data ?? [];
+  const rows = useMemo(() => query.data?.data ?? [], [query.data?.data]);
   const totalPages = Math.max(1, Math.ceil((query.data?.total ?? 0) / pageSize));
   const summary = useMemo(() => ({
     active: rows.filter((item) => item.statusCode === 'ACTIVE').length,

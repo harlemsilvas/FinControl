@@ -9,9 +9,9 @@ import { Button } from '../components/ui/button';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
-import { currency, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
+import { currency, isTerminalRecurrence, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
 import { payableTabs } from './payable-form-contract';
-import { isTerminalRecurrence, RecurrenceActionsLauncher } from './recurrence-actions';
+import { RecurrenceActionsLauncher } from './recurrence-actions';
 
 interface Lookup {
   id: string;

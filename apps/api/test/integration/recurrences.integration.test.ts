@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { QueryExecutor } from '../../src/infrastructure/database/database.js';
+import type { Database, QueryExecutor } from '../../src/infrastructure/database/database.js';
 import { PayablesRepository } from '../../src/domains/payables/payables-repository.js';
 
 const enabled = process.env.RUN_DATABASE_INTEGRATION === 'true';
@@ -9,7 +9,7 @@ const suite = enabled ? describe : describe.skip;
 
 function executorFromClient(client: PoolClient): QueryExecutor {
   return {
-    query: async <Row extends Record<string, unknown>>(text: string, values: readonly unknown[] = []) => {
+    query: async <Row extends Record<string, unknown>>(text: string, values: readonly unknown[] = []): Promise<{ rows: Row[]; rowCount: number }> => {
       const result = await client.query<Row>(text, [...values]);
       return { rows: result.rows, rowCount: result.rowCount ?? 0 };
     },
@@ -48,21 +48,21 @@ suite('Recurrence integration with real PostgreSQL', () => {
       await client.query('BEGIN');
 
       const tx = executorFromClient(client);
-      const database = {
-        query: tx.query,
-        checkHealth: async () => ({ database: process.env.DB_NAME!, latencyMs: 0, serverTime: new Date().toISOString() }),
-        close: async () => undefined,
-        transaction: async <T>(work: (executor: QueryExecutor) => Promise<T>) => work(tx),
+      const database: Database = {
+        query: <Row extends Record<string, unknown>>(text: string, values?: readonly unknown[]) => tx.query<Row>(text, values),
+        checkHealth: () => Promise.resolve({ database: process.env.DB_NAME!, latencyMs: 0, serverTime: new Date().toISOString() }),
+        close: () => Promise.resolve(),
+        transaction: <T>(work: (executor: QueryExecutor) => Promise<T>): Promise<T> => work(tx),
       };
       const repo = new PayablesRepository(database);
 
-      const company = await client.query(`SELECT id FROM cadastros.companies WHERE company_type='MAIN' AND is_active AND deleted_at IS NULL ORDER BY created_at LIMIT 1`);
-      const supplier = await client.query(`SELECT id FROM cadastros.suppliers WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
-      const category = await client.query(`SELECT id FROM cadastros.financial_categories WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
-      const documentType = await client.query(`SELECT id FROM cadastros.document_types WHERE is_active ORDER BY created_at LIMIT 1`);
-      const paymentMethod = await client.query(`SELECT id FROM cadastros.payment_methods WHERE is_active ORDER BY created_at LIMIT 1`);
-      const paymentTerm = await client.query(`SELECT id FROM cadastros.payment_terms WHERE is_active ORDER BY created_at LIMIT 1`);
-      const costCenter = await client.query(`SELECT id FROM cadastros.cost_centers WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
+      const company = await client.query<{ id: string }>(`SELECT id FROM cadastros.companies WHERE company_type='MAIN' AND is_active AND deleted_at IS NULL ORDER BY created_at LIMIT 1`);
+      const supplier = await client.query<{ id: string }>(`SELECT id FROM cadastros.suppliers WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
+      const category = await client.query<{ id: string }>(`SELECT id FROM cadastros.financial_categories WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
+      const documentType = await client.query<{ id: string }>(`SELECT id FROM cadastros.document_types WHERE is_active ORDER BY created_at LIMIT 1`);
+      const paymentMethod = await client.query<{ id: string }>(`SELECT id FROM cadastros.payment_methods WHERE is_active ORDER BY created_at LIMIT 1`);
+      const paymentTerm = await client.query<{ id: string }>(`SELECT id FROM cadastros.payment_terms WHERE is_active ORDER BY created_at LIMIT 1`);
+      const costCenter = await client.query<{ id: string }>(`SELECT id FROM cadastros.cost_centers WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
 
       const recurrence = await repo.createRecurrence({
         companyId: String(company.rows[0]?.id),
@@ -118,12 +118,8 @@ suite('Recurrence integration with real PostgreSQL', () => {
         next_occurrence_date: string | Date | null;
         last_generated_until: string | Date | null;
       }>(`SELECT next_occurrence_date,last_generated_until FROM financeiro.payable_recurrences WHERE id=$1`, [recurrence.id]);
-      expect(recurrenceState.rows[0]).toMatchObject({
-        next_occurrence_date: expect.any(Date),
-        last_generated_until: expect.any(Date),
-      });
-      expect((recurrenceState.rows[0]?.next_occurrence_date as Date).toISOString().slice(0, 10)).toBe('2026-09-05');
-      expect((recurrenceState.rows[0]?.last_generated_until as Date).toISOString().slice(0, 10)).toBe('2026-08-05');
+      expect(dateOnly(recurrenceState.rows[0]?.next_occurrence_date)).toBe('2026-09-05');
+      expect(dateOnly(recurrenceState.rows[0]?.last_generated_until)).toBe('2026-08-05');
 
       const linkedTitle = await client.query<{
         occurrence_date: string | Date;
@@ -140,8 +136,8 @@ suite('Recurrence integration with real PostgreSQL', () => {
       expect(linkedTitle.rowCount).toBe(1);
       expect(linkedTitle.rows[0]?.sequence_number).toBe(1);
       expect(linkedTitle.rows[0]?.origin_code).toBe('RECURRENCE');
-      expect((linkedTitle.rows[0]?.occurrence_date as Date).toISOString().slice(0, 10)).toBe('2026-08-05');
-      expect((linkedTitle.rows[0]?.due_date as Date).toISOString().slice(0, 10)).toBe('2026-08-05');
+      expect(dateOnly(linkedTitle.rows[0]?.occurrence_date)).toBe('2026-08-05');
+      expect(dateOnly(linkedTitle.rows[0]?.due_date)).toBe('2026-08-05');
       expect(Number(linkedTitle.rows[0]?.amount)).toBe(321.45);
     } finally {
       await client.query('ROLLBACK');

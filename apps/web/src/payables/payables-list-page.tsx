@@ -6,8 +6,8 @@ import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import type { OptionResponse } from '../intelligence/contracts';
-import { currency, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
-import { isTerminalRecurrence, RecurrenceActionsLauncher } from './recurrence-actions';
+import { currency, isTerminalRecurrence, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
+import { RecurrenceActionsLauncher } from './recurrence-actions';
 import { XmlImportDialog } from './xml-import-dialog';
 
 const statuses = ['OPEN', 'OVERDUE', 'IN_APPROVAL', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'] as const;

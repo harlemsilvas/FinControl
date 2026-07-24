@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactElement } from 'react';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
-import { currency, type PayableListItem } from './payables-types';
+import { currency, isTerminalRecurrence, type PayableListItem } from './payables-types';
 
 interface RecurrenceDetail {
   id: string;
@@ -97,12 +97,12 @@ function nextBusinessActionDate(candidate?: string | null): string {
   return candidateDate && candidateDate > tomorrowIso ? candidateDate : tomorrowIso;
 }
 
-export function isTerminalRecurrence(status?: string | null): boolean {
-  return status === 'CANCELLED' || status === 'FINISHED';
-}
-
 function recurrenceStatusLabel(status?: string | null): string {
   return status === 'FINISHED' ? 'Série finalizada' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
+}
+
+function detailText(value: unknown): string | null {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : null;
 }
 
 function defaultRevisionEndDate(effectiveDate: string): string {
@@ -123,12 +123,15 @@ function recurrenceErrorMessage(error: unknown): string {
   if (error.code === 'RECURRENCE_TERMINAL') return 'Esta série já está encerrada e não pode mais receber revisão. Atualize a listagem e escolha uma série ativa.';
   if (error.code === 'RECURRENCE_REFERENCE_INVALID') {
     const details = error.details && typeof error.details === 'object' ? error.details as { field?: unknown; id?: unknown } : {};
-    const suffix = details.field ? ` Campo: ${String(details.field)}${details.id ? ` (${String(details.id)})` : ''}.` : '';
+    const field = detailText(details.field);
+    const id = detailText(details.id);
+    const suffix = field ? ` Campo: ${field}${id ? ` (${id})` : ''}.` : '';
     return `${error.message}${suffix}`;
   }
   if (error.code === 'INVALID_REFERENCE') {
     const details = error.details && typeof error.details === 'object' ? error.details as { constraint?: unknown } : {};
-    const suffix = details.constraint ? ` Constraint: ${String(details.constraint)}.` : '';
+    const constraint = detailText(details.constraint);
+    const suffix = constraint ? ` Constraint: ${constraint}.` : '';
     return `O banco recusou uma referência ou regra da nova recorrência.${suffix}`;
   }
   if (error.code === 'VALIDATION_ERROR' && Array.isArray(error.details)) {
@@ -136,13 +139,15 @@ function recurrenceErrorMessage(error: unknown): string {
       if (!detail || typeof detail !== 'object') return false;
       return (detail as { path?: unknown }).path === 'effectiveDate';
     }) as { message?: unknown } | undefined;
-    if (effectiveDateIssue?.message) return `A data de vigência precisa estar no formato AAAA-MM-DD. Selecione a data novamente antes de salvar. Detalhe: ${String(effectiveDateIssue.message)}`;
+    const effectiveDateMessage = detailText(effectiveDateIssue?.message);
+    if (effectiveDateMessage) return `A data de vigência precisa estar no formato AAAA-MM-DD. Selecione a data novamente antes de salvar. Detalhe: ${effectiveDateMessage}`;
     const endDateIssue = error.details.find((detail) => {
       if (!detail || typeof detail !== 'object') return false;
       return (detail as { path?: unknown }).path === 'endDate';
     }) as { message?: unknown } | undefined;
-    if (endDateIssue?.message) {
-      const message = String(endDateIssue.message);
+    const endDateMessage = detailText(endDateIssue?.message);
+    if (endDateMessage) {
+      const message = endDateMessage;
       if (message === 'Invalid ISO date') return 'A data final estava em formato inválido. Ajuste a data final ou deixe o campo vazio para aplicarmos novamente o padrão de 180 dias.';
       return `A nova vigência precisa de um limite. Preenchemos 180 dias por padrão, mas você pode ajustar a data final, informar a quantidade máxima ou marcar "Sem prazo final". Detalhe: ${message}`;
     }
