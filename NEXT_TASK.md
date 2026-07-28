@@ -1,7 +1,7 @@
 # FinControl — Next Task
 
 **Última atualização:** 28/07/2026
-**Status:** correções operacionais de Agenda, baixa e cadastros validadas localmente
+**Status:** correções operacionais e ajustes de CI pós-push validados localmente
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -66,6 +66,13 @@ deploy/migrations de recorrência na VPS.
   - `/opt/fincontrol/bin/deploy` validará Node.js 22 e npm em
     `/opt/fincontrol/.local/bin`;
   - rollback usa o PATH isolado do usuário `fincontrol`;
+- ajuste local aplicado em 28/07/2026 para o CI de banco:
+  - `test_financial_flow.sql` passou a informar status e categoria obrigatórios
+    ao criar fornecedor de teste;
+  - teste opt-in de integração de recorrências passou a criar fixtures próprias
+    em transação com rollback, sem depender de cadastros locais pré-existentes;
+  - referências seedadas por migration são validadas explicitamente antes do
+    fluxo de recorrência, evitando UUID `"undefined"` no PostgreSQL;
 - preparar o pacote para deploy controlado ou para uso do workflow
   `Deploy Production`, conforme decisão operacional.
 
@@ -151,6 +158,12 @@ deploy/migrations de recorrência na VPS.
   - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
     `logs/alteracoes/checar_alteracao_20260728_151414.log`;
   - como o status retornou `OK`, o log não foi analisado.
+- Validação focada do ajuste de fixture do teste de recorrências em 28/07/2026:
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/api`: aprovado;
+  - `node ../../node_modules/vitest/vitest.mjs run test/integration/recurrences.integration.test.ts`:
+    aprovado como suite opt-in pulada sem `RUN_DATABASE_INTEGRATION=true`;
+  - validação real com PostgreSQL limpo fica a cargo do CI após push.
 
 ## Critério de conclusão
 

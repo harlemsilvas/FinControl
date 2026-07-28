@@ -21,6 +21,12 @@ function dateOnly(value: string | Date | null | undefined): string | null {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10);
 }
 
+function requireId<Row extends { id: string }>(result: { rows: Row[] }, label: string): string {
+  const id = result.rows[0]?.id;
+  if (!id) throw new Error(`Missing integration fixture: ${label}`);
+  return id;
+}
+
 suite('Recurrence integration with real PostgreSQL', () => {
   let pool: Pool;
 
@@ -42,7 +48,6 @@ suite('Recurrence integration with real PostgreSQL', () => {
 
   it('creates, previews and generates recurrence titles while updating the next occurrence', async () => {
     const client = await pool.connect();
-    const userId = 'c36eab5c-7054-4d44-a308-9dd076c20d0e';
 
     try {
       await client.query('BEGIN');
@@ -56,22 +61,63 @@ suite('Recurrence integration with real PostgreSQL', () => {
       };
       const repo = new PayablesRepository(database);
 
-      const company = await client.query<{ id: string }>(`SELECT id FROM cadastros.companies WHERE company_type='MAIN' AND is_active AND deleted_at IS NULL ORDER BY created_at LIMIT 1`);
-      const supplier = await client.query<{ id: string }>(`SELECT id FROM cadastros.suppliers WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
-      const category = await client.query<{ id: string }>(`SELECT id FROM cadastros.financial_categories WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
-      const documentType = await client.query<{ id: string }>(`SELECT id FROM cadastros.document_types WHERE is_active ORDER BY created_at LIMIT 1`);
-      const paymentMethod = await client.query<{ id: string }>(`SELECT id FROM cadastros.payment_methods WHERE is_active ORDER BY created_at LIMIT 1`);
-      const paymentTerm = await client.query<{ id: string }>(`SELECT id FROM cadastros.payment_terms WHERE is_active ORDER BY created_at LIMIT 1`);
-      const costCenter = await client.query<{ id: string }>(`SELECT id FROM cadastros.cost_centers WHERE deleted_at IS NULL AND is_active ORDER BY created_at LIMIT 1`);
+      const suffix = Date.now().toString().slice(-8);
+      const userId = requireId(await client.query<{ id: string }>(
+        `INSERT INTO administracao.users (full_name,email,password_hash,is_master)
+         VALUES ($1,$2,$3,true)
+         RETURNING id`,
+        [`Usuario Integracao Recorrencia ${suffix}`, `recurrence-${randomUUID()}@fincontrol.local`, 'test-only'],
+      ), 'user');
+      const supplierStatusId = requireId(await client.query<{ id: string }>(
+        `SELECT id FROM cadastros.supplier_statuses WHERE code='ACTIVE' AND is_active LIMIT 1`,
+      ), 'supplier status ACTIVE');
+      const supplierCategoryId = requireId(await client.query<{ id: string }>(
+        `SELECT id FROM cadastros.supplier_categories WHERE code='SUPPLIER' AND is_active AND deleted_at IS NULL LIMIT 1`,
+      ), 'supplier category SUPPLIER');
+      const companyId = requireId(await client.query<{ id: string }>(
+        `INSERT INTO cadastros.companies
+           (company_type,legal_name,trade_name,document_number,created_by,updated_by)
+         VALUES ('MAIN',$1,$2,$3,$4,$4)
+         RETURNING id`,
+        [`Empresa Integracao Recorrencia ${suffix}`, `Empresa Teste ${suffix}`, `990000${suffix}`, userId],
+      ), 'company');
+      const supplierId = requireId(await client.query<{ id: string }>(
+        `INSERT INTO cadastros.suppliers
+           (supplier_type,legal_name,document_number,status_id,supplier_category_id,is_approved,created_by,updated_by)
+         VALUES ('COMPANY',$1,$2,$3,$4,true,$5,$5)
+         RETURNING id`,
+        [`Fornecedor Integracao Recorrencia ${suffix}`, `980000${suffix}`, supplierStatusId, supplierCategoryId, userId],
+      ), 'supplier');
+      const categoryId = requireId(await client.query<{ id: string }>(
+        `INSERT INTO cadastros.financial_categories (code,name,nature_code,created_by,updated_by)
+         VALUES ($1,$2,'EXPENSE',$3,$3)
+         RETURNING id`,
+        [`REC_INT_${suffix}`, `Categoria Integracao Recorrencia ${suffix}`, userId],
+      ), 'financial category');
+      const costCenterId = requireId(await client.query<{ id: string }>(
+        `INSERT INTO cadastros.cost_centers (code,name,created_by,updated_by)
+         VALUES ($1,$2,$3,$3)
+         RETURNING id`,
+        [`REC_CC_${suffix}`, `Centro Integracao Recorrencia ${suffix}`, userId],
+      ), 'cost center');
+      const documentTypeId = requireId(await client.query<{ id: string }>(
+        `SELECT id FROM cadastros.document_types WHERE code='INVOICE' AND is_active LIMIT 1`,
+      ), 'document type INVOICE');
+      const paymentMethodId = requireId(await client.query<{ id: string }>(
+        `SELECT id FROM cadastros.payment_methods WHERE code='PIX' AND is_active LIMIT 1`,
+      ), 'payment method PIX');
+      const paymentTermId = requireId(await client.query<{ id: string }>(
+        `SELECT id FROM cadastros.payment_terms WHERE code='IMMEDIATE' AND is_active LIMIT 1`,
+      ), 'payment term IMMEDIATE');
 
       const recurrence = await repo.createRecurrence({
-        companyId: String(company.rows[0]?.id),
-        supplierId: String(supplier.rows[0]?.id),
-        categoryId: String(category.rows[0]?.id),
-        costCenterId: String(costCenter.rows[0]?.id),
-        documentTypeId: String(documentType.rows[0]?.id),
-        paymentMethodId: String(paymentMethod.rows[0]?.id),
-        paymentTermId: String(paymentTerm.rows[0]?.id),
+        companyId,
+        supplierId,
+        categoryId,
+        costCenterId,
+        documentTypeId,
+        paymentMethodId,
+        paymentTermId,
         description: `Recorrencia integracao ${randomUUID()}`,
         baseDocumentNumber: `REC-${Date.now()}`,
         baseAmount: 321.45,

@@ -183,6 +183,32 @@ Validação final observada:
   opt-in pulados; web 27 testes aprovados;
 - `npm run build`: aprovado.
 
+### Atualização de CI em 28/07/2026
+
+Após publicação da branch, o GitHub Actions executou o teste opt-in contra um
+PostgreSQL limpo e expôs uma dependência indevida do banco local: o teste buscava
+empresa, fornecedor, categoria e centro de custo já existentes e, quando uma
+referência não era encontrada, enviava o texto `"undefined"` para colunas UUID.
+
+Correção aplicada:
+
+- o teste `recurrences.integration.test.ts` cria seus próprios dados mínimos
+  dentro da transação do teste;
+- usuário, empresa, fornecedor, categoria e centro de custo são inseridos com
+  rollback no final;
+- dados seedados por migration (`INVOICE`, `PIX`, `IMMEDIATE`, `ACTIVE` e
+  `SUPPLIER`) são exigidos com erro explícito se estiverem ausentes;
+- o teste deixou de usar `String(resultado?.id)` para não transformar ausência
+  de fixture em UUID inválido.
+
+Validação local possível:
+
+- `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+  `apps/api`: aprovado;
+- `node ../../node_modules/vitest/vitest.mjs run test/integration/recurrences.integration.test.ts`:
+  suite opt-in pulada sem `RUN_DATABASE_INTEGRATION=true`;
+- validação real com PostgreSQL limpo deve ocorrer pelo CI após novo push.
+
 ## Pendencias conhecidas
 
 - decidir se a geracao futura sera apenas manual no MVP ou se havera job

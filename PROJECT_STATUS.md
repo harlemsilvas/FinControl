@@ -187,6 +187,22 @@ Estado consolidado:
 - rollback versionado passa a usar o mesmo PATH isolado do usuário
   `fincontrol`, evitando depender do Node global do root.
 
+### Correções de CI pós-push em 28/07/2026
+
+Estado consolidado:
+
+- script `database/scripts/test_financial_flow.sql` ajustado para criar
+  fornecedor de teste com `status_id` e `supplier_category_id`, alinhado às
+  constraints atuais de cadastro;
+- teste opt-in
+  `apps/api/test/integration/recurrences.integration.test.ts` deixou de
+  depender de cadastros já existentes no banco local;
+- o teste de integração de recorrências passa a criar, dentro de transação com
+  rollback, usuário, empresa, fornecedor, categoria e centro de custo próprios;
+- referências seedadas por migration (`INVOICE`, `PIX`, `IMMEDIATE`,
+  `ACTIVE`, `SUPPLIER`) são verificadas explicitamente, evitando enviar
+  `"undefined"` para campos UUID no PostgreSQL.
+
 ### Recorrências
 
 Documento de referência:
