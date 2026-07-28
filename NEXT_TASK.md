@@ -44,6 +44,14 @@ deploy/migrations de recorrência na VPS.
     corrigindo `Empresa` e `Banco` vazios na primeira abertura;
   - campo `Fornecedor` da nova conta ocupa a linha inteira em telas grandes
     para evitar estouro/truncamento visual;
+- rotina de checagem final criada em 28/07/2026:
+  - `./Checar_alteracao.sh` executa validações completas e gera log em
+    `logs/alteracoes/`;
+  - o log só deve ser analisado quando o script retornar `STATUS: FAIL`;
+  - alias disponível: `npm run check:alteracao`;
+  - após `STATUS: OK`, criar commit local personalizado;
+  - push para servidor/remoto passa a depender de validação/autorização do
+    usuário;
 - preparar o pacote para deploy controlado ou para uso do workflow
   `Deploy Production`, conforme decisão operacional.
 
@@ -60,25 +68,29 @@ deploy/migrations de recorrência na VPS.
    typecheck, lint e build.
 4. Validar as correções de Agenda, baixa e cadastros com testes focados,
    typecheck, lint e build.
-5. Commitar e publicar o pacote atual.
-6. Na VPS, verificar se a release usada contém
+5. Ao finalizar qualquer alteração completa, executar `./Checar_alteracao.sh`.
+6. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
+   testes/correções normais.
+7. Se o script retornar `STATUS: OK`, criar commit local personalizado.
+8. Fazer push somente quando o usuário validar/autorizá-lo.
+9. Na VPS, verificar se a release usada contém
    `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
-7. Na VPS, consultar `administracao.schema_versions` para as versões
+10. Na VPS, consultar `administracao.schema_versions` para as versões
    `202607231000` e `202607231010`.
-8. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
-9. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
+11. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
+12. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
    aplicar as duas migrations de recorrência a partir da release publicada e
    registrar checksums.
-10. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
+13. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
    existirem, remover apenas esse registro inconsistente depois de backup lógico
    ou aplicar reparo manual com registro correto.
-11. Depois de corrigir o banco, repetir o deploy/verify.
-12. Só então decidir entre:
+14. Depois de corrigir o banco, repetir o deploy/verify.
+15. Só então decidir entre:
    - deploy controlado manual da branch/commit;
    - ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
-13. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
+16. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
    pois o workflow atual faz checkout fixo de `main`.
-14. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
+17. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
 
 ## Validações já executadas
@@ -117,6 +129,10 @@ deploy/migrations de recorrência na VPS.
   - `npm run typecheck`: aprovado;
   - `npm run lint`: aprovado;
   - `npm run build`: aprovado.
+- Validação inicial do preflight automatizado em 28/07/2026:
+  - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
+    `logs/alteracoes/checar_alteracao_20260728_151414.log`;
+  - como o status retornou `OK`, o log não foi analisado.
 
 ## Critério de conclusão
 

@@ -143,6 +143,21 @@ Estado consolidado:
 - no cadastro de nova conta, o campo `Fornecedor` passa a ocupar a linha inteira
   em telas grandes, evitando truncamento/estouro visual com nomes longos.
 
+### Preflight automatizado de alteração em 28/07/2026
+
+Estado consolidado:
+
+- criado o script raiz `Checar_alteracao.sh` para validação final de alterações;
+- o script grava logs em `logs/alteracoes/`, diretório ignorado pelo Git;
+- o script executa `git diff --check`, validação de migrations, typecheck,
+  lint, testes e build;
+- saída padrão deliberadamente curta: `STATUS: OK` ou `STATUS: FAIL` com o
+  caminho do log;
+- decisão operacional: ao finalizar uma alteração completa, executar
+  `./Checar_alteracao.sh`; analisar o log apenas quando o status final for
+  `FAIL`;
+- adicionado alias `npm run check:alteracao`.
+
 ### Recorrências
 
 Documento de referência:
