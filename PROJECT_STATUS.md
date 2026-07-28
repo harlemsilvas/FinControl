@@ -182,6 +182,20 @@ Estado consolidado:
   da migration na release e `to_regclass` das três tabelas antes de qualquer
   correção manual.
 
+### Correção operacional em 28/07/2026 — saldo inicial
+
+- Identificado erro ao tentar lançar saldo inicial em conta bancária que já
+  possui movimento ativo de `Saldo de Caixa`.
+- O backend retornava a mensagem técnica em inglês
+  `Bank account already has an active cash balance movement`.
+- A tela usava campo numérico com spinner para `Valor inicial`, fora do padrão
+  monetário definido para o sistema.
+- Correção local aplicada:
+  - mensagem backend em português para `CASH_BALANCE_ALREADY_EXISTS`;
+  - tradução amigável no frontend para o mesmo código;
+  - `MoneyField` da tela de pagamentos passa a usar `CurrencyInput`;
+  - testes de tesouraria e pagamentos ampliados para cobrir o comportamento.
+
 ## 5. Ordem de leitura e retomada
 
 Toda nova sessão deve começar por:

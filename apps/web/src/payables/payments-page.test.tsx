@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/http-client';
 import { PaymentsPage } from './payments-page';
 
 const mocks = vi.hoisted(() => ({
@@ -193,7 +194,8 @@ describe('PaymentsPage', () => {
 
     await waitFor(() => expect(within(dialog).getByLabelText('Conta para saldo inicial')).toHaveTextContent('Conta Matriz'));
     fireEvent.change(within(dialog).getByLabelText('Conta para saldo inicial'), { target: { value: 'bank-account-id' } });
-    fireEvent.change(within(dialog).getByLabelText('Valor inicial'), { target: { value: '1500' } });
+    expect(within(dialog).getByLabelText('Valor inicial')).toHaveAttribute('type', 'text');
+    fireEvent.change(within(dialog).getByLabelText('Valor inicial'), { target: { value: '1.500,00' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lançar saldo' }));
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/bank-account-movements/manual-entry', expect.objectContaining({
@@ -201,6 +203,21 @@ describe('PaymentsPage', () => {
       movementType: 'CASH_BALANCE',
       amount: 1500,
     })));
+  });
+
+  it('shows a friendly message when the initial cash balance already exists', async () => {
+    mocks.post.mockRejectedValueOnce(new ApiError(409, 'CASH_BALANCE_ALREADY_EXISTS', 'Bank account already has an active cash balance movement'));
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Lançar saldo inicial' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Lançar saldo inicial' });
+
+    await waitFor(() => expect(within(dialog).getByLabelText('Conta para saldo inicial')).toHaveTextContent('Conta Matriz'));
+    fireEvent.change(within(dialog).getByLabelText('Conta para saldo inicial'), { target: { value: 'bank-account-id' } });
+    fireEvent.change(within(dialog).getByLabelText('Valor inicial'), { target: { value: '500,00' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lançar saldo' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Esta conta bancária já possui um saldo inicial ativo');
   });
 
   it('opens payment history reversal dialog and posts the reason', async () => {

@@ -4,6 +4,7 @@ import { ApiError, httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { CurrencyInput } from '../components/ui/currency-input';
 import { currency, statusLabel, type ListResponse } from './payables-types';
 
 type EligibleStatus = 'OPEN' | 'OVERDUE' | 'PARTIALLY_PAID';
@@ -132,6 +133,14 @@ function optionLabel(item: LookupItem): string {
 
 function movementAmount(principal: string, interest: string, penalty: string, discount: string, additional: string): number {
   return Number(principal || 0) + Number(interest || 0) + Number(penalty || 0) + Number(additional || 0) - Number(discount || 0);
+}
+
+function treasuryErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.code === 'CASH_BALANCE_ALREADY_EXISTS') {
+    return 'Esta conta bancária já possui um saldo inicial ativo. Para alterar o valor, estorne o saldo inicial anterior e lance um novo.';
+  }
+  if (error instanceof ApiError && error.message.trim()) return error.message;
+  return fallback;
 }
 
 export function PaymentsPage(): ReactElement {
@@ -588,7 +597,7 @@ export function PaymentsPage(): ReactElement {
             <label className="grid gap-1 text-sm font-bold text-slate-700">Referência
               <input aria-label="Referência do saldo inicial" value={cashReference} onChange={(event) => setCashReference(event.target.value)} placeholder="Opcional" className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
             </label>
-            {cashBalance.error ? <p role="alert" className="text-sm font-bold text-red-700">{cashBalance.error instanceof ApiError ? cashBalance.error.message : 'Não foi possível lançar o saldo inicial.'}</p> : null}
+            {cashBalance.error ? <p role="alert" className="text-sm font-bold text-red-700">{treasuryErrorMessage(cashBalance.error, 'Não foi possível lançar o saldo inicial.')}</p> : null}
           </div>
           <div className="mt-6 flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setCashBalanceOpen(false)}>Cancelar</Button>
@@ -718,7 +727,7 @@ function Summary({ label, value, strong = false }: { label: string; value: strin
 }
 
 function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): ReactElement {
-  return <label className="grid gap-1 text-sm font-bold text-slate-700">{label}<input aria-label={label} type="number" min="0" step="0.01" value={value} onChange={(event) => onChange(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" /></label>;
+  return <label className="grid gap-1 text-sm font-bold text-slate-700">{label}<CurrencyInput aria-label={label} value={value} allowEmpty onValueChange={(nextValue) => onChange(nextValue === null ? '' : String(nextValue))} className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" /></label>;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }): ReactElement {

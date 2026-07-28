@@ -230,7 +230,7 @@ export class TreasuryRepository {
       [bankAccountId],
     );
     if (existing.rowCount) {
-      throw new ApplicationError({ code: 'CASH_BALANCE_ALREADY_EXISTS', message: 'Bank account already has an active cash balance movement', statusCode: 409 });
+      throw new ApplicationError({ code: 'CASH_BALANCE_ALREADY_EXISTS', message: 'Esta conta bancária já possui um saldo inicial ativo. Para corrigir o valor, estorne o lançamento anterior e registre um novo saldo inicial.', statusCode: 409 });
     }
   }
 
