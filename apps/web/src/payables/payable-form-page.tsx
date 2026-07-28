@@ -489,7 +489,7 @@ export function PayableFormPage(): ReactElement {
                   items={methods.data}
                   registration={register('defaultPaymentMethodId', { required: true })}
                 />
-                <Select label="Fornecedor" required items={suppliers.data} registration={register('supplierId', { required: true })} />
+                <Select label="Fornecedor" required items={suppliers.data} registration={register('supplierId', { required: true })} className="lg:col-span-2" />
                 <Field label="Vencimento" required>
                   <input type="date" className={inputClass} {...register('baseDueDate', { required: true })} />
                 </Field>
@@ -788,15 +788,17 @@ function Select({
   label,
   items,
   registration,
-  required = false
+  required = false,
+  className = ''
 }: {
   label: string;
   items: Lookup[] | undefined;
   registration: UseFormRegisterReturn;
   required?: boolean;
+  className?: string;
 }): ReactElement {
   return (
-    <Field label={label} required={required}>
+    <Field label={label} required={required} className={className}>
       <select className={inputClass} aria-required={required} {...registration}>
         <option value="">Selecione</option>
         {items?.map(item => (

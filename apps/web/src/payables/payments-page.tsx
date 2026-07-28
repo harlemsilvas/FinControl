@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
@@ -148,6 +149,9 @@ function treasuryErrorMessage(error: unknown, fallback: string): string {
 
 export function PaymentsPage(): ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedPayableTitleId = searchParams.get('payableTitleId') ?? '';
+  const requestedInstallmentId = searchParams.get('installmentId') ?? '';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState('');
@@ -185,18 +189,20 @@ export function PaymentsPage(): ReactElement {
   const [downloadError, setDownloadError] = useState('');
 
   const installments = useQuery({
-    queryKey: ['payment-eligible-installments', page, pageSize, search, status, companyId, supplierId, dueFrom, dueTo],
+    queryKey: ['payment-eligible-installments', page, pageSize, search, status, companyId, supplierId, dueFrom, dueTo, requestedPayableTitleId, requestedInstallmentId],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<EligibleInstallment>>('/api/v1/payable-installments/eligible-for-payment', {
         params: {
           page,
-          pageSize,
+          pageSize: requestedPayableTitleId || requestedInstallmentId ? 1 : pageSize,
           search: search || undefined,
           status: status || undefined,
           companyId: companyId || undefined,
           supplierId: supplierId || undefined,
           dueFrom: dueFrom || undefined,
           dueTo: dueTo || undefined,
+          payableTitleId: requestedPayableTitleId || undefined,
+          installmentId: requestedInstallmentId || undefined,
         },
       });
       return response.data;
@@ -384,6 +390,14 @@ export function PaymentsPage(): ReactElement {
     setOverpaymentConfirmed(false);
   }
 
+  function clearPaymentRequest(): void {
+    if (!requestedPayableTitleId && !requestedInstallmentId) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('payableTitleId');
+    next.delete('installmentId');
+    setSearchParams(next, { replace: true });
+  }
+
   function closeDialog(): void {
     setSelected(undefined);
     setBankAccountId('');
@@ -391,7 +405,16 @@ export function PaymentsPage(): ReactElement {
     setPrincipalAmount('');
     setOverpaymentConfirmed(false);
     payment.reset();
+    clearPaymentRequest();
   }
+
+  useEffect(() => {
+    if ((!requestedPayableTitleId && !requestedInstallmentId) || selected || installments.isLoading) return;
+    const requested = rows.find((item) => (
+      requestedInstallmentId ? item.installmentId === requestedInstallmentId : item.payableTitleId === requestedPayableTitleId
+    ));
+    if (requested) openDialog(requested);
+  }, [installments.isLoading, requestedInstallmentId, requestedPayableTitleId, rows, selected]);
 
   function clearFilters(): void {
     setSearch('');

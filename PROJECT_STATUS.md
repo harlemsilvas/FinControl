@@ -124,6 +124,23 @@ Estado consolidado:
 - coluna inicial de seleção em lote removida da listagem enquanto a rotina de
   seleção múltipla não estiver disponível.
 
+### Correções operacionais de navegação e cadastros em 28/07/2026
+
+Estado consolidado:
+
+- itens da Agenda Financeira passam a abrir a tela `Baixa de Pagamentos`
+  com `payableTitleId` e `installmentId`, levando o usuário diretamente para
+  a parcela elegível a baixar;
+- endpoint de parcelas elegíveis para baixa aceita filtros diretos por título
+  e parcela, evitando depender da primeira página da fila;
+- cadastro genérico busca o detalhe do registro antes de abrir edição, evitando
+  selects como `Empresa` e `Banco` vazios na primeira abertura de contas
+  bancárias;
+- campos gerados no cadastro genérico receberam `aria-label` para melhorar
+  acessibilidade e estabilidade dos testes;
+- no cadastro de nova conta, o campo `Fornecedor` passa a ocupar a linha inteira
+  em telas grandes, evitando truncamento/estouro visual com nomes longos.
+
 ### Recorrências
 
 Documento de referência:

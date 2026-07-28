@@ -60,6 +60,17 @@ describe('PayablesRepository business safeguards',()=>{
     expect(query.mock.calls[1]?.[0]).toContain('ORDER BY i.due_date ASC');
   });
 
+  it('filters eligible installments by payable title and installment id', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ total: '1' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ installment_id: 'installment-id', payable_title_id: 'title-id', company_id: 'company-id', supplier_name: 'Fornecedor', document_number: '123', installment_number: 1, installment_count: 1, open_balance: '150.00', installment_status_code: 'OPEN' }], rowCount: 1 });
+    const repo = new PayablesRepository(database({ query }));
+    await repo.listPaymentEligibleInstallments(1, 20, { payableTitleId: 'title-id', installmentId: 'installment-id' });
+    expect(query.mock.calls[0]?.[0]).toContain('t.id=$1');
+    expect(query.mock.calls[0]?.[0]).toContain('i.id=$2');
+    expect(query.mock.calls[0]?.[1]).toEqual(['title-id', 'installment-id', 20, 0]);
+  });
+
   it('creates a payment and an outgoing bank movement in one transaction',async()=>{
     const query=vi.fn()
       .mockResolvedValueOnce({rows:[{open_balance:'200.00',title_status:'OPEN',company_id:'company-id',cost_center_id:'cost-center-id',document_number:'123',document_series:'1',supplier_name:'Fornecedor',installment_number:1,installment_count:1}],rowCount:1})
@@ -164,14 +175,14 @@ describe('PayablesRepository business safeguards',()=>{
   it('keeps predecessor end date valid when revision starts on the original recurrence start date', async () => {
     const queryMock = vi.fn(async (sql: string, values?: readonly unknown[]) => {
       void values;
-      if (sql.includes('FROM financeiro.payable_recurrences r')) return Promise.resolve({ rows: [{ ...validRecurrence, id: 'rec-1', company_id: validRecurrence.companyId, supplier_id: validRecurrence.supplierId, category_id: validRecurrence.categoryId, cost_center_id: null, document_type_id: validRecurrence.documentTypeId, payment_method_id: validRecurrence.paymentMethodId, payment_term_id: null, description: validRecurrence.description, base_document_number: validRecurrence.baseDocumentNumber, base_amount: '2500.00', frequency_code: validRecurrence.frequencyCode, start_date: '2026-07-25', end_date: '2026-12-25', max_occurrences: null, due_day: 25, generation_window_months: 6, status_code: 'ACTIVE', generated_count: '1', is_open_ended: false, next_occurrence_date: '2026-07-25', notes: validRecurrence.notes }], rowCount: 1 });
+      if (sql.includes('FROM financeiro.payable_recurrences r')) return Promise.resolve({ rows: [{ ...validRecurrence, id: 'rec-1', company_id: validRecurrence.companyId, supplier_id: validRecurrence.supplierId, category_id: validRecurrence.categoryId, cost_center_id: null, document_type_id: validRecurrence.documentTypeId, payment_method_id: validRecurrence.paymentMethodId, payment_term_id: null, description: validRecurrence.description, base_document_number: validRecurrence.baseDocumentNumber, base_amount: '2500.00', frequency_code: validRecurrence.frequencyCode, start_date: '2026-08-01', end_date: '2026-12-25', max_occurrences: null, due_day: 1, generation_window_months: 6, status_code: 'ACTIVE', generated_count: '1', is_open_ended: false, next_occurrence_date: '2026-08-01', notes: validRecurrence.notes }], rowCount: 1 });
       if (sql.includes('FROM financeiro.payable_recurrence_titles rt')) return Promise.resolve({ rows: [], rowCount: 0 });
       if (sql.includes('INSERT INTO financeiro.payable_recurrences')) return Promise.resolve({ rows: [{ id: 'rec-2', description: 'Conta revisada' }], rowCount: 1 });
       return Promise.resolve({ rows: [{ ok: 1 }], rowCount: 1 });
     });
     const repo = new PayablesRepository(database({ query: queryMock as QueryExecutor['query'] }));
     await repo.reviseRecurrenceFromDate('rec-1', {
-      effectiveDate: '2026-07-25',
+      effectiveDate: '2026-08-01',
       description: 'Conta revisada',
       baseAmount: 4590,
       companyId: validRecurrence.companyId,
@@ -180,14 +191,14 @@ describe('PayablesRepository business safeguards',()=>{
       documentTypeId: validRecurrence.documentTypeId,
       paymentMethodId: validRecurrence.paymentMethodId,
       frequencyCode: validRecurrence.frequencyCode,
-      dueDay: 25,
+      dueDay: 1,
       endDate: '2028-07-27',
       maxOccurrences: 2,
       reason: 'Revisão operacional',
       cancelFutureTitles: false,
     }, 'user-id');
     const predecessorUpdate = queryMock.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('UPDATE financeiro.payable_recurrences SET'));
-    expect(predecessorUpdate?.[1]?.[1]).toBe('2026-07-25');
+    expect(predecessorUpdate?.[1]?.[1]).toBe('2026-08-01');
   });
 
   it('cancels future generated titles together with the recurrence when requested', async () => {

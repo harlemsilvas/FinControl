@@ -8,7 +8,7 @@ export interface TitleInput { supplierId: string; categoryId: string; documentTy
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
 export interface XmlImportListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
-export interface PaymentEligibleInstallmentFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; companyId?: string }
+export interface PaymentEligibleInstallmentFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; companyId?: string; payableTitleId?: string; installmentId?: string }
 export interface PaymentListFilters { search?: string; status?: string; paidFrom?: string; paidTo?: string; supplierId?: string; companyId?: string }
 export interface PaymentInput { installmentId: string; batchId?: string | null; bankAccountId: string; paymentMethodId: string; paymentDate: string; principalAmount: number; interestAmount?: number; penaltyAmount?: number; discountAmount?: number; additionalAmount?: number; transactionNumber?: string | null; overpaymentConfirmed?: boolean }
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
@@ -537,6 +537,8 @@ export class PayablesRepository {
     if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`i.due_date <= $${values.length}::date`); }
     if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
     if (filters.companyId) { values.push(filters.companyId); conditions.push(`t.company_id=$${values.length}`); }
+    if (filters.payableTitleId) { values.push(filters.payableTitleId); conditions.push(`t.id=$${values.length}`); }
+    if (filters.installmentId) { values.push(filters.installmentId); conditions.push(`i.id=$${values.length}`); }
     const where = conditions.join(' AND ');
     const from = `FROM financeiro.payable_installments i
       JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
