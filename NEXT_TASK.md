@@ -35,8 +35,10 @@ deploy/migrations de recorrência na VPS.
   - filtro padrão de status em `Notas ativas` (`OPEN`);
   - coluna inicial de seleção removida enquanto não houver seleção em lote;
 - correções locais aplicadas em 28/07/2026:
-  - clique em item da Agenda abre `/payments` com a parcela específica para
-    baixa;
+  - clique em item da Agenda abre `/payments` filtrado pela data de vencimento
+    e status `OPEN`, sem abrir automaticamente o modal de baixa;
+  - a baixa continua sendo iniciada manualmente pelo botão `Baixar` da linha;
+  - tela `Baixa de Pagamentos` inicia sempre com status `OPEN`;
   - endpoint de parcelas elegíveis aceita `payableTitleId` e `installmentId`;
   - cadastro de contas bancárias busca detalhe antes de preencher edição,
     corrigindo `Empresa` e `Banco` vazios na primeira abertura;
@@ -106,6 +108,12 @@ deploy/migrations de recorrência na VPS.
   - `node ../../node_modules/vitest/vitest.mjs run src/payables/payments-page.test.tsx src/master-data/master-data-page.test.tsx src/payables/payable-form-page.test.tsx`: aprovado, 12 testes;
   - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em `apps/web`: aprovado.
 - Validação geral após correções operacionais em 28/07/2026:
+  - `npm run typecheck`: aprovado;
+  - `npm run lint`: aprovado;
+  - `npm run build`: aprovado.
+- Validação do refinamento Agenda → Pagamentos em 28/07/2026:
+  - `node ../../node_modules/vitest/vitest.mjs run src/payables/payments-page.test.tsx`: aprovado, 8 testes;
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em `apps/web`: aprovado;
   - `npm run typecheck`: aprovado;
   - `npm run lint`: aprovado;
   - `npm run build`: aprovado.

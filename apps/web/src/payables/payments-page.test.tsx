@@ -173,8 +173,10 @@ describe('PaymentsPage', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Baixa de Pagamentos' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Filtrar por status')).toHaveValue('OPEN');
     expect((await screen.findAllByText('CIA BRASILEIRA DIST AUTO S.A')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('R$ 403,06').length).toBeGreaterThan(0);
+    await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Baixar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Baixar parcela' });
@@ -193,16 +195,20 @@ describe('PaymentsPage', () => {
     })));
   });
 
-  it('opens the settlement dialog from an agenda deep link', async () => {
-    renderPage('/payments?payableTitleId=title-id&installmentId=installment-id');
+  it('filters the payment queue from an agenda date link without opening the settlement dialog', async () => {
+    renderPage('/payments?status=OPEN&dueFrom=2026-07-20&dueTo=2026-07-20');
 
-    const dialog = await screen.findByRole('dialog', { name: 'Baixar parcela' });
-    expect(within(dialog).getByText('17026 / 160 - CIA BRASILEIRA DIST AUTO S.A')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Baixa de Pagamentos' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Baixar parcela' })).toBeNull();
     await waitFor(() => expect(eligiblePaymentParams()).toMatchObject({
-      payableTitleId: 'title-id',
-      installmentId: 'installment-id',
-      pageSize: 1,
+      status: 'OPEN',
+      dueFrom: '2026-07-20',
+      dueTo: '2026-07-20',
+      pageSize: 20,
     }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Baixar' }));
+    expect(await screen.findByRole('dialog', { name: 'Baixar parcela' })).toBeInTheDocument();
   });
 
   it('posts an initial cash balance movement', async () => {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
@@ -147,6 +147,14 @@ function treasuryErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function initialStatus(value: string | null): EligibleStatus {
+  return statuses.includes(value as EligibleStatus) ? value as EligibleStatus : 'OPEN';
+}
+
+function initialDate(value: string | null): string {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
 export function PaymentsPage(): ReactElement {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -155,11 +163,11 @@ export function PaymentsPage(): ReactElement {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<EligibleStatus>(initialStatus(searchParams.get('status')));
   const [companyId, setCompanyId] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [dueFrom, setDueFrom] = useState('');
-  const [dueTo, setDueTo] = useState('');
+  const [dueFrom, setDueFrom] = useState(initialDate(searchParams.get('dueFrom')));
+  const [dueTo, setDueTo] = useState(initialDate(searchParams.get('dueTo')));
   const [selected, setSelected] = useState<EligibleInstallment>();
   const [bankAccountId, setBankAccountId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
@@ -361,7 +369,7 @@ export function PaymentsPage(): ReactElement {
   const totalPages = Math.max(1, Math.ceil((installments.data?.total ?? 0) / pageSize));
   const firstItem = installments.data?.total ? (page - 1) * pageSize + 1 : 0;
   const lastItem = installments.data?.total ? Math.min(page * pageSize, installments.data.total) : 0;
-  const hasFilters = Boolean(search || status || companyId || supplierId || dueFrom || dueTo || pageSize !== 20);
+  const hasFilters = Boolean(search || status !== 'OPEN' || companyId || supplierId || dueFrom || dueTo || pageSize !== 20 || requestedPayableTitleId || requestedInstallmentId);
   const selectedAccount = bankBalances.data?.find((item) => item.bankAccountId === bankAccountId);
   const totalMovement = movementAmount(principalAmount, interestAmount, penaltyAmount, discountAmount, additionalAmount);
   const exceedsOpenBalance = selected ? Number(principalAmount || 0) > Number(selected.openBalance) : false;
@@ -390,14 +398,6 @@ export function PaymentsPage(): ReactElement {
     setOverpaymentConfirmed(false);
   }
 
-  function clearPaymentRequest(): void {
-    if (!requestedPayableTitleId && !requestedInstallmentId) return;
-    const next = new URLSearchParams(searchParams);
-    next.delete('payableTitleId');
-    next.delete('installmentId');
-    setSearchParams(next, { replace: true });
-  }
-
   function closeDialog(): void {
     setSelected(undefined);
     setBankAccountId('');
@@ -405,26 +405,18 @@ export function PaymentsPage(): ReactElement {
     setPrincipalAmount('');
     setOverpaymentConfirmed(false);
     payment.reset();
-    clearPaymentRequest();
   }
-
-  useEffect(() => {
-    if ((!requestedPayableTitleId && !requestedInstallmentId) || selected || installments.isLoading) return;
-    const requested = rows.find((item) => (
-      requestedInstallmentId ? item.installmentId === requestedInstallmentId : item.payableTitleId === requestedPayableTitleId
-    ));
-    if (requested) openDialog(requested);
-  }, [installments.isLoading, requestedInstallmentId, requestedPayableTitleId, rows, selected]);
 
   function clearFilters(): void {
     setSearch('');
-    setStatus('');
+    setStatus('OPEN');
     setCompanyId('');
     setSupplierId('');
     setDueFrom('');
     setDueTo('');
     setPage(1);
     setPageSize(20);
+    setSearchParams({}, { replace: true });
   }
 
   function openReverseDialog(item: PaymentHistoryItem): void {
@@ -495,8 +487,7 @@ export function PaymentsPage(): ReactElement {
             <option value="">Todos os fornecedores</option>
             {suppliers.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
           </select>
-          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
-            <option value="">Todos os status</option>
+          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value as EligibleStatus); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
             {statuses.map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
           </select>
         </div>

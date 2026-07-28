@@ -129,8 +129,10 @@ Estado consolidado:
 Estado consolidado:
 
 - itens da Agenda Financeira passam a abrir a tela `Baixa de Pagamentos`
-  com `payableTitleId` e `installmentId`, levando o usuário diretamente para
-  a parcela elegível a baixar;
+  filtrada por data de vencimento e status `OPEN`, sem abrir automaticamente o
+  modal de baixa;
+- a baixa manual continua iniciando pelo botão `Baixar` da linha selecionada;
+- a tela `Baixa de Pagamentos` passa a iniciar sempre com status `OPEN`;
 - endpoint de parcelas elegíveis para baixa aceita filtros diretos por título
   e parcela, evitando depender da primeira página da fila;
 - cadastro genérico busca o detalhe do registro antes de abrir edição, evitando

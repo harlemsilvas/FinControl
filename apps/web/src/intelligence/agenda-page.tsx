@@ -128,7 +128,7 @@ function CalendarItem({ item }: { item: AgendaItem }): ReactElement {
 
   return (
     <Link
-      to={`/payments?payableTitleId=${item.payableTitleId}&installmentId=${item.id}`}
+      to={`/payments?status=OPEN&dueFrom=${item.dueDate}&dueTo=${item.dueDate}`}
       title={`${item.supplierName} - ${item.documentNumber} - Parcela ${item.installmentNumber}/${item.installmentCount}`}
       className={`block max-w-full overflow-hidden rounded-lg border-l-4 p-2 text-[0.72rem] leading-tight shadow-sm transition hover:shadow-md ${itemStyle[item.highlight]}`}
     >
