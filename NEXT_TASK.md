@@ -44,6 +44,8 @@ deploy/migrations de recorrência na VPS.
     corrigindo `Empresa` e `Banco` vazios na primeira abertura;
   - campo `Fornecedor` da nova conta ocupa a linha inteira em telas grandes
     para evitar estouro/truncamento visual;
+  - edição de conta a pagar bloqueia `Vencimento` e `Valor` na aba
+    `Dados da Conta`, direcionando a alteração efetiva para a aba `Parcelas`;
 - ajuste local aplicado em 28/07/2026 para vínculo multiempresa em contas
   manuais:
   - `Empresa` obrigatória no cadastro manual de conta;
@@ -164,6 +166,11 @@ deploy/migrations de recorrência na VPS.
   - `node ../../node_modules/vitest/vitest.mjs run test/integration/recurrences.integration.test.ts`:
     aprovado como suite opt-in pulada sem `RUN_DATABASE_INTEGRATION=true`;
   - validação real com PostgreSQL limpo fica a cargo do CI após push.
+- Validação focada do bloqueio de campos de cobrança na edição em 28/07/2026:
+  - `node ../../node_modules/vitest/vitest.mjs run src/payables/payable-form-page.test.tsx`:
+    aprovado, 3 testes;
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/web`: aprovado.
 
 ## Critério de conclusão
 

@@ -142,6 +142,10 @@ Estado consolidado:
   acessibilidade e estabilidade dos testes;
 - no cadastro de nova conta, o campo `Fornecedor` passa a ocupar a linha inteira
   em telas grandes, evitando truncamento/estouro visual com nomes longos.
+- na edição de conta a pagar, os campos `Vencimento` e `Valor` da aba
+  `Dados da Conta` passam a ficar bloqueados e orientam o usuário a alterar
+  esses dados pela aba `Parcelas`, que é a fonte efetiva de persistência da
+  cobrança.
 
 ### Vínculo obrigatório de empresa em títulos manuais em 28/07/2026
 

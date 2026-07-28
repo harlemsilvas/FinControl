@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PayableFormPage } from './payable-form-page';
 
 const mocks = vi.hoisted(() => ({
@@ -53,6 +53,10 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 
+afterEach(() => {
+  cleanup();
+});
+
 vi.mock('../api/http-client', () => ({
   ApiError: class ApiError extends Error {
     code?: string;
@@ -98,5 +102,24 @@ describe('PayableFormPage new title', () => {
 
     expect(await screen.findByRole('heading', { name: 'Editar Conta a Pagar' })).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Ações da recorrência' })).toBeTruthy();
+  });
+
+  it('locks due date and amount on the main data tab when editing an existing payable', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/payables/payable-1']}>
+          <Routes>
+            <Route path="/payables/:id" element={<PayableFormPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Editar Conta a Pagar' })).toBeTruthy();
+    expect(screen.getByTitle('Altere o vencimento pela aba Parcelas.')).toBeDisabled();
+    expect(screen.getByTitle('Altere o valor pela aba Parcelas.')).toBeDisabled();
+    expect(screen.getByText(/ajuste esses dados diretamente na aba Parcelas/i)).toBeTruthy();
   });
 });

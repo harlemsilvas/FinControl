@@ -484,7 +484,9 @@ export function PayableFormPage(): ReactElement {
               <div>
                 <h2 className="text-lg font-bold text-slate-950">Dados da Conta</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Informe os dados principais. Parcelas e vencimentos serão preparados automaticamente para a conta.
+                  {editing
+                    ? 'Dados principais do título. Para alterar vencimento ou valor de cobrança, use a aba Parcelas.'
+                    : 'Informe os dados principais. Parcelas e vencimentos serão preparados automaticamente para a conta.'}
                 </p>
               </div>
 
@@ -498,7 +500,13 @@ export function PayableFormPage(): ReactElement {
                 />
                 <Select label="Fornecedor" required items={suppliers.data} registration={register('supplierId', { required: true })} className="lg:col-span-2" />
                 <Field label="Vencimento" required>
-                  <input type="date" className={inputClass} {...register('baseDueDate', { required: true })} />
+                  <input
+                    type="date"
+                    disabled={editing}
+                    title={editing ? 'Altere o vencimento pela aba Parcelas.' : undefined}
+                    className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                    {...register('baseDueDate', { required: true })}
+                  />
                 </Field>
                 <Field label="Valor" required>
                   <Controller
@@ -506,10 +514,23 @@ export function PayableFormPage(): ReactElement {
                     name="originalAmount"
                     rules={{ required: true, min: 0.01 }}
                     render={({ field }) => (
-                      <CurrencyInput className={inputClass} value={field.value} onValueChange={value => field.onChange(value ?? 0)} onBlur={field.onBlur} />
+                      <CurrencyInput
+                        disabled={editing}
+                        title={editing ? 'Altere o valor pela aba Parcelas.' : undefined}
+                        className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                        value={field.value}
+                        onValueChange={value => field.onChange(value ?? 0)}
+                        onBlur={field.onBlur}
+                      />
                     )}
                   />
                 </Field>
+                {editing && (
+                  <div className="lg:col-span-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
+                    Vencimento e valor exibidos aqui são referência do título. Em edição, ajuste esses dados diretamente na aba Parcelas para salvar a
+                    cobrança correta.
+                  </div>
+                )}
                 <Field label="Data de Emissão" required>
                   <input type="date" className={inputClass} {...register('issueDate', { required: true })} />
                 </Field>
