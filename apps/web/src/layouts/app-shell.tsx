@@ -35,7 +35,7 @@ const menuSections: MenuSection[] = [
   {
     title: 'Financeiro',
     items: [
-      { label: 'Contas a Pagar', to: '/payables', icon: '▩' },
+      { label: 'Notas Fiscais e Contas', to: '/payables', icon: '▩' },
       { label: 'XMLs Importados', to: '/xml-imports', icon: '▧' },
       { label: 'Agenda', to: '/agenda', icon: '□' },
       { label: 'Aprovações', to: '/approvals', icon: '✓' },

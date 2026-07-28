@@ -8,7 +8,8 @@ import { ApiError } from '../api/http-client';
 import { PayablesListPage } from './payables-list-page';
 
 const mocks = vi.hoisted(() => ({
-  get: vi.fn((url: string) => {
+  get: vi.fn((url: string, config?: { params?: Record<string, unknown> }) => {
+    void config;
     if (url === '/api/v1/payables') {
       return Promise.resolve({
         data: {
@@ -65,6 +66,10 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(() => Promise.resolve({ data: { effectiveDate: '2026-08-05', cancelledFutureTitles: 1 } })),
 }));
 
+function getPayablesParams(): Record<string, unknown> | undefined {
+  return mocks.get.mock.calls.find(([url]) => url === '/api/v1/payables')?.[1]?.params;
+}
+
 vi.mock('../api/http-client', () => ({
   ApiError: class ApiError extends Error {
     constructor(readonly status: number, readonly code: string, message: string) { super(message); }
@@ -92,12 +97,34 @@ describe('PayablesListPage', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole('heading', { name: 'Contas a Pagar' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Notas Fiscais e Contas' })).toBeTruthy();
     expect(await screen.findByText('ABC Distribuidora Ltda')).toBeTruthy();
     expect(screen.getAllByText('Boleto').length).toBeGreaterThan(0);
     expect(screen.getByText('19/07/2026')).toBeTruthy();
-    expect(screen.getByRole('link', { name: '+ Nova conta a pagar' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: '+ Nova nota ou conta' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Calendário' }).getAttribute('href')).toBe('/agenda');
+    expect(screen.getByLabelText('Filtrar por status')).toHaveProperty('value', 'OPEN');
+    expect(screen.queryByLabelText(/Selecionar/)).toBeNull();
     expect(screen.getByText('Recorrente')).toBeTruthy();
+    await waitFor(() => expect(getPayablesParams()?.status).toBe('OPEN'));
+  });
+
+  it('allows the totals panel to be hidden and shown again', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PayablesListPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText('Total em aberto')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar painel' }));
+    expect(screen.queryByText('Total em aberto')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Exibir painel' }));
+    expect(await screen.findByText('Total em aberto')).toBeTruthy();
   });
 
   it('opens recurrence actions from the payable row and revises the series from a future date', async () => {

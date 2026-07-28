@@ -109,6 +109,21 @@ Estado consolidado:
 - sincronização futura com Google Drive permanece pendente e explicitamente
   futura.
 
+### Notas Fiscais e Contas
+
+Estado consolidado:
+
+- a listagem operacional de contas a pagar passou a se apresentar ao usuário
+  como `Notas Fiscais e Contas`, preservando o domínio técnico de payables;
+- item do menu financeiro renomeado para o mesmo rótulo da tela;
+- painel de totais da listagem transformado em painel recolhível com ações
+  `Exibir painel` e `Ocultar painel`;
+- atalho `Calendário` da listagem conectado à rota real `/agenda`;
+- filtro de status da listagem inicia em `Notas ativas` (`OPEN`) e a ação de
+  limpar filtros retorna para esse padrão;
+- coluna inicial de seleção em lote removida da listagem enquanto a rotina de
+  seleção múltipla não estiver disponível.
+
 ### Recorrências
 
 Documento de referência:
