@@ -24,6 +24,7 @@ type OccurrenceType = 'SINGLE' | 'INSTALLMENT';
 type SaveMode = 'close' | 'new';
 
 interface Values {
+  companyId: string;
   supplierId: string;
   categoryId: string;
   documentTypeId: string;
@@ -188,6 +189,7 @@ function defaultValues(): Values {
 
   return {
     supplierId: '',
+    companyId: '',
     categoryId: '',
     documentTypeId: '',
     paymentTermId: '',
@@ -229,6 +231,7 @@ export function PayableFormPage(): ReactElement {
   const [feedback, setFeedback] = useState('');
 
   const suppliers = useLookup('/suppliers');
+  const companies = useLookup('/companies');
   const categories = useLookup('/financial-categories');
   const documentTypes = useLookup('/document-types');
   const methods = useLookup('/payment-methods');
@@ -269,6 +272,7 @@ export function PayableFormPage(): ReactElement {
     const firstDueDate = firstInstallment?.dueDate || today();
 
     reset({
+      companyId: detail.data.companyId ?? '',
       supplierId: detail.data.supplierId,
       categoryId: detail.data.categoryId,
       documentTypeId: detail.data.documentTypeId,
@@ -327,6 +331,7 @@ export function PayableFormPage(): ReactElement {
       if (editing) {
         await httpClient.patch(`/api/v1/payables/${id}`, {
           supplierId: values.supplierId,
+          companyId: values.companyId,
           categoryId: values.categoryId,
           documentTypeId: values.documentTypeId,
           paymentTermId: values.paymentTermId || null,
@@ -355,6 +360,7 @@ export function PayableFormPage(): ReactElement {
       }
 
       const response = await httpClient.post<{ id: string }>('/api/v1/payables', {
+        companyId: values.companyId,
         supplierId: values.supplierId,
         categoryId: values.categoryId,
         documentTypeId: values.documentTypeId,
@@ -483,6 +489,7 @@ export function PayableFormPage(): ReactElement {
               </div>
 
               <div className="grid gap-5 lg:grid-cols-2">
+                <Select label="Empresa" required items={companies.data} registration={register('companyId', { required: true })} className="lg:col-span-2" />
                 <Select
                   label="Forma de Pagamento"
                   required

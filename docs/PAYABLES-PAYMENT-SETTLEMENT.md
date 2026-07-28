@@ -49,7 +49,8 @@ Nesta fase, a empresa não deve ser escolhida por um seletor global no topo do s
 A empresa deve ser definida conforme a origem da operação:
 
 - XML: pelo CNPJ do destinatário no documento fiscal;
-- título manual: pela empresa informada no cadastro do título quando esse campo estiver exposto;
+- título manual, fixo ou parcelado: pela empresa obrigatoriamente informada no
+  cadastro do título;
 - baixa: pela empresa do título/parcela e pela conta bancária escolhida;
 - relatórios: por filtro explícito `Empresa` ou `Todas`.
 

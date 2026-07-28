@@ -44,6 +44,12 @@ deploy/migrations de recorrência na VPS.
     corrigindo `Empresa` e `Banco` vazios na primeira abertura;
   - campo `Fornecedor` da nova conta ocupa a linha inteira em telas grandes
     para evitar estouro/truncamento visual;
+- ajuste local aplicado em 28/07/2026 para vínculo multiempresa em contas
+  manuais:
+  - `Empresa` obrigatória no cadastro manual de conta;
+  - API exige e valida empresa ativa para novos títulos manuais;
+  - edição pode corrigir empresa enquanto não houver pagamento efetivo;
+  - duplicidade manual passa a ser avaliada dentro da mesma empresa;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;
@@ -68,29 +74,31 @@ deploy/migrations de recorrência na VPS.
    typecheck, lint e build.
 4. Validar as correções de Agenda, baixa e cadastros com testes focados,
    typecheck, lint e build.
-5. Ao finalizar qualquer alteração completa, executar `./Checar_alteracao.sh`.
-6. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
+5. Validar o vínculo obrigatório de empresa em títulos manuais com testes
+   focados, typecheck, lint e build.
+6. Ao finalizar qualquer alteração completa, executar `./Checar_alteracao.sh`.
+7. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
    testes/correções normais.
-7. Se o script retornar `STATUS: OK`, criar commit local personalizado.
-8. Fazer push somente quando o usuário validar/autorizá-lo.
-9. Na VPS, verificar se a release usada contém
+8. Se o script retornar `STATUS: OK`, criar commit local personalizado.
+9. Fazer push somente quando o usuário validar/autorizá-lo.
+10. Na VPS, verificar se a release usada contém
    `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
-10. Na VPS, consultar `administracao.schema_versions` para as versões
+11. Na VPS, consultar `administracao.schema_versions` para as versões
    `202607231000` e `202607231010`.
-11. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
-12. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
+12. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
+13. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
    aplicar as duas migrations de recorrência a partir da release publicada e
    registrar checksums.
-13. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
+14. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
    existirem, remover apenas esse registro inconsistente depois de backup lógico
    ou aplicar reparo manual com registro correto.
-14. Depois de corrigir o banco, repetir o deploy/verify.
-15. Só então decidir entre:
+15. Depois de corrigir o banco, repetir o deploy/verify.
+16. Só então decidir entre:
    - deploy controlado manual da branch/commit;
    - ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
-16. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
+17. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
    pois o workflow atual faz checkout fixo de `main`.
-17. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
+18. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
 
 ## Validações já executadas

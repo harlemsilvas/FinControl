@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
         data: {
           id: 'payable-1',
           supplierId: 'supplier-1',
+          companyId: 'company-1',
+          companyName: 'HRM Motos Matriz',
           categoryId: 'category-1',
           documentTypeId: 'document-type-1',
           paymentTermId: 'payment-term-1',
@@ -46,6 +48,7 @@ const mocks = vi.hoisted(() => ({
     }
     if (url === '/api/v1/recurrences/rec-1') return Promise.resolve({ data: { id: 'rec-1', companyId: 'company-1', supplierId: 'supplier-1', categoryId: 'category-1', costCenterId: 'cost-center-1', documentTypeId: 'document-type-1', paymentMethodId: 'payment-method-1', paymentTermId: 'payment-term-1', description: 'Aluguel recorrente', baseDocumentNumber: 'ALUGUEL', baseAmount: '2500.00', frequencyCode: 'MONTHLY', startDate: '2026-08-05', endDate: null, maxOccurrences: null, dueDay: 5, isOpenEnded: false, notes: '' } });
     if (url === '/api/v1/recurrences/rec-1/cancellation-preview') return Promise.resolve({ data: { recurrenceId: 'rec-1', titles: [], total: 0 } });
+    if (url === '/api/v1/companies') return Promise.resolve({ data: { data: [{ id: 'company-1', legalName: 'HRM Motos Matriz' }], page: 1, pageSize: 100, total: 1 } });
     return Promise.resolve({ data: { data: [], page: 1, pageSize: 100, total: 0 } });
   }),
 }));
@@ -76,6 +79,7 @@ describe('PayableFormPage new title', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Nova Conta a Pagar' })).toBeTruthy();
+    expect(await screen.findByLabelText(/Empresa/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy();
   });
 

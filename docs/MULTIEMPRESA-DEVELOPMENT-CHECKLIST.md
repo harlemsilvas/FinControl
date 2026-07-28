@@ -158,6 +158,8 @@ Arquivos prováveis:
 - [x] Implementar tela inicial de parâmetros em `/company-parameters`
 - [x] Preparar contexto inicial de sessão por empresa em login/refresh/me
 - [x] Documentar que empresa ativa por sessão fica como feature futura, não como regra global atual
+- [x] Exigir vínculo explícito de empresa em títulos manuais/fixos, sem usar
+      fornecedor ou empresa ativa global como inferência
 - [ ] Implementar filtros explícitos por empresa ou todas nas telas operacionais e relatórios
 - [x] Documentar seleção de empresa/conta bancária no fluxo futuro de baixa e caixa
 - [x] Fechar decisões do MVP de saldo oficial: bloqueio por saldo insuficiente, saldo inicial por movimento e repasses por centro de custo

@@ -3,7 +3,7 @@ import type { Database, QueryExecutor } from '../../infrastructure/database/data
 import type { StoredAttachment } from '../../infrastructure/storage/attachment-storage.js';
 
 export interface InstallmentInput { installmentNumber: number; installmentCount: number; amount: number; dueDate: string; paymentMethodId: string; notes?: string | null }
-export interface TitleInput { supplierId: string; categoryId: string; documentTypeId: string; paymentTermId?: string | null; costCenterId?: string | null;
+export interface TitleInput { companyId: string; supplierId: string; categoryId: string; documentTypeId: string; paymentTermId?: string | null; costCenterId?: string | null;
   documentNumber: string; documentSeries?: string | null; description: string; originCode?: string; issueDate: string; originalAmount: number;
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
@@ -488,12 +488,14 @@ export class PayablesRepository {
         ORDER BY rt.sequence_number DESC
         LIMIT 1
       ) recurrence ON true
-      LEFT JOIN cadastros.payment_methods pm ON pm.id=first_i.payment_method_id`;
+      LEFT JOIN cadastros.payment_methods pm ON pm.id=first_i.payment_method_id
+      LEFT JOIN cadastros.companies company ON company.id=t.company_id`;
     const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
     values.push(pageSize, (page - 1) * pageSize);
     const result = await this.database.query(`SELECT t.*,s.legal_name supplier_name,c.name category_name,ts.code status_code,
       COALESCE(b.open_balance,0) open_balance, first_i.due_date first_due_date, pm.name payment_method_name,
-      recurrence.recurrence_id,recurrence.occurrence_date recurrence_occurrence_date,recurrence.sequence_number recurrence_sequence_number,recurrence.recurrence_status_code
+      recurrence.recurrence_id,recurrence.occurrence_date recurrence_occurrence_date,recurrence.sequence_number recurrence_sequence_number,recurrence.recurrence_status_code,
+      COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name
       ${from} WHERE ${where}
       ORDER BY COALESCE(first_i.due_date,t.issue_date) ASC,t.created_at DESC LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
     return { data: result.rows.map(api), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
@@ -501,9 +503,11 @@ export class PayablesRepository {
 
   async get(id: string): Promise<object | null> {
     const title = await this.database.query(`SELECT t.*,s.legal_name supplier_name,c.name category_name,ts.code status_code,
-        recurrence.recurrence_id,recurrence.occurrence_date recurrence_occurrence_date,recurrence.sequence_number recurrence_sequence_number,recurrence.recurrence_status_code
+        recurrence.recurrence_id,recurrence.occurrence_date recurrence_occurrence_date,recurrence.sequence_number recurrence_sequence_number,recurrence.recurrence_status_code,
+        COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name
       FROM financeiro.payable_titles t JOIN cadastros.suppliers s ON s.id=t.supplier_id
       JOIN cadastros.financial_categories c ON c.id=t.category_id JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
+      LEFT JOIN cadastros.companies company ON company.id=t.company_id
       LEFT JOIN LATERAL (
         SELECT rt.recurrence_id,rt.occurrence_date,rt.sequence_number,rs.code recurrence_status_code
         FROM financeiro.payable_recurrence_titles rt
@@ -665,12 +669,12 @@ export class PayablesRepository {
     return row ? api(row) : null;
   }
 
-  async duplicates(supplierId: string, documentNumber: string, documentSeries: string | null, installmentNumber?: number): Promise<object[]> {
+  async duplicates(companyId: string, supplierId: string, documentNumber: string, documentSeries: string | null, installmentNumber?: number): Promise<object[]> {
     const result = await this.database.query(`SELECT DISTINCT t.id,t.document_number,t.document_series,t.description,t.created_at
       FROM financeiro.payable_titles t LEFT JOIN financeiro.payable_installments i ON i.payable_title_id=t.id
-      WHERE t.supplier_id=$1 AND lower(trim(t.document_number))=lower(trim($2))
-      AND coalesce(lower(trim(t.document_series)),'')=coalesce(lower(trim($3)),'') AND t.deleted_at IS NULL
-      AND ($4::integer IS NULL OR i.installment_number=$4) ORDER BY t.created_at DESC`, [supplierId, documentNumber, documentSeries, installmentNumber ?? null]);
+      WHERE t.company_id=$1 AND t.supplier_id=$2 AND lower(trim(t.document_number))=lower(trim($3))
+      AND coalesce(lower(trim(t.document_series)),'')=coalesce(lower(trim($4)),'') AND t.deleted_at IS NULL
+      AND ($5::integer IS NULL OR i.installment_number=$5) ORDER BY t.created_at DESC`, [companyId, supplierId, documentNumber, documentSeries, installmentNumber ?? null]);
     return result.rows.map(api);
   }
 
@@ -679,15 +683,17 @@ export class PayablesRepository {
     if (input.installments.reduce((sum, item) => sum + cents(item.amount), 0) !== total)
       throw new ApplicationError({ code: 'INSTALLMENT_TOTAL_MISMATCH', message: 'Installments must equal the title total', statusCode: 400 });
     return this.database.transaction(async (tx) => {
-      const duplicate = await tx.query(`SELECT 1 FROM financeiro.payable_titles WHERE supplier_id=$1 AND lower(trim(document_number))=lower(trim($2))
-        AND coalesce(lower(trim(document_series)),'')=coalesce(lower(trim($3)),'') AND deleted_at IS NULL LIMIT 1`, [input.supplierId,input.documentNumber,input.documentSeries ?? null]);
+      const company = await tx.query(`SELECT 1 FROM cadastros.companies WHERE id=$1 AND is_active AND deleted_at IS NULL`, [input.companyId]);
+      if (!company.rowCount) throw new ApplicationError({ code: 'INVALID_REFERENCE', message: 'Company must be active to create a payable title', statusCode: 400, details: { field: 'companyId' } });
+      const duplicate = await tx.query(`SELECT 1 FROM financeiro.payable_titles WHERE company_id=$1 AND supplier_id=$2 AND lower(trim(document_number))=lower(trim($3))
+        AND coalesce(lower(trim(document_series)),'')=coalesce(lower(trim($4)),'') AND deleted_at IS NULL LIMIT 1`, [input.companyId,input.supplierId,input.documentNumber,input.documentSeries ?? null]);
       if (duplicate.rowCount && !input.duplicateConfirmed) throw new ApplicationError({ code: 'POSSIBLE_DUPLICATE', message: 'A possible duplicate title exists', statusCode: 409 });
-      const title = await tx.query(`INSERT INTO financeiro.payable_titles (supplier_id,category_id,document_type_id,payment_term_id,cost_center_id,
+      const title = await tx.query(`INSERT INTO financeiro.payable_titles (company_id,supplier_id,category_id,document_type_id,payment_term_id,cost_center_id,
         document_number,document_series,description,origin_code,issue_date,original_amount,discount_amount,additional_amount,status_id,notes,
         duplicate_warning_confirmed,duplicate_warning_confirmed_by,duplicate_warning_confirmed_at,created_by,updated_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,(SELECT id FROM financeiro.payable_title_statuses WHERE code=$14),$15,$16,
-        CASE WHEN $16 THEN $17::uuid END,CASE WHEN $16 THEN CURRENT_TIMESTAMP END,$17,$17) RETURNING *`,
-      [input.supplierId,input.categoryId,input.documentTypeId,input.paymentTermId ?? null,input.costCenterId ?? null,input.documentNumber,input.documentSeries ?? null,
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,(SELECT id FROM financeiro.payable_title_statuses WHERE code=$15),$16,$17,
+        CASE WHEN $17 THEN $18::uuid END,CASE WHEN $17 THEN CURRENT_TIMESTAMP END,$18,$18) RETURNING *`,
+      [input.companyId,input.supplierId,input.categoryId,input.documentTypeId,input.paymentTermId ?? null,input.costCenterId ?? null,input.documentNumber,input.documentSeries ?? null,
         input.description,input.originCode ?? 'MANUAL',input.issueDate,input.originalAmount,input.discountAmount ?? 0,input.additionalAmount ?? 0,input.draft ? 'DRAFT':'OPEN',
         input.notes ?? null,input.duplicateConfirmed ?? false,userId]);
       const row = title.rows[0]!;
@@ -702,11 +708,12 @@ export class PayablesRepository {
   }
 
   async updateTitle(id:string,data:Record<string,unknown>,userId:string):Promise<object>{
-    const mapping:Record<string,string>={supplierId:'supplier_id',categoryId:'category_id',documentTypeId:'document_type_id',paymentTermId:'payment_term_id',costCenterId:'cost_center_id',documentNumber:'document_number',documentSeries:'document_series',description:'description',issueDate:'issue_date',originalAmount:'original_amount',discountAmount:'discount_amount',additionalAmount:'additional_amount',notes:'notes'};
+    const mapping:Record<string,string>={companyId:'company_id',supplierId:'supplier_id',categoryId:'category_id',documentTypeId:'document_type_id',paymentTermId:'payment_term_id',costCenterId:'cost_center_id',documentNumber:'document_number',documentSeries:'document_series',description:'description',issueDate:'issue_date',originalAmount:'original_amount',discountAmount:'discount_amount',additionalAmount:'additional_amount',notes:'notes'};
     const entries=Object.entries(data).filter((entry)=>entry[1]!==undefined&&mapping[entry[0]]).map(([key,value])=>[mapping[key]!,value] as const);
     if(!entries.length) throw new ApplicationError({code:'VALIDATION_ERROR',message:'At least one field is required',statusCode:400});
     return this.database.transaction(async(tx)=>{const paid=await tx.query(`SELECT 1 FROM financeiro.payments p JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id LEFT JOIN financeiro.payment_reversals r ON r.payment_id=p.id WHERE i.payable_title_id=$1 AND r.id IS NULL`,[id]);
-      if(paid.rowCount&&entries.some(([column])=>['supplier_id','document_number','document_series','original_amount','discount_amount','additional_amount'].includes(column)))throw new ApplicationError({code:'PAID_TITLE_IMMUTABLE',message:'Financial fields cannot change while effective payments exist',statusCode:409});
+      if(paid.rowCount&&entries.some(([column])=>['company_id','supplier_id','document_number','document_series','original_amount','discount_amount','additional_amount'].includes(column)))throw new ApplicationError({code:'PAID_TITLE_IMMUTABLE',message:'Financial fields cannot change while effective payments exist',statusCode:409});
+      if(data.companyId){const company=await tx.query(`SELECT 1 FROM cadastros.companies WHERE id=$1 AND is_active AND deleted_at IS NULL`,[data.companyId]);if(!company.rowCount)throw new ApplicationError({code:'INVALID_REFERENCE',message:'Company must be active to update a payable title',statusCode:400,details:{field:'companyId'}});}
       const values=entries.map((entry)=>entry[1]);values.push(userId,id);const result=await tx.query(`UPDATE financeiro.payable_titles SET ${entries.map((entry,index)=>`${entry[0]}=$${index+1}`).join(',')},updated_by=$${values.length-1} WHERE id=$${values.length} AND deleted_at IS NULL RETURNING *`,values);
       const row=result.rows[0];if(!row)throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Title not found',statusCode:404});await this.audit(tx,'PAYABLE_TITLE',id,'UPDATED',userId,null,api(row));return api(row);});
   }

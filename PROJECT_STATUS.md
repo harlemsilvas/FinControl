@@ -143,6 +143,20 @@ Estado consolidado:
 - no cadastro de nova conta, o campo `Fornecedor` passa a ocupar a linha inteira
   em telas grandes, evitando truncamento/estouro visual com nomes longos.
 
+### Vínculo obrigatório de empresa em títulos manuais em 28/07/2026
+
+Estado consolidado:
+
+- títulos criados manualmente passam a exigir `Empresa` no formulário e no
+  contrato da API;
+- a empresa informada é gravada em `financeiro.payable_titles.company_id`;
+- a edição de títulos permite corrigir o vínculo de empresa enquanto não houver
+  pagamento efetivo;
+- validação de duplicidade de títulos manuais passa a considerar a empresa,
+  evitando conflito indevido entre obrigações similares de empresas distintas;
+- recorrências permanecem com uma empresa por série, e títulos gerados por XML
+  continuam herdando a empresa resolvida pelo CNPJ do destinatário.
+
 ### Preflight automatizado de alteração em 28/07/2026
 
 Estado consolidado:

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Database, QueryExecutor } from '../src/infrastructure/database/database.js';
 import { PayablesRepository, type RecurrenceInput, type TitleInput, type XmlImportInput } from '../src/domains/payables/payables-repository.js';
 
-const validTitle: TitleInput = { supplierId:'00000000-0000-0000-0000-000000000001',categoryId:'00000000-0000-0000-0000-000000000002',
+const validTitle: TitleInput = { companyId:'00000000-0000-0000-0000-000000000011',supplierId:'00000000-0000-0000-0000-000000000001',categoryId:'00000000-0000-0000-0000-000000000002',
   documentTypeId:'00000000-0000-0000-0000-000000000003',documentNumber:'NF-1',description:'Serviço',issueDate:'2026-07-16',
   originalAmount:100,installments:[{installmentNumber:1,installmentCount:1,amount:100,dueDate:'2026-07-30',paymentMethodId:'00000000-0000-0000-0000-000000000004'}] };
 const validRecurrence: RecurrenceInput = {
@@ -33,10 +33,20 @@ describe('PayablesRepository business safeguards',()=>{
   });
 
   it('returns a duplicate warning before persisting without confirmation',async()=>{
-    const query=vi.fn().mockResolvedValueOnce({rows:[{exists:1}],rowCount:1});
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     await expect(repo.create(validTitle,'user-id')).rejects.toMatchObject({code:'POSSIBLE_DUPLICATE',statusCode:409});
-    expect(query).toHaveBeenCalledOnce();
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls[1]?.[0]).toContain('company_id=$1');
+  });
+
+  it('rejects manual payable titles when the selected company is inactive or missing', async () => {
+    const query=vi.fn().mockResolvedValueOnce({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query}));
+    await expect(repo.create(validTitle,'user-id')).rejects.toMatchObject({code:'INVALID_REFERENCE',statusCode:400});
+    expect(query.mock.calls[0]?.[0]).toContain('FROM cadastros.companies');
   });
 
   it('requires explicit confirmation when a payment exceeds the open balance',async()=>{

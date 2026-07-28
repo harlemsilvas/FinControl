@@ -98,6 +98,9 @@ uma entrega específica.
 ### Multiempresa
 
 - A empresa do XML é resolvida pelo CNPJ do destinatário.
+- Títulos manuais, fixos ou parcelados devem ser vinculados explicitamente a
+  uma empresa cadastrada no lançamento; fornecedor, categoria ou origem
+  operacional não substituem esse vínculo.
 - Não existe empresa ativa global por sessão nesta fase.
 - Consultas e relatórios futuros devem preferir filtro explícito por empresa ou
   todas.
