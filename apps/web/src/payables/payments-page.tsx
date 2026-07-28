@@ -137,7 +137,10 @@ function movementAmount(principal: string, interest: string, penalty: string, di
 
 function treasuryErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError && error.code === 'CASH_BALANCE_ALREADY_EXISTS') {
-    return 'Esta conta bancária já possui um saldo inicial ativo. Para alterar o valor, estorne o saldo inicial anterior e lance um novo.';
+    return 'Esta conta bancária já possui um saldo inicial ativo. Para novas entradas de dinheiro, use Entrada de caixa.';
+  }
+  if (error instanceof ApiError && error.code === 'FORBIDDEN') {
+    return 'Somente usuários master podem lançar ajustes manuais de caixa.';
   }
   if (error instanceof ApiError && error.message.trim()) return error.message;
   return fallback;
@@ -169,6 +172,12 @@ export function PaymentsPage(): ReactElement {
   const [cashMovementDate, setCashMovementDate] = useState(today());
   const [cashAmount, setCashAmount] = useState('');
   const [cashReference, setCashReference] = useState('');
+  const [cashEntryOpen, setCashEntryOpen] = useState(false);
+  const [cashEntryBankAccountId, setCashEntryBankAccountId] = useState('');
+  const [cashEntryMovementDate, setCashEntryMovementDate] = useState(today());
+  const [cashEntryAmount, setCashEntryAmount] = useState('');
+  const [cashEntryReference, setCashEntryReference] = useState('');
+  const [cashEntryNotes, setCashEntryNotes] = useState('');
   const [reverseFor, setReverseFor] = useState<PaymentHistoryItem>();
   const [reverseReason, setReverseReason] = useState('');
   const [detailFor, setDetailFor] = useState<PaymentHistoryItem>();
@@ -298,6 +307,32 @@ export function PaymentsPage(): ReactElement {
     },
   });
 
+  const cashEntry = useMutation<object>({
+    mutationFn: async () => {
+      const response = await httpClient.post<object>('/api/v1/bank-account-movements/manual-entry', {
+        bankAccountId: cashEntryBankAccountId,
+        movementType: 'MANUAL_ADJUSTMENT',
+        movementDate: cashEntryMovementDate,
+        amount: Number(cashEntryAmount),
+        description: 'Entrada provisória de caixa',
+        referenceNumber: cashEntryReference || null,
+        notes: cashEntryNotes || 'Lançamento provisório para alimentar saldo oficial até a implantação da conciliação bancária.',
+      });
+      return response.data;
+    },
+    onSuccess: async () => {
+      setCashEntryOpen(false);
+      setCashEntryBankAccountId('');
+      setCashEntryAmount('');
+      setCashEntryReference('');
+      setCashEntryNotes('');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['payment-all-bank-balances'] }),
+        queryClient.invalidateQueries({ queryKey: ['payment-bank-balances'] }),
+      ]);
+    },
+  });
+
   const reversePayment = useMutation<object>({
     mutationFn: async () => {
       if (!reverseFor) throw new Error('Pagamento não selecionado.');
@@ -327,6 +362,7 @@ export function PaymentsPage(): ReactElement {
   const insufficientBalance = selectedAccount ? Number(selectedAccount.officialBalance) < totalMovement : false;
   const canSubmit = Boolean(selected && bankAccountId && paymentMethodId && paymentDate && Number(principalAmount) > 0 && totalMovement > 0 && (!exceedsOpenBalance || overpaymentConfirmed));
   const canCreateCashBalance = Boolean(cashBankAccountId && cashMovementDate && Number(cashAmount) > 0);
+  const canCreateCashEntry = Boolean(cashEntryBankAccountId && cashEntryMovementDate && Number(cashEntryAmount) > 0);
 
   const summary = useMemo(() => ({
     openTotal: rows.reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
@@ -406,6 +442,7 @@ export function PaymentsPage(): ReactElement {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => setCashBalanceOpen(true)}>Lançar saldo inicial</Button>
+          <Button variant="secondary" onClick={() => setCashEntryOpen(true)}>Entrada de caixa</Button>
           <Button variant="secondary" onClick={() => void installments.refetch()}>Atualizar fila</Button>
         </div>
       </header>
@@ -597,11 +634,48 @@ export function PaymentsPage(): ReactElement {
             <label className="grid gap-1 text-sm font-bold text-slate-700">Referência
               <input aria-label="Referência do saldo inicial" value={cashReference} onChange={(event) => setCashReference(event.target.value)} placeholder="Opcional" className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
             </label>
-            {cashBalance.error ? <p role="alert" className="text-sm font-bold text-red-700">{treasuryErrorMessage(cashBalance.error, 'Não foi possível lançar o saldo inicial.')}</p> : null}
+            {cashBalance.error ? <p role="alert" className="text-sm font-bold text-red-700">{treasuryErrorMessage(cashBalance.error, 'Não foi possível lançar o saldo inicial. Use Entrada de caixa para registrar novos valores após o saldo inicial.')}</p> : null}
           </div>
           <div className="mt-6 flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setCashBalanceOpen(false)}>Cancelar</Button>
             <Button disabled={!canCreateCashBalance || cashBalance.isPending} onClick={() => cashBalance.mutate()}>{cashBalance.isPending ? 'Lançando...' : 'Lançar saldo'}</Button>
+          </div>
+        </div>
+      </div> : null}
+
+      {cashEntryOpen ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4" role="presentation">
+        <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="Entrada de caixa">
+          <div className="flex items-start justify-between gap-4">
+            <div><h2 className="text-2xl font-black text-slate-950">Entrada de caixa</h2><p className="mt-1 text-sm text-slate-600">Ajuste manual provisório para alimentar o saldo oficial até a conciliação bancária.</p></div>
+            <button className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100" onClick={() => setCashEntryOpen(false)} aria-label="Fechar entrada de caixa">X</button>
+          </div>
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+            Use esta opção apenas para entrada operacional de dinheiro enquanto a rotina de conciliação bancária não estiver implantada.
+          </div>
+          <div className="mt-5 grid gap-4">
+            <label className="grid gap-1 text-sm font-bold text-slate-700">Conta bancária
+              <select aria-label="Conta para entrada de caixa" value={cashEntryBankAccountId} onChange={(event) => setCashEntryBankAccountId(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+                <option value="">Selecione</option>
+                {allBankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.companyName ?? '-'} - {item.bankName} - {item.accountName} - saldo {currency(item.officialBalance)}</option>)}
+              </select>
+            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <MoneyField label="Valor da entrada" value={cashEntryAmount} onChange={setCashEntryAmount} />
+              <label className="grid gap-1 text-sm font-bold text-slate-700">Data da entrada
+                <input aria-label="Data da entrada de caixa" type="date" value={cashEntryMovementDate} onChange={(event) => setCashEntryMovementDate(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+              </label>
+            </div>
+            <label className="grid gap-1 text-sm font-bold text-slate-700">Referência
+              <input aria-label="Referência da entrada de caixa" value={cashEntryReference} onChange={(event) => setCashEntryReference(event.target.value)} placeholder="Ex.: repasse, depósito ou ajuste operacional" className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+            </label>
+            <label className="grid gap-1 text-sm font-bold text-slate-700">Observações
+              <textarea aria-label="Observações da entrada de caixa" value={cashEntryNotes} onChange={(event) => setCashEntryNotes(event.target.value)} rows={3} placeholder="Opcional. Informe a origem operacional do dinheiro." className="rounded-xl border border-slate-300 px-3 py-2 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+            </label>
+            {cashEntry.error ? <p role="alert" className="text-sm font-bold text-red-700">{treasuryErrorMessage(cashEntry.error, 'Não foi possível lançar a entrada de caixa.')}</p> : null}
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setCashEntryOpen(false)}>Cancelar</Button>
+            <Button disabled={!canCreateCashEntry || cashEntry.isPending} onClick={() => cashEntry.mutate()}>{cashEntry.isPending ? 'Lançando...' : 'Lançar entrada'}</Button>
           </div>
         </div>
       </div> : null}

@@ -1,14 +1,15 @@
 # FinControl — Next Task
 
 **Última atualização:** 23/07/2026  
-**Status:** correção de saldo inicial em validação  
+**Status:** correção de saldo inicial e entrada provisória de caixa em validação  
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Validar e publicar a correção do lançamento de saldo inicial, mantendo em aberto
-o diagnóstico do deploy/migrations de recorrência na VPS.
+Validar e publicar a correção do lançamento de saldo inicial e a entrada
+provisória de caixa, mantendo em aberto o diagnóstico do deploy/migrations de
+recorrência na VPS.
 
 ## Escopo desta tarefa
 
@@ -24,6 +25,8 @@ o diagnóstico do deploy/migrations de recorrência na VPS.
 - correção local aplicada para saldo inicial:
   - campo `Valor inicial` usando máscara de moeda;
   - mensagem amigável quando a conta já possui saldo inicial ativo;
+- ação local `Entrada de caixa` adicionada como ajuste manual provisório para
+  alimentar o saldo oficial até a Conciliação Bancária;
 - preparar o pacote para deploy controlado ou para uso do workflow
   `Deploy Production`, conforme decisão operacional.
 
@@ -34,9 +37,9 @@ o diagnóstico do deploy/migrations de recorrência na VPS.
    - `.vscode/settings.json`;
    - arquivos `.docx` removidos/conversões não conferidas;
    - planilhas ou imagens não essenciais ao deploy.
-2. Validar a correção local de saldo inicial com typecheck, lint, testes focados
-   e build.
-3. Commitar e publicar a correção de saldo inicial.
+2. Validar a correção local de saldo inicial/entrada de caixa com typecheck,
+   lint, testes focados e build.
+3. Commitar e publicar a correção de saldo inicial/entrada de caixa.
 4. Na VPS, verificar se a release usada contém
    `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
 5. Na VPS, consultar `administracao.schema_versions` para as versões
@@ -66,6 +69,12 @@ o diagnóstico do deploy/migrations de recorrência na VPS.
 - `npm run build`: aprovado.
 - `bash scripts/validate-migrations.sh`: aprovado, 53 migrations ordenadas,
   únicas e transacionais.
+- Validação focada em 28/07/2026:
+  - `node ../../node_modules/vitest/vitest.mjs run test/treasury-repository.test.ts`: aprovado, 6 testes;
+  - `node ../../node_modules/vitest/vitest.mjs run src/payables/payments-page.test.tsx`: aprovado, 7 testes;
+  - `npm run typecheck`: aprovado;
+  - `npm run lint`: aprovado;
+  - `npm run build`: aprovado.
 
 ## Critério de conclusão
 

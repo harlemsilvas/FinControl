@@ -233,6 +233,25 @@ Marketplaces não precisam nascer como cadastro próprio neste ciclo. A origem o
 do repasse será representada por centros de custo específicos, permitindo várias contas
 de centro de custo para separar marketplaces, canais ou grupos de repasse.
 
+### Decisão provisória até Conciliação Bancária
+
+Enquanto a rotina de Conciliação Bancária não estiver implementada, a tela de
+pagamentos pode expor uma ação operacional `Entrada de caixa`.
+
+Essa ação registra um movimento de entrada do tipo `MANUAL_ADJUSTMENT`, com
+descrição operacional, para alimentar o saldo oficial da conta bancária e
+permitir baixas de pagamento no MVP.
+
+Restrições da decisão:
+
+- `Saldo de Caixa` continua sendo lançamento inicial único por conta bancária;
+- novas entradas de dinheiro após o saldo inicial devem usar `Entrada de caixa`;
+- o lançamento é auditado e deve conter referência/observação operacional sempre
+  que possível;
+- ao implementar Conciliação Bancária, essa ação deve ser reavaliada,
+  restringida ou desabilitada para evitar lançamentos manuais paralelos ao
+  extrato conciliado.
+
 ## 11. API atual versus lacunas
 
 Já existe:

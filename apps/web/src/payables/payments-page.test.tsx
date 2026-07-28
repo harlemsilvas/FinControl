@@ -217,7 +217,31 @@ describe('PaymentsPage', () => {
     fireEvent.change(within(dialog).getByLabelText('Valor inicial'), { target: { value: '500,00' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Lançar saldo' }));
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Esta conta bancária já possui um saldo inicial ativo');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Para novas entradas de dinheiro, use Entrada de caixa');
+  });
+
+  it('posts a temporary cash entry adjustment for operational deposits', async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Entrada de caixa' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Entrada de caixa' });
+
+    expect(within(dialog).getByText('Ajuste manual provisório para alimentar o saldo oficial até a conciliação bancária.')).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByLabelText('Conta para entrada de caixa')).toHaveTextContent('Conta Matriz'));
+    fireEvent.change(within(dialog).getByLabelText('Conta para entrada de caixa'), { target: { value: 'bank-account-id' } });
+    fireEvent.change(within(dialog).getByLabelText('Valor da entrada'), { target: { value: '2.000,00' } });
+    fireEvent.change(within(dialog).getByLabelText('Referência da entrada de caixa'), { target: { value: 'Depósito operacional' } });
+    fireEvent.change(within(dialog).getByLabelText('Observações da entrada de caixa'), { target: { value: 'Entrada provisória para pagamentos do dia.' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Lançar entrada' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/bank-account-movements/manual-entry', expect.objectContaining({
+      bankAccountId: 'bank-account-id',
+      movementType: 'MANUAL_ADJUSTMENT',
+      amount: 2000,
+      description: 'Entrada provisória de caixa',
+      referenceNumber: 'Depósito operacional',
+      notes: 'Entrada provisória para pagamentos do dia.',
+    })));
   });
 
   it('opens payment history reversal dialog and posts the reason', async () => {

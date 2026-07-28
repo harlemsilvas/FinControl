@@ -195,6 +195,12 @@ Estado consolidado:
   - tradução amigável no frontend para o mesmo código;
   - `MoneyField` da tela de pagamentos passa a usar `CurrencyInput`;
   - testes de tesouraria e pagamentos ampliados para cobrir o comportamento.
+- Decisão complementar: enquanto a Conciliação Bancária não estiver
+  implementada, a tela de pagamentos terá a ação provisória `Entrada de caixa`,
+  registrando movimento `MANUAL_ADJUSTMENT` de entrada para alimentar o saldo
+  oficial e permitir pagamentos operacionais.
+- Essa ação deve ser reavaliada/desabilitada quando a rotina de Conciliação
+  Bancária entrar no sistema.
 
 ## 5. Ordem de leitura e retomada
 
