@@ -6,6 +6,8 @@ DO $test$
 DECLARE
     v_user uuid;
     v_supplier uuid;
+    v_supplier_status uuid;
+    v_supplier_category uuid;
     v_category uuid;
     v_document_type uuid;
     v_payment_method uuid;
@@ -26,9 +28,17 @@ BEGIN
     VALUES ('Database Flow Test', 'database-flow-test@fincontrol.local', 'test-only', true)
     RETURNING id INTO v_user;
 
+    SELECT id INTO STRICT v_supplier_status
+    FROM cadastros.supplier_statuses
+    WHERE code = 'ACTIVE';
+
+    SELECT id INTO STRICT v_supplier_category
+    FROM cadastros.supplier_categories
+    WHERE code = 'SUPPLIER';
+
     INSERT INTO cadastros.suppliers
-        (supplier_type, legal_name, document_number, is_approved, created_by, updated_by)
-    VALUES ('COMPANY', 'Fornecedor Teste Fluxo', '00000000000191', true, v_user, v_user)
+        (supplier_type, legal_name, document_number, status_id, supplier_category_id, is_approved, created_by, updated_by)
+    VALUES ('COMPANY', 'Fornecedor Teste Fluxo', '00000000000191', v_supplier_status, v_supplier_category, true, v_user, v_user)
     RETURNING id INTO v_supplier;
 
     INSERT INTO cadastros.financial_categories
