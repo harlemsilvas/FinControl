@@ -58,6 +58,14 @@ deploy/migrations de recorrência na VPS.
   - após `STATUS: OK`, criar commit local personalizado;
   - push para servidor/remoto passa a depender de validação/autorização do
     usuário;
+- ajuste local aplicado em 28/07/2026 no deploy nativo da VPS:
+  - `Deploy VPS Native` resolve branch, tag, SHA completo ou SHA curto antes do
+    checkout efetivo;
+  - workflows GitHub usam actions com runtime Node 24 e continuam executando o
+    projeto com Node 22;
+  - `/opt/fincontrol/bin/deploy` validará Node.js 22 e npm em
+    `/opt/fincontrol/.local/bin`;
+  - rollback usa o PATH isolado do usuário `fincontrol`;
 - preparar o pacote para deploy controlado ou para uso do workflow
   `Deploy Production`, conforme decisão operacional.
 
@@ -76,29 +84,31 @@ deploy/migrations de recorrência na VPS.
    typecheck, lint e build.
 5. Validar o vínculo obrigatório de empresa em títulos manuais com testes
    focados, typecheck, lint e build.
-6. Ao finalizar qualquer alteração completa, executar `./Checar_alteracao.sh`.
-7. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
+6. Validar o ajuste do deploy nativo com sintaxe dos scripts, diff de workflow
+   e checagem final automatizada.
+7. Ao finalizar qualquer alteração completa, executar `./Checar_alteracao.sh`.
+8. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
    testes/correções normais.
-8. Se o script retornar `STATUS: OK`, criar commit local personalizado.
-9. Fazer push somente quando o usuário validar/autorizá-lo.
-10. Na VPS, verificar se a release usada contém
+9. Se o script retornar `STATUS: OK`, criar commit local personalizado.
+10. Fazer push somente quando o usuário validar/autorizá-lo.
+11. Na VPS, verificar se a release usada contém
    `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
-11. Na VPS, consultar `administracao.schema_versions` para as versões
+12. Na VPS, consultar `administracao.schema_versions` para as versões
    `202607231000` e `202607231010`.
-12. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
-13. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
+13. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
+14. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
    aplicar as duas migrations de recorrência a partir da release publicada e
    registrar checksums.
-14. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
+15. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
    existirem, remover apenas esse registro inconsistente depois de backup lógico
    ou aplicar reparo manual com registro correto.
-15. Depois de corrigir o banco, repetir o deploy/verify.
-16. Só então decidir entre:
+16. Depois de corrigir o banco, repetir o deploy/verify.
+17. Só então decidir entre:
    - deploy controlado manual da branch/commit;
    - ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
-17. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
+18. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
    pois o workflow atual faz checkout fixo de `main`.
-18. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
+19. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
 
 ## Validações já executadas

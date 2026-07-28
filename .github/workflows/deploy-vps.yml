@@ -50,18 +50,34 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout selected ref
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.deploy_ref || github.sha }}
+          fetch-depth: 0
 
       - name: Resolve immutable commit
         id: resolve
-        run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          DEPLOY_REF: ${{ inputs.deploy_ref }}
+        run: |
+          git fetch --force --tags origin '+refs/heads/*:refs/remotes/origin/*'
+          target="${DEPLOY_REF:-$GITHUB_SHA}"
+
+          if commit_sha="$(git rev-parse --verify "$target^{commit}" 2>/dev/null)"; then
+            :
+          elif commit_sha="$(git rev-parse --verify "origin/$target^{commit}" 2>/dev/null)"; then
+            :
+          else
+            echo "Could not resolve deploy_ref '$target' to a commit." >&2
+            exit 1
+          fi
+
+          git checkout --detach "$commit_sha"
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         if: ${{ inputs.run_checks }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm

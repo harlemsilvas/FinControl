@@ -172,6 +172,21 @@ Estado consolidado:
   `FAIL`;
 - adicionado alias `npm run check:alteracao`.
 
+### Ajuste do deploy nativo da VPS em 28/07/2026
+
+Estado consolidado:
+
+- workflow `Deploy VPS Native` atualizado para resolver `deploy_ref` por branch,
+  tag, SHA completo ou SHA curto a partir do histórico remoto antes de chamar a
+  VPS;
+- workflows GitHub atualizados para actions com runtime Node 24, mantendo
+  `node-version: 22` para os comandos do projeto;
+- script versionado `deploy/vps/bin/deploy` passa a validar explicitamente o
+  Node.js 22 isolado em `/opt/fincontrol/.local/bin/node`, o npm correspondente
+  e o PM2 antes de criar release;
+- rollback versionado passa a usar o mesmo PATH isolado do usuário
+  `fincontrol`, evitando depender do Node global do root.
+
 ### Recorrências
 
 Documento de referência:

@@ -75,8 +75,8 @@ Para homologar uma branch/commit fora de `main`, usar o workflow `Deploy VPS
 Native`:
 
 1. Selecionar a branch que contem o workflow no campo `Use workflow from`.
-2. Informar `deploy_ref` com uma branch, tag ou commit, ou deixar vazio para o
-   commit da branch selecionada.
+2. Informar `deploy_ref` com uma branch, tag, SHA completo ou SHA curto, ou
+   deixar vazio para o commit da branch selecionada.
 3. Manter `run_checks=true`, salvo emergencia operacional.
 4. Digitar `DEPLOY` em `confirmation`.
 5. Aprovar o environment `production`, se houver revisores configurados.
@@ -90,6 +90,8 @@ sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
 O script remoto continua sendo o unico responsavel por instalar dependencias,
 validar, aplicar migrations pendentes, publicar symlinks, recarregar PM2 e
 validar health checks.
+Ele deve usar o Node.js 22 isolado do usuario `fincontrol` em
+`/opt/fincontrol/.local/bin`, sem depender do Node global do root.
 
 ### Fallback: deploy por SSH
 

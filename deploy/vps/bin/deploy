@@ -3,8 +3,10 @@ set -euo pipefail
 
 APP_ROOT="/opt/fincontrol"
 REPO_URL="git@github.com:harlemsilvas/FinControl.git"
-NPM_BIN="$APP_ROOT/.local/bin/npm"
-PM2_BIN="/usr/bin/pm2"
+LOCAL_BIN="$APP_ROOT/.local/bin"
+NODE_BIN="$LOCAL_BIN/node"
+NPM_BIN="$LOCAL_BIN/npm"
+PM2_BIN="${PM2_BIN:-/usr/bin/pm2}"
 PM2_HOME_DIR="$APP_ROOT/.pm2"
 WEB_ROOT="/var/www/hrmmotos.com.br/fincontrol"
 POSTGRES_CONTAINER="fincontrol_postgres"
@@ -30,7 +32,38 @@ require_root() {
 }
 
 as_fincontrol() {
-  sudo -u fincontrol -H env PATH="$APP_ROOT/.local/bin:$PATH" "$@"
+  sudo -u fincontrol -H env PATH="$LOCAL_BIN:$PATH" "$@"
+}
+
+validate_toolchain() {
+  local node_version node_major
+
+  if [[ ! -x "$NODE_BIN" ]]; then
+    echo "Node.js runtime not found or not executable: $NODE_BIN" >&2
+    exit 1
+  fi
+
+  if [[ ! -x "$NPM_BIN" ]]; then
+    echo "npm runtime not found or not executable: $NPM_BIN" >&2
+    exit 1
+  fi
+
+  if [[ ! -x "$PM2_BIN" ]]; then
+    echo "PM2 binary not found or not executable: $PM2_BIN" >&2
+    echo "Set PM2_BIN=/path/to/pm2 if PM2 is not installed at /usr/bin/pm2." >&2
+    exit 1
+  fi
+
+  node_version="$(as_fincontrol "$NODE_BIN" -p 'process.versions.node')"
+  node_major="${node_version%%.*}"
+  if [[ "$node_major" != "22" ]]; then
+    echo "Unsupported Node.js version at $NODE_BIN: $node_version. Expected Node.js 22.x." >&2
+    exit 1
+  fi
+
+  echo "Using Node.js $node_version from $NODE_BIN"
+  echo "Using npm $(as_fincontrol "$NPM_BIN" --version) from $NPM_BIN"
+  echo "Using PM2 $(as_fincontrol "$PM2_BIN" --version) from $PM2_BIN"
 }
 
 load_app_env() {
@@ -147,6 +180,7 @@ apply_migrations() {
 
 require_root
 load_app_env
+validate_toolchain
 
 mkdir -p "$APP_ROOT/releases" "$WEB_ROOT/releases" "$APP_ROOT/storage/attachments/payments"
 chown -R fincontrol:fincontrol "$APP_ROOT/releases"

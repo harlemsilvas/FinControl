@@ -101,8 +101,9 @@ O workflow exige execucao manual e `confirmation=DEPLOY`.
 O workflow `.github/workflows/deploy-vps.yml` executa:
 
 1. validacao da confirmacao textual;
-2. checkout do `deploy_ref` informado ou do commit do workflow;
-3. resolucao para um commit SHA imutavel;
+2. checkout do repositorio com historico suficiente para resolver o alvo;
+3. resolucao do `deploy_ref` para um commit SHA imutavel, aceitando branch,
+   tag, SHA completo ou SHA curto;
 4. checks opcionais (`npm ci`, lint, typecheck, testes, build e validacao de migrations);
 5. chamada SSH para a VPS:
 
@@ -110,8 +111,8 @@ O workflow `.github/workflows/deploy-vps.yml` executa:
 sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
 ```
 
-O `deploy_ref` pode ser uma branch, tag ou commit. A VPS sempre recebe o commit
-resolvido pelo Actions, nao a branch mutavel.
+O `deploy_ref` pode ser uma branch, tag, SHA completo ou SHA curto. A VPS sempre
+recebe o commit resolvido pelo Actions, nao a branch mutavel.
 
 ### Sudo sem senha para o deploy
 
@@ -197,6 +198,11 @@ Esse workflow depende dos mesmos secrets do environment `production`:
 Manter o workflow flexivel `Deploy VPS Native` para casos de homologacao ou
 deploy controlado de uma branch/commit especifico. Usar `Deploy Production`
 para rotina normal de producao.
+
+O script remoto valida o runtime antes do deploy: o Node.js 22 e o npm devem
+estar disponiveis em `/opt/fincontrol/.local/bin`, no ambiente do usuario
+`fincontrol`. O PM2 pode permanecer em `/usr/bin/pm2`, mas e executado com o
+PATH do usuario `fincontrol`, permitindo que o shebang use o Node isolado.
 
 Essa e a principal pendencia apos o deploy controlado manual validado.
 
