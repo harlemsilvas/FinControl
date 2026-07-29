@@ -131,6 +131,9 @@ export class UsersRepository {
       if (id === actorId && input.isActive === false) {
         throw new ApplicationError({ code: 'SELF_DEACTIVATE_BLOCKED', message: 'User cannot deactivate their own account', statusCode: 409 });
       }
+      if (id === actorId && (input.isMaster !== undefined || input.roleIds !== undefined || input.companies !== undefined)) {
+        throw new ApplicationError({ code: 'SELF_ACCESS_CHANGE_BLOCKED', message: 'User cannot change their own access profile or company scope', statusCode: 409 });
+      }
       await this.assertUserInput(tx, input);
       const assignments: string[] = [];
       const values: unknown[] = [];

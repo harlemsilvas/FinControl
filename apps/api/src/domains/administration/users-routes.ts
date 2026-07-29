@@ -3,10 +3,11 @@ import { z } from 'zod';
 import { ApplicationError } from '../../common/errors/application-error.js';
 import { createAuthenticate, requirePermission } from '../auth/auth-context.js';
 import type { AuthRepository } from '../auth/auth-repository.js';
+import type { AuthService } from '../auth/auth-service.js';
 import type { TokenService } from '../auth/token-service.js';
 import type { UserInput, UsersRepository } from './users-repository.js';
 
-interface Options { authRepository: AuthRepository; tokenService: TokenService; repository: UsersRepository }
+interface Options { authRepository: AuthRepository; authService: AuthService; tokenService: TokenService; repository: UsersRepository }
 
 const uuid = z.uuid();
 const companyAccess = z.object({
@@ -48,6 +49,15 @@ function userId(request: { authUser?: { id: string } | null }): string {
   return id;
 }
 
+function context(request: { ip: string; headers: Record<string, string | string[] | undefined>; id: string }): { ip: string | null; userAgent: string | null; correlationId: string | null } {
+  const userAgent = request.headers['user-agent'];
+  return {
+    ip: request.ip || null,
+    userAgent: typeof userAgent === 'string' ? userAgent : null,
+    correlationId: /^[0-9a-f-]{36}$/i.test(request.id) ? request.id : null,
+  };
+}
+
 export function usersRoutes(app: FastifyInstance, options: Options): Promise<void> {
   const auth = createAuthenticate(options.authRepository, options.tokenService);
   const manage = requirePermission('USER_MANAGE');
@@ -78,5 +88,8 @@ export function usersRoutes(app: FastifyInstance, options: Options): Promise<voi
     if (!entity) throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'User not found', statusCode: 404 });
     return entity;
   });
+  app.post('/users/:id/password-reset', { preHandler: [auth, manage] }, async (request) => (
+    options.authService.requestPasswordResetForUser(parse(id, request.params).id, userId(request), context(request))
+  ));
   return Promise.resolve();
 }

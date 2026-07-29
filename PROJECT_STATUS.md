@@ -191,7 +191,7 @@ Estado consolidado:
 
 ### Administração de usuários e acessos em 29/07/2026
 
-Estado em implementação:
+Estado consolidado:
 
 - iniciado o MVP operacional de `Configurações > Usuários`;
 - backend passa a expor rotas administrativas para listar, criar, editar,
@@ -204,6 +204,28 @@ Estado em implementação:
 - a tela `/users` foi conectada ao menu existente de Configurações;
 - ainda não foi implementada edição granular de permissões por usuário ou tela;
   o MVP usa os perfis existentes como camada oficial de autorização.
+- refinamento do MVP adicionou troca/redefinição de senha:
+  - `POST /auth/password/forgot` solicita recuperação com resposta pública
+    genérica, sem revelar se o e-mail existe;
+  - `POST /auth/password/reset` redefine senha com token temporário opaco,
+    persistido apenas como SHA-256;
+  - `POST /api/v1/users/:id/password-reset` permite ao Master enfileirar
+    recuperação por e-mail para um usuário ativo;
+  - nova tabela `administracao.password_reset_tokens` registra tokens,
+    expiração, uso e contexto de solicitação;
+  - nova tabela `administracao.email_outbox` registra o e-mail pendente de
+    envio, preservando auditoria até a integração SMTP real;
+  - a tela de login oferece `Esqueci minha senha` e a rota pública
+    `/password-reset` conclui a redefinição pelo token.
+- autoalterações perigosas foram bloqueadas:
+  - backend recusa o próprio usuário tentando alterar `isMaster`, perfis ou
+    empresas permitidas;
+  - backend já bloqueava autoinativação e o frontend passou a refletir esse
+    bloqueio visualmente;
+  - a tela `/users` omite campos sensíveis do payload quando o registro editado
+    é o próprio usuário logado.
+- envio SMTP real permanece como pendência de infraestrutura; o contrato atual
+  enfileira o e-mail em `administracao.email_outbox`.
 
 ### Preflight automatizado de alteração em 28/07/2026
 

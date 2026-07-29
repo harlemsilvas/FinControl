@@ -21,6 +21,8 @@ const environment: Environment = {
   AUTH_REFRESH_TOKEN_TTL_DAYS: 30,
   AUTH_ISSUER: 'fincontrol-api',
   AUTH_AUDIENCE: 'fincontrol',
+  AUTH_PASSWORD_RESET_TTL_MINUTES: 60,
+  PASSWORD_RESET_BASE_URL: 'http://localhost:5173/password-reset',
   ATTACHMENT_STORAGE_ROOT: '/tmp/fincontrol-test-storage',
   ATTACHMENT_MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
 };

@@ -18,6 +18,8 @@ const environmentSchema = z.object({
   AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   AUTH_ISSUER: z.string().min(1).default('fincontrol-api'),
   AUTH_AUDIENCE: z.string().min(1).default('fincontrol'),
+  AUTH_PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(15).max(1440).default(60),
+  PASSWORD_RESET_BASE_URL: z.url().default('http://localhost:5173/password-reset'),
   ATTACHMENT_STORAGE_ROOT: z.string().min(1).default('/opt/fincontrol/storage'),
   ATTACHMENT_MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
 });

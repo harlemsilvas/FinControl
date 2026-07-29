@@ -122,8 +122,22 @@ uma entrega específica.
   - movimentos de conta bancária;
   - contas recorrentes com geração, revisão futura, cancelamento de série e
     prévia dos títulos futuros afetados.
+  - administração de usuários com perfis, empresas permitidas, recuperação de
+    senha por token e bloqueio de autoalterações perigosas.
 
-## 9. Documentos de continuidade
+## 9. Segurança de usuários
+
+- A administração de usuários usa a permissão `USER_MANAGE`, associada
+  inicialmente ao perfil `MASTER`.
+- Usuários não-master precisam ter ao menos uma empresa permitida.
+- O próprio usuário não pode alterar sua situação, perfil Master, perfis de
+  acesso ou empresas permitidas pela tela administrativa.
+- Recuperação de senha usa token opaco, armazenado somente como SHA-256 em
+  `administracao.password_reset_tokens`.
+- Solicitações de recuperação geram registro em `administracao.email_outbox`;
+  integração SMTP/worker real permanece como etapa de infraestrutura posterior.
+
+## 10. Documentos de continuidade
 
 ### Arquivos-raiz de retomada
 

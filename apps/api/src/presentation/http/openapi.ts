@@ -57,6 +57,19 @@ export function registerOpenApi(app: FastifyInstance): void {
           required: ['refreshToken'],
           properties: { refreshToken: { type: 'string', minLength: 32 } },
         },
+        PasswordForgotRequest: {
+          type: 'object',
+          required: ['email'],
+          properties: { email: { type: 'string', format: 'email' } },
+        },
+        PasswordResetRequest: {
+          type: 'object',
+          required: ['token', 'password'],
+          properties: {
+            token: { type: 'string', minLength: 32 },
+            password: { type: 'string', format: 'password', minLength: 8 },
+          },
+        },
         TokenResponse: {
           type: 'object',
           properties: {
@@ -198,6 +211,31 @@ export function registerOpenApi(app: FastifyInstance): void {
           responses: { '200': { description: 'Tokens renovados' }, '401': { description: 'Refresh token invalido' } },
         },
       },
+      '/auth/password/forgot': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Solicita recuperacao de senha por e-mail.',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PasswordForgotRequest' } } },
+          },
+          responses: { '200': { description: 'Solicitacao recebida com resposta generica' } },
+        },
+      },
+      '/auth/password/reset': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Redefine a senha usando token temporario.',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/PasswordResetRequest' } } },
+          },
+          responses: {
+            '200': { description: 'Senha redefinida' },
+            '400': { description: 'Token invalido ou expirado' },
+          },
+        },
+      },
       '/auth/logout': {
         post: {
           tags: ['Auth'],
@@ -251,6 +289,7 @@ export function registerOpenApi(app: FastifyInstance): void {
       },
       '/api/v1/users/{id}': entityPath('Administracao', 'Usuario'),
       '/api/v1/users/{id}/reactivate': actionPath('Administracao', 'Reativa usuario', {}),
+      '/api/v1/users/{id}/password-reset': actionPath('Administracao', 'Envia recuperacao de senha por e-mail', {}),
       '/api/v1/payables': {
         get: {
           tags: ['Financeiro'],

@@ -96,7 +96,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     repository: new IntelligenceRepository(options.database),
   });
   void app.register(usersRoutes, {
-    prefix: '/api/v1', authRepository, tokenService,
+    prefix: '/api/v1', authRepository, authService, tokenService,
     repository: new UsersRepository(options.database),
   });
 

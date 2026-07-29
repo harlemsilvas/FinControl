@@ -1,16 +1,16 @@
 # FinControl — Next Task
 
 **Última atualização:** 29/07/2026
-**Status:** MVP de Administração de Usuários e Acessos em implementação
+**Status:** refinamento do MVP de Administração de Usuários e Acessos em validação final
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Concluir o MVP de `Configurações > Usuários`, permitindo administrar usuários,
-perfis existentes e vínculos com empresas, preservando o modelo atual de
-permissões por perfil e mantendo a decisão de não usar empresa ativa global por
-sessão.
+Validar e publicar o refinamento do MVP de `Configurações > Usuários`, agora
+com recuperação/redefinição de senha e bloqueio de autoalterações perigosas,
+preservando o modelo atual de permissões por perfil e mantendo a decisão de
+não usar empresa ativa global por sessão.
 
 ## Escopo desta tarefa
 
@@ -70,6 +70,22 @@ sessão.
   - tela `/users` permite informar dados básicos, senha inicial/troca de senha,
     perfis, empresas permitidas, empresa padrão e escopo de acesso;
   - edição granular de permissões por usuário permanece fora do MVP.
+- refinamento local aplicado em 29/07/2026 para senha e autoproteção de
+  usuários:
+  - migration nova cria `administracao.password_reset_tokens`;
+  - migration nova cria `administracao.email_outbox` para registrar e-mails
+    pendentes de recuperação até configuração SMTP real;
+  - API pública recebe `POST /auth/password/forgot` e
+    `POST /auth/password/reset`;
+  - API administrativa recebe `POST /api/v1/users/:id/password-reset`;
+  - tokens de recuperação são opacos e persistidos somente como SHA-256;
+  - troca por token revoga sessões ativas do usuário após redefinir a senha;
+  - tela de login recebe `Esqueci minha senha`;
+  - rota `/password-reset` conclui a troca com token;
+  - tela `/users` bloqueia edição própria de situação, Master, perfis e
+    empresas e omite esses campos do payload quando o usuário edita a si mesmo;
+  - backend bloqueia autoalteração de perfil/empresa/Master mesmo se a UI for
+    contornada.
 - ajuste local em 29/07/2026 para experiência visual/listagem:
   - criado `apps/web/public/favicon.svg` com o marcador visual do menu lateral;
   - `apps/web/index.html` passa a apontar para o favicon SVG;
@@ -109,7 +125,8 @@ sessão.
    - arquivos `.docx` removidos/conversões não conferidas;
    - planilhas ou imagens não essenciais ao deploy.
 2. Validar Administração de Usuários no backend com typecheck e testes focados.
-3. Validar tela `/users` com teste focado, typecheck, lint e build.
+3. Validar tela `/users`, login e `/password-reset` com teste focado,
+   typecheck, lint e build.
 4. Atualizar documentação viva (`PROJECT_STATUS.md`, `NEXT_TASK.md`,
    checklist/backlog multiempresa e docs de autenticação/autorização).
 5. Validar o pacote com `./Checar_alteracao.sh`.
@@ -136,6 +153,9 @@ sessão.
    pois o workflow atual faz checkout fixo de `main`.
 17. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
+18. Após publicar esse pacote, decidir entre:
+    - configurar envio SMTP/worker real consumindo `administracao.email_outbox`;
+    - ou avançar para a próxima feature operacional do financeiro.
 
 ## Validações já executadas
 
@@ -229,6 +249,24 @@ sessão.
   - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
     `logs/alteracoes/checar_alteracao_20260729_122159.log`;
   - como o status retornou `OK`, o log não foi analisado.
+- Validação focada do refinamento de usuários em 29/07/2026:
+  - `node ../../node_modules/vitest/vitest.mjs run test/auth-service.test.ts test/users-repository.test.ts test/http-contract.test.ts`:
+    aprovado, 23 testes;
+  - `node ../../node_modules/vitest/vitest.mjs run src/administration/users-page.test.tsx src/pages/login-page.test.tsx`:
+    aprovado, 4 testes;
+  - `bash scripts/validate-migrations.sh`: aprovado, 55 migrations ordenadas,
+    únicas e transacionais;
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/api`: aprovado;
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/web`: aprovado.
+  - `npm run lint`: aprovado;
+  - `npm test`: aprovado, com API 87 testes aprovados e 5 testes de integração
+    opt-in pulados; web 39 testes aprovados;
+  - `npm run build`: aprovado;
+  - `./Checar_alteracao.sh`: `STATUS: OK`, log final gerado em
+    `logs/alteracoes/checar_alteracao_20260729_161110.log`;
+  - como o status retornou `OK`, o log não foi analisado.
 
 ## Critério de conclusão
 
@@ -242,6 +280,7 @@ sessão.
 
 Após a publicação do pacote atual, reavaliar a próxima frente principal entre:
 
+- envio SMTP/worker real para consumir `administracao.email_outbox`;
 - deploy de produção do pacote pós-Fase 16;
 - filtros explícitos por empresa nas telas operacionais pendentes;
 - sincronização futura de comprovantes com Google Drive;

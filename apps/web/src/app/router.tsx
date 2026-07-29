@@ -4,6 +4,7 @@ import { DashboardPage } from '../pages/dashboard-page';
 import { NotFoundPage } from '../pages/not-found-page';
 import { ProtectedRoute } from '../auth/protected-route';
 import { LoginPage } from '../pages/login-page';
+import { PasswordResetPage } from '../pages/password-reset-page';
 import { MasterDataPage } from '../master-data/master-data-page';
 import { SuppliersPage } from '../master-data/suppliers-page';
 import { resources } from '../master-data/resources';
@@ -21,6 +22,7 @@ import { UsersPage } from '../administration/users-page';
 export const router = createBrowserRouter(
   [
     { path: '/login', element: <LoginPage /> },
+    { path: '/password-reset', element: <PasswordResetPage /> },
     {
       element: <ProtectedRoute />,
       children: [

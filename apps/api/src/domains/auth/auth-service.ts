@@ -1,6 +1,6 @@
 import { ApplicationError } from '../../common/errors/application-error.js';
 import type { AuthRepository, AuthUser, RequestContext } from './auth-repository.js';
-import { verifyPassword } from './password.js';
+import { hashPassword, verifyPassword } from './password.js';
 import type { TokenService } from './token-service.js';
 
 const UNKNOWN_ENTITY_ID = '00000000-0000-0000-0000-000000000000';
@@ -39,6 +39,37 @@ export class AuthService {
     return this.tokenResponse(user, rotated.sessionId, replacement);
   }
 
+  async requestPasswordReset(email: string, context: RequestContext): Promise<object> {
+    const user = await this.repository.findPasswordResetUserByEmail(email);
+    if (user) {
+      await this.createPasswordReset(user, context, null);
+      await this.repository.audit('PASSWORD_RESET_REQUESTED', user.id, user.id, context, { channel: 'EMAIL', source: 'PUBLIC' });
+    }
+    return { message: 'Se o e-mail estiver cadastrado e ativo, enviaremos as instrucoes de redefinicao.' };
+  }
+
+  async requestPasswordResetForUser(userId: string, actorId: string, context: RequestContext): Promise<object> {
+    const user = await this.repository.findPasswordResetUserById(userId);
+    if (!user) {
+      throw new ApplicationError({ code: 'RESOURCE_NOT_FOUND', message: 'Active user not found', statusCode: 404 });
+    }
+    const result = await this.createPasswordReset(user, context, actorId);
+    await this.repository.audit('PASSWORD_RESET_REQUESTED', user.id, actorId, context, { channel: 'EMAIL', source: 'ADMIN' });
+    return result;
+  }
+
+  async resetPassword(token: string, password: string, context: RequestContext): Promise<object> {
+    const changed = await this.repository.consumePasswordResetToken(
+      this.tokens.hashPasswordResetToken(token),
+      await hashPassword(password),
+      context,
+    );
+    if (!changed) {
+      throw new ApplicationError({ code: 'INVALID_PASSWORD_RESET_TOKEN', message: 'Password reset link is invalid or expired', statusCode: 400 });
+    }
+    return { message: 'Senha redefinida com sucesso. Entre novamente com a nova senha.' };
+  }
+
   private tokenResponse(user: AuthUser, sessionId: string, refreshToken: string): object {
     return {
       accessToken: this.tokens.createAccessToken(user.id, sessionId), refreshToken,
@@ -50,5 +81,30 @@ export class AuthService {
   publicUser(user: AuthUser): object {
     return { id: user.id, fullName: user.fullName, email: user.email, isMaster: user.isMaster,
       roles: user.roles, permissions: user.permissions, companies: user.companies, defaultCompanyId: user.defaultCompanyId };
+  }
+
+  private async createPasswordReset(
+    user: { id: string; fullName: string; email: string },
+    context: RequestContext,
+    createdBy: string | null,
+  ): Promise<object> {
+    const token = this.tokens.createPasswordResetToken();
+    const expiresAt = this.tokens.passwordResetExpiry();
+    const resetUrl = this.passwordResetUrl(token);
+    await this.repository.createPasswordResetRequest(
+      user,
+      this.tokens.hashPasswordResetToken(token),
+      expiresAt,
+      resetUrl,
+      context,
+      createdBy,
+    );
+    return { message: 'Instrucoes de redefinicao enfileiradas para envio por e-mail.', emailStatus: 'PENDING', expiresAt: expiresAt.toISOString() };
+  }
+
+  private passwordResetUrl(token: string): string {
+    const url = new URL(this.tokens.passwordResetBaseUrl);
+    url.searchParams.set('token', token);
+    return url.toString();
   }
 }

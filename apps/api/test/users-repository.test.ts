@@ -41,4 +41,24 @@ describe('UsersRepository', () => {
       'user-new', 'company-2', true, 'VIEW_ONLY', 'actor-id',
     ]);
   });
+
+  it('blocks users from changing their own access profile', async () => {
+    const query = vi.fn(async (sql: string, values?: readonly unknown[]) => {
+      await Promise.resolve();
+      if (sql.includes('SELECT id FROM administracao.users')) return { rows: [{ id: 'actor-id' }], rowCount: 1 };
+      return { rows: [], rowCount: 0, values };
+    });
+    const executor: QueryExecutor = {
+      query: async <Row extends Record<string, unknown>>(sql: string, values?: readonly unknown[]) => query(sql, values) as Promise<{ rows: Row[]; rowCount: number }>,
+    };
+    const database = {
+      query: async <Row extends Record<string, unknown>>(sql: string, values?: readonly unknown[]) => executor.query<Row>(sql, values),
+      transaction: vi.fn(async <T>(work: (tx: QueryExecutor) => Promise<T>) => work(executor)),
+      checkHealth: vi.fn(),
+      close: vi.fn(),
+    } as unknown as Database;
+
+    await expect(new UsersRepository(database).update('actor-id', { roleIds: [] }, 'actor-id'))
+      .rejects.toMatchObject({ code: 'SELF_ACCESS_CHANGE_BLOCKED' });
+  });
 });
