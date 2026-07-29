@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FinControl">
+  <rect width="64" height="64" rx="16" fill="#042f2e"/>
+  <circle cx="18" cy="18" r="24" fill="#14b8a6" opacity="0.18"/>
+  <rect x="14" y="34" width="10" height="16" rx="3" fill="#34d399"/>
+  <rect x="27" y="24" width="10" height="26" rx="3" fill="#2dd4bf"/>
+  <rect x="40" y="14" width="10" height="36" rx="3" fill="#67e8f9"/>
+</svg>

@@ -299,6 +299,7 @@ export function PayablesListPage(): ReactElement {
             {categories.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
           </select>
           <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+            <option value="">Todos</option>
             <option value="OPEN">Notas ativas</option>
             {statuses.filter((item) => item !== 'OPEN').map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
           </select>

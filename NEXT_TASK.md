@@ -70,6 +70,11 @@ sessão.
   - tela `/users` permite informar dados básicos, senha inicial/troca de senha,
     perfis, empresas permitidas, empresa padrão e escopo de acesso;
   - edição granular de permissões por usuário permanece fora do MVP.
+- ajuste local em 29/07/2026 para experiência visual/listagem:
+  - criado `apps/web/public/favicon.svg` com o marcador visual do menu lateral;
+  - `apps/web/index.html` passa a apontar para o favicon SVG;
+  - filtro de status em `Notas Fiscais e Contas` passa a incluir `Todos`,
+    enviando status indefinido para listar todas as situações;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;
@@ -215,6 +220,14 @@ sessão.
     aprovado, 2 testes.
   - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
     `logs/alteracoes/checar_alteracao_20260729_110537.log`;
+  - como o status retornou `OK`, o log não foi analisado.
+- Validação focada do favicon e filtro `Todos` em 29/07/2026:
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/web`: aprovado;
+  - `node ../../node_modules/vitest/vitest.mjs run src/payables/payables-list-page.test.tsx`:
+    aprovado, 7 testes.
+  - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
+    `logs/alteracoes/checar_alteracao_20260729_122159.log`;
   - como o status retornou `OK`, o log não foi analisado.
 
 ## Critério de conclusão

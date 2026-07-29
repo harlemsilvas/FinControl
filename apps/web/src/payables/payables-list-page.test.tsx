@@ -113,6 +113,7 @@ describe('PayablesListPage', () => {
     expect(screen.getByLabelText('Filtrar por empresa')).toHaveProperty('value', '');
     expect(screen.getByText('ABC Center • Compra de peças')).toBeTruthy();
     expect(screen.getByLabelText('Filtrar por status')).toHaveProperty('value', 'OPEN');
+    expect(screen.getByRole('option', { name: 'Todos' })).toBeTruthy();
     expect(screen.queryByLabelText(/Selecionar/)).toBeNull();
     expect(screen.getByText('Recorrente')).toBeTruthy();
     await waitFor(() => expect(getPayablesParams()?.status).toBe('OPEN'));
@@ -134,6 +135,22 @@ describe('PayablesListPage', () => {
     fireEvent.change(companyFilter, { target: { value: 'company-hrm' } });
 
     await waitFor(() => expect(getLastPayablesParams()?.companyId).toBe('company-hrm'));
+  });
+
+  it('allows listing all statuses from the status filter', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PayablesListPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(await screen.findByLabelText('Filtrar por status'), { target: { value: '' } });
+
+    await waitFor(() => expect(getLastPayablesParams()?.status).toBeUndefined());
   });
 
   it('allows the totals panel to be hidden and shown again', async () => {

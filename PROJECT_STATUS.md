@@ -123,8 +123,19 @@ Estado consolidado:
 - atalho `Calendário` da listagem conectado à rota real `/agenda`;
 - filtro de status da listagem inicia em `Notas ativas` (`OPEN`) e a ação de
   limpar filtros retorna para esse padrão;
+- filtro de status também oferece a opção `Todos`, permitindo listar títulos em
+  qualquer situação quando necessário;
 - coluna inicial de seleção em lote removida da listagem enquanto a rotina de
   seleção múltipla não estiver disponível.
+
+### Identidade visual do navegador
+
+Estado consolidado:
+
+- o frontend passou a publicar `favicon.svg` com o marcador visual de três
+  barras usado no menu lateral do FinControl;
+- o `index.html` referencia esse ícone para exibição na aba do navegador antes
+  do nome da aplicação.
 
 ### Correções operacionais de navegação e cadastros em 28/07/2026
 
