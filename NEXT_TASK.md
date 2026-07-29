@@ -2,6 +2,7 @@
 
 **Última atualização:** 29/07/2026
 **Status:** pacote inicial de filtros explícitos por empresa validado localmente
+e no CI da branch
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -185,6 +186,16 @@ e mantendo em aberto o diagnóstico do deploy/migrations de recorrência na VPS.
   - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
     `logs/alteracoes/checar_alteracao_20260729_081219.log`;
   - como o status retornou `OK`, o log não foi analisado.
+- Validação CI após push em 29/07/2026:
+  - commit `4808847 feat(finance): add explicit company filters` enviado para
+    `origin/feature/matriz-filial-xml`;
+  - GitHub Actions run `30454966828`: aprovado;
+  - job `PostgreSQL migrations and integration`: aprovado, incluindo
+    migrations, verificação de estrutura, fluxo financeiro e testes de
+    integração API;
+  - job `Quality and build`: aprovado, incluindo lint, typecheck, testes,
+    build e validação de migrations;
+  - job `Container images`: aprovado.
 
 ## Critério de conclusão
 
