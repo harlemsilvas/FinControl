@@ -34,6 +34,15 @@ export interface PasswordResetUser {
   email: string;
 }
 
+export interface EmailOutboxMessage {
+  id: string;
+  to: string;
+  recipientName: string | null;
+  subject: string;
+  text: string;
+  html: string | null;
+}
+
 interface UserRow extends Record<string, unknown> {
   id: string;
   full_name: string;
@@ -63,6 +72,15 @@ interface PasswordResetUserRow extends Record<string, unknown> {
 interface PasswordResetTokenRow extends Record<string, unknown> {
   id: string;
   user_id: string;
+}
+
+interface EmailOutboxRow extends Record<string, unknown> {
+  id: string;
+  recipient_email: string;
+  recipient_name: string | null;
+  subject: string;
+  body_text: string;
+  body_html: string | null;
 }
 
 export class AuthRepository {
@@ -175,8 +193,8 @@ export class AuthRepository {
     resetUrl: string,
     context: RequestContext,
     createdBy: string | null,
-  ): Promise<void> {
-    await this.database.transaction(async (tx) => {
+  ): Promise<EmailOutboxMessage> {
+    return this.database.transaction(async (tx) => {
       const token = await tx.query<PasswordResetTokenRow>(`
         INSERT INTO administracao.password_reset_tokens
           (user_id, token_hash, expires_at, requested_ip, user_agent, created_by)
@@ -187,11 +205,12 @@ export class AuthRepository {
       const tokenId = token.rows[0]?.id;
       if (!tokenId) throw new Error('Failed to create password reset token');
 
-      await tx.query(`
+      const email = await tx.query<EmailOutboxRow>(`
         INSERT INTO administracao.email_outbox
           (recipient_email, recipient_name, subject, body_text, body_html,
            related_entity_name, related_entity_id, metadata, created_by)
         VALUES ($1, $2, $3, $4, $5, 'PASSWORD_RESET', $6, $7, $8)
+        RETURNING id, recipient_email, recipient_name, subject, body_text, body_html
       `, [
         user.email,
         user.fullName,
@@ -202,7 +221,32 @@ export class AuthRepository {
         JSON.stringify({ userId: user.id, expiresAt: expiresAt.toISOString() }),
         createdBy,
       ]);
+      const row = email.rows[0];
+      if (!row) throw new Error('Failed to create email outbox message');
+      return this.mapEmailOutbox(row);
     });
+  }
+
+  async markEmailOutboxSent(id: string, providerMessageId: string | null): Promise<void> {
+    await this.database.query(`
+      UPDATE administracao.email_outbox
+         SET status_code = 'SENT',
+             sent_at = CURRENT_TIMESTAMP,
+             failed_at = NULL,
+             failure_reason = NULL,
+             metadata = metadata || $2::jsonb
+       WHERE id = $1
+    `, [id, JSON.stringify(providerMessageId ? { providerMessageId } : {})]);
+  }
+
+  async markEmailOutboxFailed(id: string, reason: string): Promise<void> {
+    await this.database.query(`
+      UPDATE administracao.email_outbox
+         SET status_code = 'FAILED',
+             failed_at = CURRENT_TIMESTAMP,
+             failure_reason = $2
+       WHERE id = $1
+    `, [id, reason.slice(0, 2000)]);
   }
 
   async consumePasswordResetToken(tokenHash: string, passwordHash: string, context: RequestContext): Promise<boolean> {
@@ -266,6 +310,17 @@ export class AuthRepository {
 
   private mapPasswordResetUser(row: PasswordResetUserRow): PasswordResetUser {
     return { id: row.id, fullName: row.full_name, email: row.email };
+  }
+
+  private mapEmailOutbox(row: EmailOutboxRow): EmailOutboxMessage {
+    return {
+      id: row.id,
+      to: row.recipient_email,
+      recipientName: row.recipient_name,
+      subject: row.subject,
+      text: row.body_text,
+      html: row.body_html,
+    };
   }
 
   private passwordResetText(name: string, resetUrl: string, expiresAt: Date): string {

@@ -4,6 +4,7 @@ import { registerErrorHandler } from '../../common/http/error-handler.js';
 import type { Environment } from '../../config/environment.js';
 import { healthRoutes } from '../../domains/health/health-routes.js';
 import type { Database } from '../../infrastructure/database/database.js';
+import { createEmailSender } from '../../infrastructure/email/email-sender.js';
 import { AuthRepository } from '../../domains/auth/auth-repository.js';
 import { AuthService } from '../../domains/auth/auth-service.js';
 import { TokenService } from '../../domains/auth/token-service.js';
@@ -74,7 +75,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(healthRoutes, { prefix: '/health', database: options.database });
   const authRepository = new AuthRepository(options.database);
   const tokenService = new TokenService(options.environment);
-  const authService = new AuthService(authRepository, tokenService);
+  const authService = new AuthService(authRepository, tokenService, createEmailSender(options.environment));
   void app.register(authRoutes, {
     prefix: '/auth', repository: authRepository, service: authService, tokens: tokenService,
   });

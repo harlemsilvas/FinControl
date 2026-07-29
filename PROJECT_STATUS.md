@@ -213,10 +213,17 @@ Estado consolidado:
     recuperação por e-mail para um usuário ativo;
   - nova tabela `administracao.password_reset_tokens` registra tokens,
     expiração, uso e contexto de solicitação;
-  - nova tabela `administracao.email_outbox` registra o e-mail pendente de
-    envio, preservando auditoria até a integração SMTP real;
+  - nova tabela `administracao.email_outbox` registra o e-mail pendente,
+    enviado ou falho, preservando auditoria do disparo;
   - a tela de login oferece `Esqueci minha senha` e a rota pública
     `/password-reset` conclui a redefinição pelo token.
+- envio SMTP real foi implementado:
+  - a API usa `nodemailer` quando `SMTP_ENABLED=true`;
+  - o e-mail recém-criado na outbox é enviado imediatamente pelo SMTP
+    configurado;
+  - em caso de sucesso, a outbox é marcada como `SENT`;
+  - em caso de falha, a outbox é marcada como `FAILED` com motivo registrado;
+  - se `SMTP_ENABLED=false`, o registro permanece `PENDING` para envio futuro.
 - autoalterações perigosas foram bloqueadas:
   - backend recusa o próprio usuário tentando alterar `isMaster`, perfis ou
     empresas permitidas;
@@ -224,8 +231,8 @@ Estado consolidado:
     bloqueio visualmente;
   - a tela `/users` omite campos sensíveis do payload quando o registro editado
     é o próprio usuário logado.
-- envio SMTP real permanece como pendência de infraestrutura; o contrato atual
-  enfileira o e-mail em `administracao.email_outbox`.
+- a tela de login passou a usar o marcador visual de três barras do FinControl
+  no lugar do bloco textual `FC`, alinhando login, menu lateral e favicon.
 
 ### Preflight automatizado de alteração em 28/07/2026
 

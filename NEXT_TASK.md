@@ -1,16 +1,16 @@
 # FinControl — Next Task
 
 **Última atualização:** 29/07/2026
-**Status:** refinamento do MVP de Administração de Usuários e Acessos em validação final
+**Status:** refinamento de usuários com SMTP real e identidade visual do login em validação final
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
 Validar e publicar o refinamento do MVP de `Configurações > Usuários`, agora
-com recuperação/redefinição de senha e bloqueio de autoalterações perigosas,
-preservando o modelo atual de permissões por perfil e mantendo a decisão de
-não usar empresa ativa global por sessão.
+com recuperação/redefinição de senha, envio SMTP real a partir da outbox,
+bloqueio de autoalterações perigosas e identidade visual alinhada na tela de
+login.
 
 ## Escopo desta tarefa
 
@@ -86,6 +86,18 @@ não usar empresa ativa global por sessão.
     empresas e omite esses campos do payload quando o usuário edita a si mesmo;
   - backend bloqueia autoalteração de perfil/empresa/Master mesmo se a UI for
     contornada.
+- refinamento local aplicado em 29/07/2026 para envio real de e-mail:
+  - adicionada dependência `nodemailer` na API;
+  - environment passa a aceitar `SMTP_ENABLED`, `SMTP_HOST`, `SMTP_PORT`,
+    `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` e
+    `SMTP_FROM_NAME`;
+  - quando `SMTP_ENABLED=true`, a recuperação de senha envia o e-mail
+    imediatamente e marca `administracao.email_outbox` como `SENT`;
+  - se o SMTP falhar, a outbox é marcada como `FAILED` com motivo registrado;
+  - quando `SMTP_ENABLED=false`, o registro permanece `PENDING`.
+- refinamento local aplicado em 29/07/2026 para login:
+  - o bloco textual `FC` foi substituído pelo marcador visual de três barras do
+    FinControl, compartilhado com o menu lateral.
 - ajuste local em 29/07/2026 para experiência visual/listagem:
   - criado `apps/web/public/favicon.svg` com o marcador visual do menu lateral;
   - `apps/web/index.html` passa a apontar para o favicon SVG;
@@ -153,8 +165,11 @@ não usar empresa ativa global por sessão.
    pois o workflow atual faz checkout fixo de `main`.
 17. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
-18. Após publicar esse pacote, decidir entre:
-    - configurar envio SMTP/worker real consumindo `administracao.email_outbox`;
+18. Na VPS, configurar `PASSWORD_RESET_BASE_URL` e variáveis SMTP reais em
+    `/opt/fincontrol/shared/.env`.
+19. Após publicar esse pacote, decidir entre:
+    - criar rotina administrativa de reprocessamento dos e-mails `FAILED` ou
+      `PENDING`;
     - ou avançar para a próxima feature operacional do financeiro.
 
 ## Validações já executadas
@@ -266,6 +281,19 @@ não usar empresa ativa global por sessão.
   - `npm run build`: aprovado;
   - `./Checar_alteracao.sh`: `STATUS: OK`, log final gerado em
     `logs/alteracoes/checar_alteracao_20260729_161110.log`;
+  - como o status retornou `OK`, o log não foi analisado.
+- Validação focada do envio SMTP e logo do login em 29/07/2026:
+  - `node ../../node_modules/vitest/vitest.mjs run test/auth-service.test.ts test/environment.test.ts test/http-contract.test.ts`:
+    aprovado, 26 testes;
+  - `node ../../node_modules/vitest/vitest.mjs run src/pages/login-page.test.tsx src/app/app.test.tsx`:
+    aprovado, 2 testes;
+  - `npm run lint`: aprovado;
+  - `npm run typecheck`: aprovado;
+  - `npm test`: aprovado, com API 90 testes aprovados e 5 testes de integração
+    opt-in pulados; web 39 testes aprovados;
+  - `npm run build`: aprovado.
+  - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
+    `logs/alteracoes/checar_alteracao_20260729_175516.log`;
   - como o status retornou `OK`, o log não foi analisado.
 
 ## Critério de conclusão

@@ -1,4 +1,5 @@
 import { ApplicationError } from '../../common/errors/application-error.js';
+import type { EmailSender } from '../../infrastructure/email/email-sender.js';
 import type { AuthRepository, AuthUser, RequestContext } from './auth-repository.js';
 import { hashPassword, verifyPassword } from './password.js';
 import type { TokenService } from './token-service.js';
@@ -6,7 +7,11 @@ import type { TokenService } from './token-service.js';
 const UNKNOWN_ENTITY_ID = '00000000-0000-0000-0000-000000000000';
 
 export class AuthService {
-  constructor(private readonly repository: AuthRepository, private readonly tokens: TokenService) {}
+  constructor(
+    private readonly repository: AuthRepository,
+    private readonly tokens: TokenService,
+    private readonly emailSender?: EmailSender,
+  ) {}
 
   async login(email: string, password: string, context: RequestContext): Promise<object> {
     const user = await this.repository.findActiveUserByEmail(email);
@@ -91,7 +96,7 @@ export class AuthService {
     const token = this.tokens.createPasswordResetToken();
     const expiresAt = this.tokens.passwordResetExpiry();
     const resetUrl = this.passwordResetUrl(token);
-    await this.repository.createPasswordResetRequest(
+    const email = await this.repository.createPasswordResetRequest(
       user,
       this.tokens.hashPasswordResetToken(token),
       expiresAt,
@@ -99,12 +104,39 @@ export class AuthService {
       context,
       createdBy,
     );
-    return { message: 'Instrucoes de redefinicao enfileiradas para envio por e-mail.', emailStatus: 'PENDING', expiresAt: expiresAt.toISOString() };
+    const emailStatus = await this.deliverPasswordResetEmail(email);
+    return { message: this.passwordResetMessage(emailStatus), emailStatus, expiresAt: expiresAt.toISOString() };
   }
 
   private passwordResetUrl(token: string): string {
     const url = new URL(this.tokens.passwordResetBaseUrl);
     url.searchParams.set('token', token);
     return url.toString();
+  }
+
+  private async deliverPasswordResetEmail(email: {
+    id: string;
+    to: string;
+    recipientName: string | null;
+    subject: string;
+    text: string;
+    html: string | null;
+  }): Promise<'PENDING' | 'SENT' | 'FAILED'> {
+    if (!this.emailSender?.enabled) return 'PENDING';
+
+    try {
+      const result = await this.emailSender.send(email);
+      await this.repository.markEmailOutboxSent(email.id, result.providerMessageId);
+      return 'SENT';
+    } catch (error) {
+      await this.repository.markEmailOutboxFailed(email.id, error instanceof Error ? error.message : 'Unknown SMTP failure');
+      return 'FAILED';
+    }
+  }
+
+  private passwordResetMessage(status: 'PENDING' | 'SENT' | 'FAILED'): string {
+    if (status === 'SENT') return 'Instrucoes de redefinicao enviadas por e-mail.';
+    if (status === 'FAILED') return 'Instrucoes de redefinicao geradas, mas o envio por e-mail falhou. Verifique a outbox.';
+    return 'Instrucoes de redefinicao enfileiradas para envio por e-mail.';
   }
 }

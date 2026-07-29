@@ -23,6 +23,10 @@ const environment: Environment = {
   AUTH_AUDIENCE: 'fincontrol',
   AUTH_PASSWORD_RESET_TTL_MINUTES: 60,
   PASSWORD_RESET_BASE_URL: 'http://localhost:5173/password-reset',
+  SMTP_ENABLED: false,
+  SMTP_PORT: 587,
+  SMTP_SECURE: false,
+  SMTP_FROM_NAME: 'FinControl',
   ATTACHMENT_STORAGE_ROOT: '/tmp/fincontrol-test-storage',
   ATTACHMENT_MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
 };

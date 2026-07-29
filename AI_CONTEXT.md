@@ -135,7 +135,8 @@ uma entrega específica.
 - Recuperação de senha usa token opaco, armazenado somente como SHA-256 em
   `administracao.password_reset_tokens`.
 - Solicitações de recuperação geram registro em `administracao.email_outbox`;
-  integração SMTP/worker real permanece como etapa de infraestrutura posterior.
+  quando `SMTP_ENABLED=true`, a API tenta envio real via SMTP e marca a outbox
+  como `SENT` ou `FAILED`; quando desligado, permanece `PENDING`.
 
 ## 10. Documentos de continuidade
 

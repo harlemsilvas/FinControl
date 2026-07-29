@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ApiError } from '../api/http-client';
 import { useAuth } from '../auth/auth-context';
 import { requestPasswordReset } from '../auth/auth-service';
+import { FinControlMark } from '../components/brand/fincontrol-mark';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
@@ -63,7 +64,7 @@ export function LoginPage(): ReactElement {
   return (
     <main className="grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
       <section className="hidden bg-gradient-to-br from-slate-950 via-teal-950 to-teal-800 p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="flex items-center gap-3 text-xl font-bold"><span className="grid size-11 place-items-center rounded-xl bg-white/15">FC</span>FinControl</div>
+        <div className="flex items-center gap-3 text-xl font-bold"><FinControlMark className="size-11 bg-white/10" />FinControl</div>
         <div className="max-w-xl">
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-teal-200">ERP Financeiro</p>
           <h1 className="mt-4 text-5xl font-bold leading-tight">Controle financeiro com rastreabilidade de ponta a ponta.</h1>
@@ -74,7 +75,7 @@ export function LoginPage(): ReactElement {
 
       <section className="flex items-center justify-center bg-slate-50 p-6">
         <div className="w-full max-w-md">
-          <div className="mb-10 flex items-center gap-3 text-xl font-bold lg:hidden"><span className="grid size-10 place-items-center rounded-xl bg-teal-700 text-white">FC</span>FinControl</div>
+          <div className="mb-10 flex items-center gap-3 text-xl font-bold lg:hidden"><FinControlMark className="size-10 bg-teal-950/10" />FinControl</div>
           <p className="text-sm font-bold uppercase tracking-widest text-teal-700">Bem-vindo</p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight">Acesse sua conta</h2>
           <p className="mt-3 text-slate-600">Use as credenciais fornecidas pelo Operador Master.</p>

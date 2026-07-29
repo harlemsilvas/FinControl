@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
+import { FinControlMark } from '../components/brand/fincontrol-mark';
 
 type MenuItem = {
   label: string;
@@ -62,19 +63,6 @@ const menuSections: MenuSection[] = [
     ],
   },
 ];
-
-function FinControlMark(): ReactElement {
-  return (
-    <span
-      className="relative grid size-10 shrink-0 place-items-end rounded-xl bg-emerald-500/10 p-1"
-      aria-hidden="true"
-    >
-      <span className="h-4 w-2 rounded-sm bg-emerald-400" />
-      <span className="absolute bottom-1 left-4 h-6 w-2 rounded-sm bg-teal-400" />
-      <span className="absolute bottom-1 right-2 h-8 w-2 rounded-sm bg-cyan-300" />
-    </span>
-  );
-}
 
 function sectionIsActive(section: MenuSection, pathname: string): boolean {
   return section.items.some((item) => item.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)));

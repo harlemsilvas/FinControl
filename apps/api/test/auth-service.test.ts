@@ -12,6 +12,10 @@ const environment = {
   AUTH_ISSUER: 'fincontrol-api', AUTH_AUDIENCE: 'fincontrol',
   AUTH_PASSWORD_RESET_TTL_MINUTES: 60,
   PASSWORD_RESET_BASE_URL: 'http://localhost:5173/password-reset',
+  SMTP_ENABLED: false,
+  SMTP_PORT: 587,
+  SMTP_SECURE: false,
+  SMTP_FROM_NAME: 'FinControl',
 } as Environment;
 
 function repository(overrides: Partial<AuthRepository> = {}): AuthRepository {
@@ -20,6 +24,7 @@ function repository(overrides: Partial<AuthRepository> = {}): AuthRepository {
     rotateSession: vi.fn(), isSessionActive: vi.fn(), revokeSession: vi.fn(), audit: vi.fn(),
     findPasswordResetUserByEmail: vi.fn(), findPasswordResetUserById: vi.fn(),
     createPasswordResetRequest: vi.fn(), consumePasswordResetToken: vi.fn(),
+    markEmailOutboxSent: vi.fn(), markEmailOutboxFailed: vi.fn(),
     ...overrides,
   } as unknown as AuthRepository;
 }
@@ -60,8 +65,9 @@ describe('AuthService', () => {
 
   it('queues password reset instructions for an active user without exposing the token', async () => {
     const user = { id: 'user-id', fullName: 'Operadora', email: 'operadora@example.com' };
-    const createPasswordResetRequest = vi.fn<(...args: Parameters<AuthRepository['createPasswordResetRequest']>) => Promise<void>>()
-      .mockResolvedValue(undefined);
+    const email = { id: 'email-id', to: user.email, recipientName: user.fullName, subject: 'Reset', text: 'Texto', html: null };
+    const createPasswordResetRequest = vi.fn<(...args: Parameters<AuthRepository['createPasswordResetRequest']>) => ReturnType<AuthRepository['createPasswordResetRequest']>>()
+      .mockResolvedValue(email);
     const audit = vi.fn().mockResolvedValue(undefined);
     const repo = repository({
       findPasswordResetUserByEmail: vi.fn().mockResolvedValue(user),
@@ -82,6 +88,43 @@ describe('AuthService', () => {
     expect(requestContext).toBe(context);
     expect(createdBy).toBeNull();
     expect(audit).toHaveBeenCalledWith('PASSWORD_RESET_REQUESTED', 'user-id', 'user-id', context, { channel: 'EMAIL', source: 'PUBLIC' });
+  });
+
+  it('sends and marks a password reset email when SMTP is enabled', async () => {
+    const user = { id: 'user-id', fullName: 'Operadora', email: 'operadora@example.com' };
+    const email = { id: 'email-id', to: user.email, recipientName: user.fullName, subject: 'Reset', text: 'Texto', html: null };
+    const markEmailOutboxSent = vi.fn().mockResolvedValue(undefined);
+    const repo = repository({
+      findPasswordResetUserById: vi.fn().mockResolvedValue(user),
+      createPasswordResetRequest: vi.fn().mockResolvedValue(email),
+      markEmailOutboxSent,
+      audit: vi.fn().mockResolvedValue(undefined),
+    });
+    const emailSender = { enabled: true, send: vi.fn().mockResolvedValue({ providerMessageId: 'smtp-id' }) };
+
+    const result = await new AuthService(repo, new TokenService(environment), emailSender).requestPasswordResetForUser(user.id, 'actor-id', context);
+
+    expect(result).toMatchObject({ emailStatus: 'SENT' });
+    expect(emailSender.send).toHaveBeenCalledWith(email);
+    expect(markEmailOutboxSent).toHaveBeenCalledWith('email-id', 'smtp-id');
+  });
+
+  it('marks the outbox as failed when SMTP delivery fails', async () => {
+    const user = { id: 'user-id', fullName: 'Operadora', email: 'operadora@example.com' };
+    const email = { id: 'email-id', to: user.email, recipientName: user.fullName, subject: 'Reset', text: 'Texto', html: null };
+    const markEmailOutboxFailed = vi.fn().mockResolvedValue(undefined);
+    const repo = repository({
+      findPasswordResetUserById: vi.fn().mockResolvedValue(user),
+      createPasswordResetRequest: vi.fn().mockResolvedValue(email),
+      markEmailOutboxFailed,
+      audit: vi.fn().mockResolvedValue(undefined),
+    });
+    const emailSender = { enabled: true, send: vi.fn().mockRejectedValue(new Error('SMTP unavailable')) };
+
+    const result = await new AuthService(repo, new TokenService(environment), emailSender).requestPasswordResetForUser(user.id, 'actor-id', context);
+
+    expect(result).toMatchObject({ emailStatus: 'FAILED' });
+    expect(markEmailOutboxFailed).toHaveBeenCalledWith('email-id', 'SMTP unavailable');
   });
 
   it('rejects invalid or expired password reset tokens', async () => {

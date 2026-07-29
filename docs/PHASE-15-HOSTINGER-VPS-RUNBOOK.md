@@ -326,6 +326,19 @@ AUTH_ACCESS_TOKEN_TTL_SECONDS=900
 AUTH_REFRESH_TOKEN_TTL_DAYS=30
 AUTH_ISSUER=fincontrol-api
 AUTH_AUDIENCE=fincontrol
+AUTH_PASSWORD_RESET_TTL_MINUTES=60
+PASSWORD_RESET_BASE_URL=https://hrmmotos.com.br/fincontrol/password-reset
+
+# Recuperacao de senha por e-mail.
+# Preencher com os dados reais do provedor SMTP usado em producao.
+SMTP_ENABLED=false
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM_EMAIL=
+SMTP_FROM_NAME=FinControl
 
 # Somente para criar o Operador Master inicial.
 # Remover ou proteger após o bootstrap.

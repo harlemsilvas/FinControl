@@ -41,8 +41,9 @@ Docker Desktop. Nenhuma migration aplicada anteriormente foi alterada.
 
 A migration `202607291010_administracao_create_password_reset_outbox.sql` cria
 `administracao.password_reset_tokens` e `administracao.email_outbox`. O envio
-por e-mail fica registrado como pendente na outbox até a configuração de SMTP
-ou worker dedicado. Nenhuma migration aplicada anteriormente foi alterada.
+por e-mail parte da outbox: quando SMTP está habilitado, o registro é marcado
+como `SENT` ou `FAILED`; quando SMTP está desligado, permanece `PENDING`.
+Nenhuma migration aplicada anteriormente foi alterada.
 
 ## Bootstrap controlado
 
@@ -66,8 +67,9 @@ perfil `MASTER` e registra auditoria. Remova a senha de bootstrap do ambiente de
   ao perfil `MASTER`.
 - Para produção, configure `PASSWORD_RESET_BASE_URL` com a URL pública real do
   frontend, por exemplo `https://hrmmotos.com.br/fincontrol/password-reset`.
-- O disparo SMTP real ainda deve consumir `administracao.email_outbox`; até lá,
-  o sistema registra o e-mail pendente de forma auditável.
+- Para envio real, configure `SMTP_ENABLED=true`, `SMTP_HOST`,
+  `SMTP_FROM_EMAIL` e as demais variáveis SMTP necessárias. O sistema usa a
+  outbox como trilha auditável e tenta envio imediato no fluxo de recuperação.
 
 ## Validações executadas
 
