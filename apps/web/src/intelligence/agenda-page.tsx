@@ -123,16 +123,19 @@ function SummaryCard({ title, amount, count, tone, icon }: { title: string; amou
   );
 }
 
-function CalendarItem({ item }: { item: AgendaItem }): ReactElement {
+function CalendarItem({ item, companyId }: { item: AgendaItem; companyId: string }): ReactElement {
   const supplierName = compactName(item.supplierName);
+  const companyName = item.companyName ?? 'Empresa não informada';
+  const companyParam = companyId ? `&companyId=${encodeURIComponent(companyId)}` : '';
 
   return (
     <Link
-      to={`/payments?status=OPEN&dueFrom=${item.dueDate}&dueTo=${item.dueDate}`}
-      title={`${item.supplierName} - ${item.documentNumber} - Parcela ${item.installmentNumber}/${item.installmentCount}`}
+      to={`/payments?status=OPEN&dueFrom=${item.dueDate}&dueTo=${item.dueDate}${companyParam}`}
+      title={`${companyName} - ${item.supplierName} - ${item.documentNumber} - Parcela ${item.installmentNumber}/${item.installmentCount}`}
       className={`block max-w-full overflow-hidden rounded-lg border-l-4 p-2 text-[0.72rem] leading-tight shadow-sm transition hover:shadow-md ${itemStyle[item.highlight]}`}
     >
       <strong className="block min-w-0 truncate">{supplierName}</strong>
+      <span className="block min-w-0 truncate text-slate-600">{companyName}</span>
       <span className="block font-semibold">{currency(item.openBalance)}</span>
       <span className="block min-w-0 truncate text-slate-600">{item.documentNumber} · Parcela {item.installmentNumber}/{item.installmentCount}</span>
     </Link>
@@ -142,18 +145,23 @@ function CalendarItem({ item }: { item: AgendaItem }): ReactElement {
 export function AgendaPage(): ReactElement {
   const [view, setView] = useState<View>('month');
   const [reference, setReference] = useState(iso(new Date()));
+  const [companyId, setCompany] = useState('');
   const [supplierId, setSupplier] = useState('');
   const [categoryId, setCategory] = useState('');
   const period = useMemo(() => range(view, reference), [view, reference]);
   const days = useMemo(() => calendarDays(view, reference), [view, reference]);
 
   const query = useQuery({
-    queryKey: ['agenda', view, reference, supplierId, categoryId],
-    queryFn: async () => (await httpClient.get<AgendaResponse>('/api/v1/agenda', { params: { ...period, supplierId: supplierId || undefined, categoryId: categoryId || undefined } })).data,
+    queryKey: ['agenda', view, reference, companyId, supplierId, categoryId],
+    queryFn: async () => (await httpClient.get<AgendaResponse>('/api/v1/agenda', { params: { ...period, companyId: companyId || undefined, supplierId: supplierId || undefined, categoryId: categoryId || undefined } })).data,
   });
   const dashboard = useQuery({
-    queryKey: ['agenda-dashboard', view, reference, supplierId, categoryId],
-    queryFn: async () => (await httpClient.get<DashboardResponse>('/api/v1/dashboard', { params: { ...period, supplierId: supplierId || undefined, categoryId: categoryId || undefined } })).data,
+    queryKey: ['agenda-dashboard', view, reference, companyId, supplierId, categoryId],
+    queryFn: async () => (await httpClient.get<DashboardResponse>('/api/v1/dashboard', { params: { ...period, companyId: companyId || undefined, supplierId: supplierId || undefined, categoryId: categoryId || undefined } })).data,
+  });
+  const companies = useQuery({
+    queryKey: ['agenda-companies'],
+    queryFn: async () => (await httpClient.get<OptionResponse>('/api/v1/companies', { params: { pageSize: 100, active: true } })).data.data,
   });
   const suppliers = useQuery({
     queryKey: ['agenda-suppliers'],
@@ -209,7 +217,11 @@ export function AgendaPage(): ReactElement {
           </div>
         </div>
 
-        <div className="grid gap-3 border-b border-slate-200 bg-white p-4 xl:grid-cols-[1fr_180px_220px_auto]">
+        <div className="grid gap-3 border-b border-slate-200 bg-white p-4 xl:grid-cols-[220px_1fr_180px_220px_auto]">
+          <select aria-label="Empresa" value={companyId} onChange={(event) => setCompany(event.target.value)} className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+            <option value="">Todas as empresas</option>
+            {companies.data?.map((item) => <option key={item.id} value={item.id}>{item.legalName ?? item.name ?? item.id}</option>)}
+          </select>
           <label className="relative block">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true">⌕</span>
             <select aria-label="Fornecedor" value={supplierId} onChange={(event) => setSupplier(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-9 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
@@ -254,7 +266,7 @@ export function AgendaPage(): ReactElement {
                       </div>
                       <div className="grid min-w-0 gap-1.5">
                         {isCalendarLoading && day.key === days[0]?.key ? <p className="p-2 text-xs text-slate-500">Carregando...</p> : null}
-                        {visibleItems.map((item) => <CalendarItem key={item.id} item={item} />)}
+                        {visibleItems.map((item) => <CalendarItem key={item.id} item={item} companyId={companyId} />)}
                         {hiddenCount > 0 && <span className="px-2 text-xs font-bold text-blue-700">+{hiddenCount} conta{hiddenCount === 1 ? '' : 's'}</span>}
                       </div>
                     </article>

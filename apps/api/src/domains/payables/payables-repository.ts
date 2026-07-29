@@ -6,7 +6,7 @@ export interface InstallmentInput { installmentNumber: number; installmentCount:
 export interface TitleInput { companyId: string; supplierId: string; categoryId: string; documentTypeId: string; paymentTermId?: string | null; costCenterId?: string | null;
   documentNumber: string; documentSeries?: string | null; description: string; originCode?: string; issueDate: string; originalAmount: number;
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
-export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string }
+export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string; companyId?: string }
 export interface XmlImportListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
 export interface PaymentEligibleInstallmentFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; companyId?: string; payableTitleId?: string; installmentId?: string }
 export interface PaymentListFilters { search?: string; status?: string; paidFrom?: string; paidTo?: string; supplierId?: string; companyId?: string }
@@ -468,6 +468,7 @@ export class PayablesRepository {
     if (filters.status) { values.push(filters.status); conditions.push(`ts.code=$${values.length}`); }
     if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
     if (filters.categoryId) { values.push(filters.categoryId); conditions.push(`t.category_id=$${values.length}`); }
+    if (filters.companyId) { values.push(filters.companyId); conditions.push(`t.company_id=$${values.length}`); }
     if (filters.dueFrom) { values.push(filters.dueFrom); conditions.push(`first_i.due_date >= $${values.length}::date`); }
     if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`first_i.due_date <= $${values.length}::date`); }
 

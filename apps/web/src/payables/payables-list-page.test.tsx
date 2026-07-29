@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
               documentSeries: null,
               description: 'Compra de peças',
               supplierName: 'ABC Distribuidora Ltda',
+              companyName: 'ABC Center',
               categoryName: 'Fornecedores',
               statusCode: 'OPEN',
               totalAmount: '8450.00',
@@ -34,6 +35,7 @@ const mocks = vi.hoisted(() => ({
               documentSeries: null,
               description: 'Aluguel loja principal',
               supplierName: 'Imobiliaria Centro Ltda',
+              companyName: 'HRM Motos',
               categoryName: 'Despesas Fixas',
               statusCode: 'OPEN',
               totalAmount: '2500.00',
@@ -55,6 +57,7 @@ const mocks = vi.hoisted(() => ({
       });
     }
     if (url === '/api/v1/financial-categories') return Promise.resolve({ data: { data: [{ id: 'category-1', name: 'Despesas Fixas' }] } });
+    if (url === '/api/v1/companies') return Promise.resolve({ data: { data: [{ id: 'company-abc', legalName: 'ABC Center' }, { id: 'company-hrm', legalName: 'HRM Motos' }] } });
     if (url === '/api/v1/cost-centers') return Promise.resolve({ data: { data: [{ id: 'cost-center-1', name: 'Administrativo' }] } });
     if (url === '/api/v1/document-types') return Promise.resolve({ data: { data: [{ id: 'document-type-1', name: 'Contrato' }] } });
     if (url === '/api/v1/payment-methods') return Promise.resolve({ data: { data: [{ id: 'payment-method-1', name: 'Boleto' }] } });
@@ -68,6 +71,10 @@ const mocks = vi.hoisted(() => ({
 
 function getPayablesParams(): Record<string, unknown> | undefined {
   return mocks.get.mock.calls.find(([url]) => url === '/api/v1/payables')?.[1]?.params;
+}
+
+function getLastPayablesParams(): Record<string, unknown> | undefined {
+  return [...mocks.get.mock.calls].reverse().find(([url]) => url === '/api/v1/payables')?.[1]?.params;
 }
 
 vi.mock('../api/http-client', () => ({
@@ -103,10 +110,30 @@ describe('PayablesListPage', () => {
     expect(screen.getByText('19/07/2026')).toBeTruthy();
     expect(screen.getByRole('link', { name: '+ Nova nota ou conta' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Calendário' }).getAttribute('href')).toBe('/agenda');
+    expect(screen.getByLabelText('Filtrar por empresa')).toHaveProperty('value', '');
+    expect(screen.getByText('ABC Center • Compra de peças')).toBeTruthy();
     expect(screen.getByLabelText('Filtrar por status')).toHaveProperty('value', 'OPEN');
     expect(screen.queryByLabelText(/Selecionar/)).toBeNull();
     expect(screen.getByText('Recorrente')).toBeTruthy();
     await waitFor(() => expect(getPayablesParams()?.status).toBe('OPEN'));
+  });
+
+  it('sends the selected company as an explicit list filter', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PayablesListPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole('option', { name: 'HRM Motos' });
+    const companyFilter = screen.getByLabelText('Filtrar por empresa');
+    fireEvent.change(companyFilter, { target: { value: 'company-hrm' } });
+
+    await waitFor(() => expect(getLastPayablesParams()?.companyId).toBe('company-hrm'));
   });
 
   it('allows the totals panel to be hidden and shown again', async () => {
@@ -190,6 +217,7 @@ describe('PayablesListPage', () => {
                 documentSeries: null,
                 description: 'Conta recorrente finalizada',
                 supplierName: 'Fornecedor Finalizado',
+                companyName: 'HRM Motos',
                 categoryName: 'Despesas Fixas',
                 statusCode: 'OPEN',
                 totalAmount: '100.00',

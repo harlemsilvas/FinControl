@@ -1,16 +1,15 @@
 # FinControl — Next Task
 
-**Última atualização:** 28/07/2026
-**Status:** correções operacionais e ajustes de CI pós-push validados localmente
+**Última atualização:** 29/07/2026
+**Status:** pacote inicial de filtros explícitos por empresa validado localmente
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Validar e publicar o pacote atual com os ajustes da experiência
-`Notas Fiscais e Contas` e as correções operacionais de Agenda, baixa de
-pagamentos e cadastro de contas bancárias, mantendo em aberto o diagnóstico do
-deploy/migrations de recorrência na VPS.
+Concluir e publicar o pacote atual com filtros explícitos por empresa nas telas
+operacionais, preservando a decisão de não usar empresa ativa global por sessão
+e mantendo em aberto o diagnóstico do deploy/migrations de recorrência na VPS.
 
 ## Escopo desta tarefa
 
@@ -52,6 +51,15 @@ deploy/migrations de recorrência na VPS.
   - API exige e valida empresa ativa para novos títulos manuais;
   - edição pode corrigir empresa enquanto não houver pagamento efetivo;
   - duplicidade manual passa a ser avaliada dentro da mesma empresa;
+- ajuste local aplicado em 29/07/2026 para filtros explícitos por empresa:
+  - Dashboard passa a ter seletor `Empresa` com padrão `Todas as empresas`;
+  - `Notas Fiscais e Contas` passa a ter filtro `Empresa` e exibir a empresa
+    abaixo do fornecedor/descrição;
+  - Agenda Financeira passa a ter filtro `Empresa`, exibir empresa no item do
+    calendário e preservar o filtro ao navegar para `Baixa de Pagamentos`;
+  - APIs `/api/v1/dashboard`, `/api/v1/agenda` e `/api/v1/payables` passam a
+    aceitar `companyId` opcional;
+  - Swagger/OpenAPI passa a documentar `companyId` nesses endpoints;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;
@@ -85,39 +93,35 @@ deploy/migrations de recorrência na VPS.
    - `.vscode/settings.json`;
    - arquivos `.docx` removidos/conversões não conferidas;
    - planilhas ou imagens não essenciais ao deploy.
-2. Validar a correção local de saldo inicial/entrada de caixa com typecheck,
-   lint, testes focados e build.
-3. Validar a alteração da listagem Notas Fiscais e Contas com teste focado,
+2. Validar filtros explícitos por empresa no backend com typecheck e testes
+   focados quando houver cobertura aplicável.
+3. Validar Dashboard, Notas Fiscais e Contas e Agenda com testes focados,
    typecheck, lint e build.
-4. Validar as correções de Agenda, baixa e cadastros com testes focados,
-   typecheck, lint e build.
-5. Validar o vínculo obrigatório de empresa em títulos manuais com testes
-   focados, typecheck, lint e build.
-6. Validar o ajuste do deploy nativo com sintaxe dos scripts, diff de workflow
-   e checagem final automatizada.
-7. Ao finalizar qualquer alteração completa, executar `./Checar_alteracao.sh`.
+4. Atualizar documentação viva (`PROJECT_STATUS.md`, `NEXT_TASK.md`,
+   checklist/backlog multiempresa e docs futuros relacionados).
+5. Validar o pacote com `./Checar_alteracao.sh`.
+6. Criar commit local personalizado após `STATUS: OK`.
+7. Fazer push somente quando o usuário validar/autorizá-lo.
 8. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
    testes/correções normais.
-9. Se o script retornar `STATUS: OK`, criar commit local personalizado.
-10. Fazer push somente quando o usuário validar/autorizá-lo.
-11. Na VPS, verificar se a release usada contém
+9. Na VPS, verificar se a release usada contém
    `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
-12. Na VPS, consultar `administracao.schema_versions` para as versões
+10. Na VPS, consultar `administracao.schema_versions` para as versões
    `202607231000` e `202607231010`.
-13. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
-14. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
+11. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
+12. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
    aplicar as duas migrations de recorrência a partir da release publicada e
    registrar checksums.
-15. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
+13. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
    existirem, remover apenas esse registro inconsistente depois de backup lógico
    ou aplicar reparo manual com registro correto.
-16. Depois de corrigir o banco, repetir o deploy/verify.
-17. Só então decidir entre:
+14. Depois de corrigir o banco, repetir o deploy/verify.
+15. Só então decidir entre:
    - deploy controlado manual da branch/commit;
    - ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
-18. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
+16. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
    pois o workflow atual faz checkout fixo de `main`.
-19. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
+17. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
 
 ## Validações já executadas
@@ -171,6 +175,16 @@ deploy/migrations de recorrência na VPS.
     aprovado, 3 testes;
   - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
     `apps/web`: aprovado.
+- Validação focada dos filtros explícitos por empresa em 29/07/2026:
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/web`: aprovado;
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/api`: aprovado;
+  - `node ../../node_modules/vitest/vitest.mjs run src/payables/payables-list-page.test.tsx src/intelligence/agenda-page.test.tsx`:
+    aprovado, 7 testes.
+  - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
+    `logs/alteracoes/checar_alteracao_20260729_081219.log`;
+  - como o status retornou `OK`, o log não foi analisado.
 
 ## Critério de conclusão
 

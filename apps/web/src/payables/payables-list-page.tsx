@@ -86,12 +86,13 @@ export function PayablesListPage(): ReactElement {
   const [dueTo, setDueTo] = useState(initialRange.to);
   const [supplierId, setSupplierId] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [xmlImportOpen, setXmlImportOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [totalsVisible, setTotalsVisible] = useState(true);
 
   const query = useQuery({
-    queryKey: ['payables', page, pageSize, search, status, dueFrom, dueTo, supplierId, categoryId],
+    queryKey: ['payables', page, pageSize, search, status, dueFrom, dueTo, supplierId, categoryId, companyId],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<PayableListItem>>('/api/v1/payables', {
         params: {
@@ -103,6 +104,7 @@ export function PayablesListPage(): ReactElement {
           dueTo: dueTo || undefined,
           supplierId: supplierId || undefined,
           categoryId: categoryId || undefined,
+          companyId: companyId || undefined,
         },
       });
       return response.data;
@@ -121,12 +123,18 @@ export function PayablesListPage(): ReactElement {
     staleTime: 60000,
   });
 
+  const companies = useQuery({
+    queryKey: ['payables-filter-companies'],
+    queryFn: async () => (await httpClient.get<OptionResponse>('/api/v1/companies', { params: { pageSize: 100, active: true } })).data.data,
+    staleTime: 60000,
+  });
+
   const rows = useMemo(() => query.data?.data ?? [], [query.data?.data]);
   const totalPages = Math.max(1, Math.ceil((query.data?.total ?? 0) / pageSize));
   const firstItem = query.data?.total ? (page - 1) * pageSize + 1 : 0;
   const lastItem = query.data?.total ? Math.min(page * pageSize, query.data.total) : 0;
   const defaultRange = rangeForPreset('month');
-  const hasFilters = Boolean(search || status !== 'OPEN' || supplierId || categoryId || dueFrom !== defaultRange.from || dueTo !== defaultRange.to || period !== 'month');
+  const hasFilters = Boolean(search || status !== 'OPEN' || supplierId || categoryId || companyId || dueFrom !== defaultRange.from || dueTo !== defaultRange.to || period !== 'month');
   const summary = useMemo(() => {
     const openRows = rows.filter((item) => item.statusCode !== 'PAID' && item.statusCode !== 'CANCELLED');
     const overdueRows = rows.filter((item) => item.statusCode === 'OVERDUE');
@@ -161,6 +169,7 @@ export function PayablesListPage(): ReactElement {
     setStatus('OPEN');
     setSupplierId('');
     setCategoryId('');
+    setCompanyId('');
     setPeriod('month');
     setDueFrom(nextRange.from);
     setDueTo(nextRange.to);
@@ -276,7 +285,11 @@ export function PayablesListPage(): ReactElement {
           <input aria-label="Vencimento final" type="date" value={dueTo} onChange={(event) => { setDueTo(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[220px_220px_180px_150px_auto]">
+        <div className="mt-3 grid gap-3 xl:grid-cols-[220px_220px_220px_180px_150px_auto]">
+          <select aria-label="Filtrar por empresa" value={companyId} onChange={(event) => { setCompanyId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+            <option value="">Todas as empresas</option>
+            {companies.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
+          </select>
           <select aria-label="Filtrar por fornecedor" value={supplierId} onChange={(event) => { setSupplierId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
             <option value="">Todos os fornecedores</option>
             {suppliers.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
@@ -307,7 +320,7 @@ export function PayablesListPage(): ReactElement {
               {rows.map((item) => (
                 <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[116px_1.4fr_120px_150px_130px_120px_160px] xl:items-center">
                   <span className="font-semibold text-slate-700">{datePtBr(item.firstDueDate ?? item.issueDate)}</span>
-                  <span className="min-w-0"><Link to={`/payables/${item.id}`} className="block truncate font-bold text-slate-950 hover:text-blue-700 hover:underline">{item.supplierName}</Link><span className="block truncate text-xs text-slate-500">{item.description}</span>{item.recurrenceId ? <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${isTerminalRecurrence(item.recurrenceStatusCode) ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{recurrenceStatusLabel(item.recurrenceStatusCode)}</span> : null}</span>
+                  <span className="min-w-0"><Link to={`/payables/${item.id}`} className="block truncate font-bold text-slate-950 hover:text-blue-700 hover:underline">{item.supplierName}</Link><span className="block truncate text-xs text-slate-500">{item.companyName ?? 'Empresa não informada'} • {item.description}</span>{item.recurrenceId ? <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${isTerminalRecurrence(item.recurrenceStatusCode) ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{recurrenceStatusLabel(item.recurrenceStatusCode)}</span> : null}</span>
                   <span className="font-semibold text-slate-700">{documentLabel(item)}</span>
                   <span className="truncate text-slate-600">{item.categoryName}</span>
                   <span className="truncate text-slate-600">{item.paymentMethodName ?? '—'}</span>

@@ -160,7 +160,10 @@ Arquivos prováveis:
 - [x] Documentar que empresa ativa por sessão fica como feature futura, não como regra global atual
 - [x] Exigir vínculo explícito de empresa em títulos manuais/fixos, sem usar
       fornecedor ou empresa ativa global como inferência
-- [ ] Implementar filtros explícitos por empresa ou todas nas telas operacionais e relatórios
+- [x] Implementar primeira leva de filtros explícitos por empresa ou todas nas
+      telas operacionais: Dashboard, Agenda Financeira e Notas Fiscais e Contas
+- [ ] Expandir filtros explícitos por empresa para relatórios analíticos e
+      demais telas operacionais ainda não cobertas
 - [x] Documentar seleção de empresa/conta bancária no fluxo futuro de baixa e caixa
 - [x] Fechar decisões do MVP de saldo oficial: bloqueio por saldo insuficiente, saldo inicial por movimento e repasses por centro de custo
 - [x] Implementar movimentos de conta bancária e saldo oficial por conta

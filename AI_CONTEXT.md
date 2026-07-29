@@ -1,7 +1,7 @@
 # FinControl — AI Context
 
 **Status deste contexto:** ativo  
-**Última atualização:** 23/07/2026
+**Última atualização:** 29/07/2026
 
 ## 1. Objetivo
 
@@ -104,6 +104,8 @@ uma entrega específica.
 - Não existe empresa ativa global por sessão nesta fase.
 - Consultas e relatórios futuros devem preferir filtro explícito por empresa ou
   todas.
+- Dashboard, Agenda Financeira e Notas Fiscais e Contas já iniciaram essa
+  adoção por filtro explícito, sem seletor global de empresa ativa.
 - Os dados de fundação multiempresa já existentes não devem ser reinterpretados
   como escopo global invisível.
 

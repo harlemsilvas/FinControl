@@ -2,9 +2,10 @@
 
 **Código:** DOC-11  
 **Versão:** 0.4  
-**Data:** 23/07/2026  
-**Status atual:** sistema além da Fase 16, com pacote pós-Fase 16 validado e
-publicado na branch de trabalho para preparação de deploy controlado
+**Data:** 29/07/2026
+**Status atual:** sistema além da Fase 16, com pacote pós-Fase 16 validado no
+CI e evolução multiempresa em andamento por filtros explícitos nas telas
+operacionais
 
 ## 1. Objetivo deste arquivo
 
@@ -160,6 +161,21 @@ Estado consolidado:
   evitando conflito indevido entre obrigações similares de empresas distintas;
 - recorrências permanecem com uma empresa por série, e títulos gerados por XML
   continuam herdando a empresa resolvida pelo CNPJ do destinatário.
+
+### Filtros explícitos por empresa em telas operacionais em 29/07/2026
+
+Estado consolidado:
+
+- a decisão de não criar empresa ativa global por sessão foi preservada;
+- Dashboard, Agenda Financeira e `Notas Fiscais e Contas` passam a oferecer
+  filtro explícito de `Empresa`, com opção padrão `Todas as empresas`;
+- endpoints `/api/v1/dashboard`, `/api/v1/agenda` e `/api/v1/payables` aceitam
+  `companyId` como filtro opcional;
+- Agenda e Dashboard passam a exibir o nome da empresa nos títulos futuros e
+  vencimentos, evitando confusão entre obrigações similares de empresas
+  distintas;
+- o link da Agenda para `Baixa de Pagamentos` preserva a empresa selecionada
+  quando o filtro estiver ativo.
 
 ### Preflight automatizado de alteração em 28/07/2026
 

@@ -228,7 +228,14 @@ export function registerOpenApi(app: FastifyInstance): void {
           tags: ['Financeiro'],
           summary: 'Lista titulos a pagar.',
           security: bearerSecurity,
-          parameters: listParameters([{ name: 'status', in: 'query', schema: { type: 'string' } }]),
+          parameters: listParameters([
+            { name: 'status', in: 'query', schema: { type: 'string' } },
+            { name: 'companyId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'supplierId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'categoryId', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'dueFrom', in: 'query', schema: { type: 'string', format: 'date' } },
+            { name: 'dueTo', in: 'query', schema: { type: 'string', format: 'date' } },
+          ]),
           responses: { '200': { description: 'Lista paginada' } },
         },
         post: {
@@ -421,6 +428,7 @@ function intelligencePath(summary: string): OpenAPIV3.PathItemObject {
       parameters: [
         { name: 'from', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
         { name: 'to', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+        { name: 'companyId', in: 'query', schema: { type: 'string', format: 'uuid' } },
         { name: 'supplierId', in: 'query', schema: { type: 'string', format: 'uuid' } },
         { name: 'categoryId', in: 'query', schema: { type: 'string', format: 'uuid' } },
       ],

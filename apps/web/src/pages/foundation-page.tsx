@@ -47,13 +47,14 @@ export function FoundationPage(): ReactElement {
   const [to, setTo] = useState(initial.to);
   const [supplierId, setSupplier] = useState('');
   const [categoryId, setCategory] = useState('');
+  const [companyId, setCompany] = useState('');
 
   const query = useQuery({
-    queryKey: ['dashboard', from, to, supplierId, categoryId],
+    queryKey: ['dashboard', from, to, supplierId, categoryId, companyId],
     queryFn: async () =>
       (
         await httpClient.get<DashboardResponse>('/api/v1/dashboard', {
-          params: { from, to, supplierId: supplierId || undefined, categoryId: categoryId || undefined },
+          params: { from, to, supplierId: supplierId || undefined, categoryId: categoryId || undefined, companyId: companyId || undefined },
         })
       ).data,
   });
@@ -68,6 +69,12 @@ export function FoundationPage(): ReactElement {
     queryKey: ['dashboard-categories'],
     queryFn: async () =>
       (await httpClient.get<OptionResponse>('/api/v1/financial-categories', { params: { pageSize: 100, active: true } })).data.data,
+  });
+
+  const companies = useQuery({
+    queryKey: ['dashboard-companies'],
+    queryFn: async () =>
+      (await httpClient.get<OptionResponse>('/api/v1/companies', { params: { pageSize: 100, active: true } })).data.data,
   });
 
   const summary = query.data?.summary;
@@ -166,13 +173,13 @@ export function FoundationPage(): ReactElement {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="text-lg font-bold">Filtros do dashboard</h2>
-            <p className="mt-1 text-sm text-slate-500">Os indicadores abaixo respeitam período, fornecedor e categoria.</p>
+            <p className="mt-1 text-sm text-slate-500">Os indicadores abaixo respeitam período, empresa, fornecedor e categoria.</p>
           </div>
           <Link className="text-sm font-bold text-blue-700 hover:underline" to="/agenda">
             Abrir agenda financeira
           </Link>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <label className="grid gap-1 text-sm font-semibold text-slate-700">
             Vencimento inicial
             <input
@@ -190,6 +197,21 @@ export function FoundationPage(): ReactElement {
               onChange={(event) => setTo(event.target.value)}
               className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            Empresa
+            <select
+              value={companyId}
+              onChange={(event) => setCompany(event.target.value)}
+              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">Todas as empresas</option>
+              {companies.data?.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.legalName ?? item.name ?? item.id}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="grid gap-1 text-sm font-semibold text-slate-700">
             Fornecedor
@@ -265,7 +287,7 @@ export function FoundationPage(): ReactElement {
                       <span className="text-sm font-bold text-slate-700">{shortDate(item.dueDate)}</span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-slate-950">{item.supplierName}</span>
-                        <span className="block truncate text-xs text-slate-500">Conta a pagar</span>
+                        <span className="block truncate text-xs text-slate-500">{item.companyName ?? 'Empresa não informada'}</span>
                       </span>
                       <span className="text-sm text-slate-700">{item.documentNumber}</span>
                       <span className="text-sm font-black text-slate-950 lg:text-right">{currency(item.openBalance)}</span>

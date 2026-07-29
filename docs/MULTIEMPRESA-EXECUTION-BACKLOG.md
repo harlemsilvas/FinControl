@@ -676,8 +676,13 @@ A recomendação é executar integralmente o Bloco A antes de iniciar o Bloco B.
 
 **Tarefas futuras sugeridas:**
 
-- avaliar `company_id` em títulos a pagar novos;
-- avaliar filtros por empresa em agenda e dashboard;
+- concluído em 29/07/2026: exigir `company_id` em títulos a pagar manuais
+  novos, preservando XML pelo CNPJ do destinatário e recorrência pela empresa
+  da série;
+- concluído em 29/07/2026: adicionar filtros explícitos por empresa ou todas
+  em Dashboard, Agenda Financeira e Notas Fiscais e Contas;
+- continuar expansão de filtros por empresa para relatórios analíticos e telas
+  operacionais ainda não cobertas;
 - avaliar restrição por empresa em cadastros correlatos;
 - avaliar parâmetros de aprovação, competência e calendário por empresa.
 
