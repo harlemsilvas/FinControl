@@ -21,6 +21,7 @@ export function registerOpenApi(app: FastifyInstance): void {
       { name: 'Health' },
       { name: 'Auth' },
       { name: 'Cadastros' },
+      { name: 'Administracao' },
       { name: 'Financeiro' },
       { name: 'Inteligencia' },
     ],
@@ -223,6 +224,33 @@ export function registerOpenApi(app: FastifyInstance): void {
       '/api/v1/payment-terms': masterDataPath('Condicoes de pagamento'),
       '/api/v1/banks': masterDataPath('Bancos'),
       '/api/v1/bank-accounts': masterDataPath('Contas bancarias'),
+      '/api/v1/roles': {
+        get: {
+          tags: ['Administracao'],
+          summary: 'Lista perfis de acesso ativos.',
+          security: bearerSecurity,
+          responses: { '200': { description: 'Perfis de acesso' } },
+        },
+      },
+      '/api/v1/users': {
+        get: {
+          tags: ['Administracao'],
+          summary: 'Lista usuarios do sistema.',
+          security: bearerSecurity,
+          parameters: listParameters([
+            { name: 'active', in: 'query', schema: { type: 'boolean' } },
+          ]),
+          responses: { '200': { description: 'Lista paginada de usuarios' } },
+        },
+        post: {
+          tags: ['Administracao'],
+          summary: 'Cria usuario com perfis e empresas.',
+          security: bearerSecurity,
+          responses: { '201': { description: 'Usuario criado' } },
+        },
+      },
+      '/api/v1/users/{id}': entityPath('Administracao', 'Usuario'),
+      '/api/v1/users/{id}/reactivate': actionPath('Administracao', 'Reativa usuario', {}),
       '/api/v1/payables': {
         get: {
           tags: ['Financeiro'],

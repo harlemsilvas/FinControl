@@ -626,10 +626,15 @@ A recomendação é executar integralmente o Bloco A antes de iniciar o Bloco B.
 
 **Tarefas:**
 
-- criar UI administrativa de associação;
-- permitir definir empresa padrão;
-- exibir conjunto de empresas vinculadas;
-- tratar cenários sem empresa vinculada.
+- concluído em 29/07/2026 no MVP de Usuários: criar UI administrativa de
+  associação dentro de `/users`;
+- concluído em 29/07/2026 no MVP de Usuários: permitir definir empresa padrão;
+- concluído em 29/07/2026 no MVP de Usuários: exibir conjunto de empresas
+  vinculadas;
+- concluído em 29/07/2026 no MVP de Usuários: bloquear criação de usuário
+  não-master sem empresa vinculada;
+- pendente para evolução futura: edição granular de permissões por usuário ou
+  por empresa, caso o produto exija.
 
 **Dependências:** B7.
 

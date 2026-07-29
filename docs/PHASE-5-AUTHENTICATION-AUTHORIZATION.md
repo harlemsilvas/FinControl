@@ -9,6 +9,10 @@
 - `POST /auth/refresh`: rotaciona o refresh token; o token anterior é revogado.
 - `POST /auth/logout`: revoga a sessão autenticada.
 - `GET /auth/me`: retorna identidade, perfis e permissões atuais.
+- `GET /api/v1/users`, `POST /api/v1/users`, `PATCH /api/v1/users/:id`,
+  `DELETE /api/v1/users/:id` e `POST /api/v1/users/:id/reactivate`: MVP
+  administrativo para usuários, perfis e empresas permitidas.
+- `GET /api/v1/roles`: lista perfis ativos para associação ao usuário.
 - Access token JWT HS256 com validade padrão de 15 minutos, emissor e audiência validados.
 - Refresh token opaco aleatório, armazenado exclusivamente como SHA-256 e válido por 30 dias.
 - Senhas armazenadas com `scrypt`, salt aleatório e comparação resistente a timing.
@@ -40,6 +44,8 @@ perfil `MASTER` e registra auditoria. Remova a senha de bootstrap do ambiente de
 - A troca do segredo invalida todos os access tokens emitidos.
 - Logout e rotação invalidam imediatamente a sessão/token anterior.
 - Endpoints de domínios futuros devem compor `authenticate` e `requirePermission`.
+- Administração de usuários usa a permissão `USER_MANAGE`, associada inicialmente
+  ao perfil `MASTER`.
 
 ## Validações executadas
 

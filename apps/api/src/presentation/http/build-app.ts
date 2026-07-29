@@ -16,6 +16,8 @@ import { TreasuryRepository } from '../../domains/treasury/treasury-repository.j
 import { treasuryRoutes } from '../../domains/treasury/treasury-routes.js';
 import { IntelligenceRepository } from '../../domains/intelligence/intelligence-repository.js';
 import { intelligenceRoutes } from '../../domains/intelligence/intelligence-routes.js';
+import { UsersRepository } from '../../domains/administration/users-repository.js';
+import { usersRoutes } from '../../domains/administration/users-routes.js';
 import { registerOpenApi } from './openapi.js';
 
 export interface BuildAppOptions {
@@ -92,6 +94,10 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(intelligenceRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
     repository: new IntelligenceRepository(options.database),
+  });
+  void app.register(usersRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    repository: new UsersRepository(options.database),
   });
 
   app.addHook('onClose', async () => {

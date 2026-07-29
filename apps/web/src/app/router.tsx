@@ -16,6 +16,7 @@ import { AgendaPage } from '../intelligence/agenda-page';
 import { PlannedFeaturePage } from '../pages/planned-feature-page';
 import { plannedFeatures } from '../pages/planned-features';
 import { environment } from '../config/environment';
+import { UsersPage } from '../administration/users-page';
 
 export const router = createBrowserRouter(
   [
@@ -34,13 +35,14 @@ export const router = createBrowserRouter(
             { path: 'payments', element: <PaymentsPage /> },
             { path: 'xml-imports', element: <XmlImportsListPage /> },
             { path: 'recurrences', element: <RecurrencesPage /> },
+            { path: 'users', element: <UsersPage /> },
             { path: 'payables/new', element: <PayableFormPage /> },
             { path: 'payables/:id', element: <PayableFormPage /> },
             { path: 'suppliers', element: <SuppliersPage /> },
             ...Object.entries(resources)
               .filter(([path]) => path !== 'suppliers')
               .map(([path, config]) => ({ path, element: <MasterDataPage config={config} /> })),
-            ...plannedFeatures.filter((feature) => feature.path !== 'recurrences').map((feature) => ({
+            ...plannedFeatures.filter((feature) => !['recurrences', 'users'].includes(feature.path)).map((feature) => ({
               path: feature.path,
               element: <PlannedFeaturePage feature={feature} />,
             })),

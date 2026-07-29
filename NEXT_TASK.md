@@ -1,16 +1,16 @@
 # FinControl — Next Task
 
 **Última atualização:** 29/07/2026
-**Status:** pacote inicial de filtros explícitos por empresa validado localmente
-e no CI da branch
+**Status:** MVP de Administração de Usuários e Acessos em implementação
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Concluir e publicar o pacote atual com filtros explícitos por empresa nas telas
-operacionais, preservando a decisão de não usar empresa ativa global por sessão
-e mantendo em aberto o diagnóstico do deploy/migrations de recorrência na VPS.
+Concluir o MVP de `Configurações > Usuários`, permitindo administrar usuários,
+perfis existentes e vínculos com empresas, preservando o modelo atual de
+permissões por perfil e mantendo a decisão de não usar empresa ativa global por
+sessão.
 
 ## Escopo desta tarefa
 
@@ -61,6 +61,15 @@ e mantendo em aberto o diagnóstico do deploy/migrations de recorrência na VPS.
   - APIs `/api/v1/dashboard`, `/api/v1/agenda` e `/api/v1/payables` passam a
     aceitar `companyId` opcional;
   - Swagger/OpenAPI passa a documentar `companyId` nesses endpoints;
+- ajuste local em andamento em 29/07/2026 para usuários e acessos:
+  - migration nova cria permissão `USER_MANAGE` e associa ao perfil `MASTER`;
+  - API `/api/v1/users` permite listar, criar, editar, inativar e reativar
+    usuários;
+  - API `/api/v1/roles` lista perfis ativos para seleção;
+  - usuários não-master exigem ao menos uma empresa vinculada;
+  - tela `/users` permite informar dados básicos, senha inicial/troca de senha,
+    perfis, empresas permitidas, empresa padrão e escopo de acesso;
+  - edição granular de permissões por usuário permanece fora do MVP.
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;
@@ -94,12 +103,10 @@ e mantendo em aberto o diagnóstico do deploy/migrations de recorrência na VPS.
    - `.vscode/settings.json`;
    - arquivos `.docx` removidos/conversões não conferidas;
    - planilhas ou imagens não essenciais ao deploy.
-2. Validar filtros explícitos por empresa no backend com typecheck e testes
-   focados quando houver cobertura aplicável.
-3. Validar Dashboard, Notas Fiscais e Contas e Agenda com testes focados,
-   typecheck, lint e build.
+2. Validar Administração de Usuários no backend com typecheck e testes focados.
+3. Validar tela `/users` com teste focado, typecheck, lint e build.
 4. Atualizar documentação viva (`PROJECT_STATUS.md`, `NEXT_TASK.md`,
-   checklist/backlog multiempresa e docs futuros relacionados).
+   checklist/backlog multiempresa e docs de autenticação/autorização).
 5. Validar o pacote com `./Checar_alteracao.sh`.
 6. Criar commit local personalizado após `STATUS: OK`.
 7. Fazer push somente quando o usuário validar/autorizá-lo.
@@ -196,6 +203,19 @@ e mantendo em aberto o diagnóstico do deploy/migrations de recorrência na VPS.
   - job `Quality and build`: aprovado, incluindo lint, typecheck, testes,
     build e validação de migrations;
   - job `Container images`: aprovado.
+- Validação focada inicial do MVP de Usuários em 29/07/2026:
+  - `bash scripts/validate-migrations.sh`: aprovado, 54 migrations;
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/api`: aprovado;
+  - `node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit` em
+    `apps/web`: aprovado;
+  - `node ../../node_modules/vitest/vitest.mjs run test/users-repository.test.ts test/http-contract.test.ts`:
+    aprovado, 17 testes;
+  - `node ../../node_modules/vitest/vitest.mjs run src/administration/users-page.test.tsx src/app/app.test.tsx`:
+    aprovado, 2 testes.
+  - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
+    `logs/alteracoes/checar_alteracao_20260729_110537.log`;
+  - como o status retornou `OK`, o log não foi analisado.
 
 ## Critério de conclusão
 

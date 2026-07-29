@@ -90,8 +90,9 @@ Estado consolidado:
 - escopo mínimo congelado para matriz e filial;
 - fundação persistente prevista e checklist operacional amplamente concluído;
 - decisão formal de não usar empresa ativa global por sessão nesta fase;
-- filtros explícitos por empresa ainda permanecem como parte pendente de
-  evolução em telas operacionais e relatórios.
+- filtros explícitos por empresa já começaram por Dashboard, Agenda Financeira
+  e Notas Fiscais e Contas; relatórios analíticos e demais telas seguem como
+  expansão pendente.
 
 ### Pagamentos, saldo oficial e comprovantes
 
@@ -176,6 +177,22 @@ Estado consolidado:
   distintas;
 - o link da Agenda para `Baixa de Pagamentos` preserva a empresa selecionada
   quando o filtro estiver ativo.
+
+### Administração de usuários e acessos em 29/07/2026
+
+Estado em implementação:
+
+- iniciado o MVP operacional de `Configurações > Usuários`;
+- backend passa a expor rotas administrativas para listar, criar, editar,
+  inativar e reativar usuários;
+- criação/edição de usuários permite associar perfis existentes e empresas
+  permitidas, com empresa padrão e escopo `Operacional` ou `Somente leitura`;
+- usuários não-master precisam estar vinculados a pelo menos uma empresa;
+- nova permissão `USER_MANAGE` foi criada por migration e associada ao perfil
+  `MASTER`;
+- a tela `/users` foi conectada ao menu existente de Configurações;
+- ainda não foi implementada edição granular de permissões por usuário ou tela;
+  o MVP usa os perfis existentes como camada oficial de autorização.
 
 ### Preflight automatizado de alteração em 28/07/2026
 
