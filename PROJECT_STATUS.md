@@ -248,6 +248,10 @@ Estado consolidado:
   HTTP 400 de validação, evitando mensagem genérica de erro interno;
 - a tela especializada de fornecedores passou a sugerir a categoria padrão
   `Fornecedor` e marcar `Categoria` como campo obrigatório.
+- o campo `Cidade` no cadastro de fornecedores passou a aceitar digitação livre
+  com sugestões; quando a cidade digitada não existe para o estado selecionado,
+  a API cria o registro em `cadastros.cities` e vincula o fornecedor ao novo
+  `city_id`.
 
 ### Preflight automatizado de alteração em 28/07/2026
 

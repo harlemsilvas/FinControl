@@ -13,7 +13,8 @@ const bankAccounts: ResourceDefinition = { domain: 'DOM-003', entity: 'BANK_ACCO
   columns: { id: 'id', companyId: 'company_id', bankId: 'bank_id', accountName: 'account_name', accountNumber: 'account_number',
     isActive: 'is_active', createdAt: 'created_at', updatedAt: 'updated_at' } };
 const supplierWithRequiredReferences: ResourceDefinition = { ...definition,
-  columns: { ...definition.columns, statusId: 'status_id', supplierCategoryId: 'supplier_category_id', createdBy: 'created_by', updatedBy: 'updated_by' } };
+  columns: { ...definition.columns, statusId: 'status_id', supplierCategoryId: 'supplier_category_id', cityId: 'city_id', stateId: 'state_id',
+    createdBy: 'created_by', updatedBy: 'updated_by' } };
 
 function database(query: ReturnType<typeof vi.fn>): Database {
   return { query, transaction: vi.fn(), checkHealth: vi.fn(), close: vi.fn() } as Database;
@@ -77,6 +78,41 @@ describe('MasterDataRepository', () => {
     expect(query.mock.calls[2]?.[0]).toContain('supplier_category_id');
     expect(query.mock.calls[2]?.[1]).toContain('status-active');
     expect(query.mock.calls[2]?.[1]).toContain('category-supplier');
+  });
+
+  it('creates a supplier city from typed city name', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: 'status-active' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'category-supplier' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: 'city-created' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: '1', legal_name: 'Fornecedor A', status_id: 'status-active',
+        supplier_category_id: 'category-supplier', state_id: 'state-mg', city_id: 'city-created', is_active: true }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const result = await new MasterDataRepository(database(query)).create(supplierWithRequiredReferences, {
+      legalName: 'Fornecedor A',
+      stateId: 'state-mg',
+      cityName: 'Uberlândia',
+    }, 'user-id');
+    expect(result).toMatchObject({ stateId: 'state-mg', cityId: 'city-created' });
+    expect(query.mock.calls[2]?.[0]).toContain('INSERT INTO cadastros.cities');
+    expect(query.mock.calls[2]?.[1]).toEqual(['state-mg', 'Uberlândia']);
+    expect(query.mock.calls[3]?.[0]).toContain('city_id');
+    expect(query.mock.calls[3]?.[1]).toContain('city-created');
+  });
+
+  it('updates supplier city from typed city name', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: 'city-created' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: '1', legal_name: 'Fornecedor A', state_id: 'state-mg', city_id: 'city-created', is_active: true }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    const result = await new MasterDataRepository(database(query)).update(supplierWithRequiredReferences, '1', {
+      stateId: 'state-mg',
+      cityName: 'Contagem',
+    }, 'user-id');
+    expect(result).toMatchObject({ stateId: 'state-mg', cityId: 'city-created' });
+    expect(query.mock.calls[0]?.[0]).toContain('INSERT INTO cadastros.cities');
+    expect(query.mock.calls[1]?.[0]).toContain('city_id');
+    expect(query.mock.calls[1]?.[1]).toContain('city-created');
   });
 
   it('adds the company name to company parameter records', async () => {

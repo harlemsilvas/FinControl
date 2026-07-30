@@ -58,7 +58,7 @@ export class MasterDataRepository {
   }
 
   async create(definition: ResourceDefinition, data: Record<string, unknown>, userId: string): Promise<Record<string, unknown>> {
-    const createData = await this.withCreateDefaults(definition, data);
+    const createData = await this.withSupplierMutationData(definition, data, true);
     const entries = this.entries(definition, createData);
     if ('createdBy' in definition.columns) entries.push([definition.columns.createdBy, userId]);
     if ('updatedBy' in definition.columns) entries.push([definition.columns.updatedBy, userId]);
@@ -71,7 +71,8 @@ export class MasterDataRepository {
   }
 
   async update(definition: ResourceDefinition, id: string, data: Record<string, unknown>, userId: string): Promise<Record<string, unknown> | null> {
-    const entries = this.entries(definition, data);
+    const updateData = await this.withSupplierMutationData(definition, data, false);
+    const entries = this.entries(definition, updateData);
     if ('updatedBy' in definition.columns) entries.push([definition.columns.updatedBy, userId]);
     if (entries.length === 0) return this.findById(definition, id, true);
     const values = entries.map((entry) => entry[1]);
@@ -134,15 +135,19 @@ export class MasterDataRepository {
       .filter(([column]) => column !== undefined);
   }
 
-  private async withCreateDefaults(definition: ResourceDefinition, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  private async withSupplierMutationData(definition: ResourceDefinition, data: Record<string, unknown>, fillDefaults: boolean): Promise<Record<string, unknown>> {
     if (!this.isSupplierDefinition(definition)) return data;
     const supplier = { ...data };
-    if (this.isEmptyReference(supplier.statusId)) {
+    if (fillDefaults && this.isEmptyReference(supplier.statusId)) {
       supplier.statusId = await this.requiredReferenceId('cadastros.supplier_statuses', 'ACTIVE', 'Status padrão de fornecedor');
     }
-    if (this.isEmptyReference(supplier.supplierCategoryId)) {
+    if (fillDefaults && this.isEmptyReference(supplier.supplierCategoryId)) {
       supplier.supplierCategoryId = await this.requiredReferenceId('cadastros.supplier_categories', 'SUPPLIER', 'Categoria padrão de fornecedor');
     }
+    if (this.isEmptyReference(supplier.cityId) && typeof supplier.cityName === 'string' && supplier.cityName.trim() && typeof supplier.stateId === 'string') {
+      supplier.cityId = await this.findOrCreateCity(supplier.stateId, supplier.cityName);
+    }
+    delete supplier.cityName;
     return supplier;
   }
 
@@ -164,6 +169,30 @@ export class MasterDataRepository {
         details: { table, code },
       });
     }
+    return id;
+  }
+
+  private async findOrCreateCity(stateId: string, name: string): Promise<string> {
+    const cityName = name.trim();
+    const result = await this.database.query<{ id: string }>(`
+      WITH existing AS (
+        SELECT id
+        FROM cadastros.cities
+        WHERE state_id = $1 AND lower(name) = lower($2)
+        LIMIT 1
+      ), inserted AS (
+        INSERT INTO cadastros.cities (state_id, name)
+        SELECT $1, $2
+        WHERE NOT EXISTS (SELECT 1 FROM existing)
+        ON CONFLICT (state_id, name) DO UPDATE SET is_active = true
+        RETURNING id
+      )
+      SELECT id FROM inserted
+      UNION ALL
+      SELECT id FROM existing
+      LIMIT 1`, [stateId, cityName]);
+    const id = result.rows[0]?.id;
+    if (!id) throw new Error('Failed to resolve supplier city');
     return id;
   }
 
