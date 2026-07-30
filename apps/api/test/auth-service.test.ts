@@ -50,7 +50,7 @@ describe('AuthService', () => {
     const repo = repository({ findActiveUserByEmail: vi.fn().mockResolvedValue(null), audit });
     await expect(new AuthService(repo, new TokenService(environment))
       .login('unknown@example.com', 'wrong-password', context))
-      .rejects.toMatchObject({ code: 'INVALID_CREDENTIALS', statusCode: 401 });
+      .rejects.toMatchObject({ code: 'INVALID_CREDENTIALS', message: 'E-mail ou senha inválidos.', statusCode: 401 });
     expect(audit).toHaveBeenCalledWith('LOGIN_FAILED', expect.any(String), null, context,
       { attemptedEmail: 'unknown@example.com' });
   });

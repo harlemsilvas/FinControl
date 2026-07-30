@@ -114,6 +114,7 @@ fornecedores.
   - campo `Cidade` passa a aceitar texto digitável com sugestões, e a API cria
     automaticamente a cidade em `cadastros.cities` quando ela ainda não existir
     para o estado selecionado;
+  - mensagem de credenciais inválidas do login passa a ser exibida em português;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;

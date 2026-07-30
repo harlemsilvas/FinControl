@@ -252,6 +252,8 @@ Estado consolidado:
   com sugestões; quando a cidade digitada não existe para o estado selecionado,
   a API cria o registro em `cadastros.cities` e vincula o fornecedor ao novo
   `city_id`.
+- a mensagem de credenciais inválidas do login passou a ser retornada em
+  português como `E-mail ou senha inválidos.`.
 
 ### Preflight automatizado de alteração em 28/07/2026
 

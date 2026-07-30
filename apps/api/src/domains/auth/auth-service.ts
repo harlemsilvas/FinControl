@@ -18,7 +18,7 @@ export class AuthService {
     if (!user?.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
       await this.repository.audit('LOGIN_FAILED', user?.id ?? UNKNOWN_ENTITY_ID, user?.id ?? null, context,
         { attemptedEmail: email.toLowerCase() });
-      throw new ApplicationError({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password', statusCode: 401 });
+      throw new ApplicationError({ code: 'INVALID_CREDENTIALS', message: 'E-mail ou senha inválidos.', statusCode: 401 });
     }
 
     const refreshToken = this.tokens.createRefreshToken();
