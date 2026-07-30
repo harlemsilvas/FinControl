@@ -42,6 +42,11 @@ function handleError(
       requestId: request.id, details: databaseError.constraint ? { constraint: databaseError.constraint } : undefined } });
     return;
   }
+  if (databaseError.code === '23502') {
+    void reply.status(400).send({ error: { code: 'VALIDATION_ERROR', message: 'A required field was not provided',
+      requestId: request.id, details: databaseError.constraint ? { constraint: databaseError.constraint } : undefined } });
+    return;
+  }
 
   const statusCode = error.statusCode !== undefined && error.statusCode < 500
     ? error.statusCode

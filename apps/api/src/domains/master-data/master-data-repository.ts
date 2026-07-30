@@ -1,4 +1,5 @@
 import type { Database, QueryExecutor } from '../../infrastructure/database/database.js';
+import { ApplicationError } from '../../common/errors/application-error.js';
 
 export interface ResourceDefinition {
   domain: 'DOM-001' | 'DOM-003';
@@ -57,7 +58,8 @@ export class MasterDataRepository {
   }
 
   async create(definition: ResourceDefinition, data: Record<string, unknown>, userId: string): Promise<Record<string, unknown>> {
-    const entries = this.entries(definition, data);
+    const createData = await this.withCreateDefaults(definition, data);
+    const entries = this.entries(definition, createData);
     if ('createdBy' in definition.columns) entries.push([definition.columns.createdBy, userId]);
     if ('updatedBy' in definition.columns) entries.push([definition.columns.updatedBy, userId]);
     const values = entries.map((entry) => entry[1]);
@@ -130,6 +132,39 @@ export class MasterDataRepository {
     return Object.entries(data).filter(([, value]) => value !== undefined)
       .map(([key, value]) => [definition.columns[key]!, value] as [string, unknown])
       .filter(([column]) => column !== undefined);
+  }
+
+  private async withCreateDefaults(definition: ResourceDefinition, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (!this.isSupplierDefinition(definition)) return data;
+    const supplier = { ...data };
+    if (this.isEmptyReference(supplier.statusId)) {
+      supplier.statusId = await this.requiredReferenceId('cadastros.supplier_statuses', 'ACTIVE', 'Status padrão de fornecedor');
+    }
+    if (this.isEmptyReference(supplier.supplierCategoryId)) {
+      supplier.supplierCategoryId = await this.requiredReferenceId('cadastros.supplier_categories', 'SUPPLIER', 'Categoria padrão de fornecedor');
+    }
+    return supplier;
+  }
+
+  private isEmptyReference(value: unknown): boolean {
+    return value === undefined || value === null || value === '';
+  }
+
+  private async requiredReferenceId(table: string, code: string, label: string): Promise<string> {
+    const result = await this.database.query<{ id: string }>(
+      `SELECT id FROM ${table} WHERE code = $1 AND is_active = true LIMIT 1`,
+      [code],
+    );
+    const id = result.rows[0]?.id;
+    if (!id) {
+      throw new ApplicationError({
+        code: 'MISSING_DEFAULT_REFERENCE',
+        message: `${label} não encontrado. Verifique as migrations/seed de cadastros.`,
+        statusCode: 500,
+        details: { table, code },
+      });
+    }
+    return id;
   }
 
   private async toApi(definition: ResourceDefinition, row: Record<string, unknown>): Promise<Record<string, unknown>> {

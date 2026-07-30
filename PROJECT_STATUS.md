@@ -2,7 +2,7 @@
 
 **Código:** DOC-11  
 **Versão:** 0.4  
-**Data:** 29/07/2026
+**Data:** 30/07/2026
 **Status atual:** sistema além da Fase 16, com pacote pós-Fase 16 validado no
 CI e evolução multiempresa em andamento por filtros explícitos nas telas
 operacionais
@@ -233,6 +233,21 @@ Estado consolidado:
     é o próprio usuário logado.
 - a tela de login passou a usar o marcador visual de três barras do FinControl
   no lugar do bloco textual `FC`, alinhando login, menu lateral e favicon.
+
+### Correção de cadastro de fornecedores em produção em 30/07/2026
+
+Estado consolidado:
+
+- identificado risco de erro 500 ao criar fornecedor quando a requisição não
+  informava `statusId` ou `supplierCategoryId`, campos tornados obrigatórios
+  pela evolução do cadastro geral;
+- a API passou a preencher defaults seguros para fornecedores novos:
+  `ACTIVE` em `cadastros.supplier_statuses` e `SUPPLIER` em
+  `cadastros.supplier_categories`;
+- violações PostgreSQL de campo obrigatório (`23502`) passaram a retornar erro
+  HTTP 400 de validação, evitando mensagem genérica de erro interno;
+- a tela especializada de fornecedores passou a sugerir a categoria padrão
+  `Fornecedor` e marcar `Categoria` como campo obrigatório.
 
 ### Preflight automatizado de alteração em 28/07/2026
 

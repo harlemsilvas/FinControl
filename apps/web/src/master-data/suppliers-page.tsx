@@ -360,7 +360,8 @@ export function SuppliersPage(): ReactElement {
 
   const openNewForm = (): void => {
     const defaultStatus = statusesQuery.data?.find((item) => item.code === 'ACTIVE')?.id ?? '';
-    reset({ ...defaultFormValues(), statusId: defaultStatus });
+    const defaultCategory = categoriesQuery.data?.find((item) => item.code === 'SUPPLIER')?.id ?? '';
+    reset({ ...defaultFormValues(), statusId: defaultStatus, supplierCategoryId: defaultCategory });
     setActiveTab('Dados Gerais');
     setEditing(null);
     setFormOpen(true);
@@ -418,6 +419,7 @@ export function SuppliersPage(): ReactElement {
     mutationFn: async (values: SupplierFormValues) => {
       const selectedStatus = statusById.get(values.statusId);
       const statusCode = (selectedStatus?.code ?? 'ACTIVE') as SupplierStatusCode;
+      const defaultCategoryId = categoriesQuery.data?.find((item) => item.code === 'SUPPLIER')?.id ?? '';
       const payload = {
         supplierType: values.supplierType,
         legalName: values.legalName.trim(),
@@ -426,7 +428,7 @@ export function SuppliersPage(): ReactElement {
         documentNumber: normalizeOptional(formatDocument(values.documentNumber, values.supplierType)),
         stateRegistration: normalizeOptional(values.stateRegistration),
         municipalRegistration: normalizeOptional(values.municipalRegistration),
-        supplierCategoryId: values.supplierCategoryId || undefined,
+        supplierCategoryId: values.supplierCategoryId || defaultCategoryId || undefined,
         postalCode: normalizeOptional(formatPostalCode(values.postalCode)),
         street: normalizeOptional(values.street),
         streetNumber: normalizeOptional(values.streetNumber),
@@ -600,7 +602,7 @@ export function SuppliersPage(): ReactElement {
                 })} /></SupplierField>
                 <SupplierField label="Inscrição Estadual"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('stateRegistration')} /></SupplierField>
                 <SupplierField label="Inscrição Municipal"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('municipalRegistration')} /></SupplierField>
-                <SupplierField label="Categoria"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('supplierCategoryId')}><option value="">Selecione</option>{(categoriesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Categoria" required error={errors.supplierCategoryId?.message}><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('supplierCategoryId', { required: 'Campo obrigatório.' })}><option value="">Selecione</option>{(categoriesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
                 <SupplierField label="Status" required><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('statusId', { required: 'Campo obrigatório.' })}><option value="">Selecione</option>{(statusesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
               </div>
             </section>

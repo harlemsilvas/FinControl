@@ -1,7 +1,7 @@
 # FinControl — Next Task
 
-**Última atualização:** 29/07/2026
-**Status:** refinamento de usuários com SMTP real e identidade visual do login em validação final
+**Última atualização:** 30/07/2026
+**Status:** correção do cadastro de fornecedores em produção em validação final
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -10,7 +10,8 @@ pagamentos/tesouraria e recorrências implementados localmente
 Validar e publicar o refinamento do MVP de `Configurações > Usuários`, agora
 com recuperação/redefinição de senha, envio SMTP real a partir da outbox,
 bloqueio de autoalterações perigosas e identidade visual alinhada na tela de
-login.
+login, incluindo a correção operacional detectada em produção no cadastro de
+fornecedores.
 
 ## Escopo desta tarefa
 
@@ -103,6 +104,13 @@ login.
   - `apps/web/index.html` passa a apontar para o favicon SVG;
   - filtro de status em `Notas Fiscais e Contas` passa a incluir `Todos`,
     enviando status indefinido para listar todas as situações;
+- correção local em 30/07/2026 para fornecedores:
+  - criação de fornecedor passa a preencher defaults `ACTIVE` e `SUPPLIER` na
+    API quando `statusId` ou `supplierCategoryId` não vierem no payload;
+  - erro PostgreSQL `23502` passa a ser convertido em 400 de validação, evitando
+    retorno genérico 500;
+  - tela de fornecedores passa a sugerir categoria padrão `Fornecedor` e exigir
+    preenchimento de `Categoria`;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;
@@ -139,35 +147,38 @@ login.
 2. Validar Administração de Usuários no backend com typecheck e testes focados.
 3. Validar tela `/users`, login e `/password-reset` com teste focado,
    typecheck, lint e build.
-4. Atualizar documentação viva (`PROJECT_STATUS.md`, `NEXT_TASK.md`,
+4. Validar criação de fornecedor sem categoria explícita/status explícito em
+   testes focados e garantir retorno HTTP 400 para violações obrigatórias não
+   previstas.
+5. Atualizar documentação viva (`PROJECT_STATUS.md`, `NEXT_TASK.md`,
    checklist/backlog multiempresa e docs de autenticação/autorização).
-5. Validar o pacote com `./Checar_alteracao.sh`.
-6. Criar commit local personalizado após `STATUS: OK`.
-7. Fazer push somente quando o usuário validar/autorizá-lo.
-8. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
+6. Validar o pacote com `./Checar_alteracao.sh`.
+7. Criar commit local personalizado após `STATUS: OK`.
+8. Fazer push somente quando o usuário validar/autorizá-lo.
+9. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
    testes/correções normais.
-9. Na VPS, verificar se a release usada contém
+10. Na VPS, verificar se a release usada contém
    `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
-10. Na VPS, consultar `administracao.schema_versions` para as versões
+11. Na VPS, consultar `administracao.schema_versions` para as versões
    `202607231000` e `202607231010`.
-11. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
-12. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
+12. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
+13. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
    aplicar as duas migrations de recorrência a partir da release publicada e
    registrar checksums.
-13. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
+14. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
    existirem, remover apenas esse registro inconsistente depois de backup lógico
    ou aplicar reparo manual com registro correto.
-14. Depois de corrigir o banco, repetir o deploy/verify.
-15. Só então decidir entre:
+15. Depois de corrigir o banco, repetir o deploy/verify.
+16. Só então decidir entre:
    - deploy controlado manual da branch/commit;
    - ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
-16. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
+17. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
    pois o workflow atual faz checkout fixo de `main`.
-17. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
+18. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
-18. Na VPS, configurar `PASSWORD_RESET_BASE_URL` e variáveis SMTP reais em
+19. Na VPS, configurar `PASSWORD_RESET_BASE_URL` e variáveis SMTP reais em
     `/opt/fincontrol/shared/.env`.
-19. Após publicar esse pacote, decidir entre:
+20. Após publicar esse pacote, decidir entre:
     - criar rotina administrativa de reprocessamento dos e-mails `FAILED` ou
       `PENDING`;
     - ou avançar para a próxima feature operacional do financeiro.
