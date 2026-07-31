@@ -252,6 +252,10 @@ Estado consolidado:
   com sugestões; quando a cidade digitada não existe para o estado selecionado,
   a API cria o registro em `cadastros.cities` e vincula o fornecedor ao novo
   `city_id`.
+- o endereço do fornecedor foi alinhado à experiência do cadastro de empresas:
+  `Estado` aparece antes de `Cidade`, o estado exibe apenas o nome, a cidade
+  cadastrada é filtrada pela UF selecionada e uma cidade nova pode ser informada
+  em campo próprio quando não existir na lista.
 - a mensagem de credenciais inválidas do login passou a ser retornada em
   português como `E-mail ou senha inválidos.`.
 

@@ -356,7 +356,7 @@ export function SuppliersPage(): ReactElement {
 
   const filteredCities = useMemo(() => {
     const cities = citiesQuery.data ?? [];
-    if (!stateId) return cities;
+    if (!stateId) return [];
     return cities.filter((item) => item.stateId === stateId);
   }, [citiesQuery.data, stateId]);
 
@@ -384,7 +384,7 @@ export function SuppliersPage(): ReactElement {
       streetNumber: supplier.streetNumber ?? '',
       addressComplement: supplier.addressComplement ?? '',
       neighborhood: supplier.neighborhood ?? '',
-      cityName: supplier.cityId ? cityById.get(supplier.cityId)?.name ?? '' : '',
+      cityName: '',
       cityId: supplier.cityId ?? '',
       stateId: supplier.stateId ?? '',
       countryCode: supplier.countryCode ?? 'BR',
@@ -423,8 +423,7 @@ export function SuppliersPage(): ReactElement {
       const selectedStatus = statusById.get(values.statusId);
       const statusCode = (selectedStatus?.code ?? 'ACTIVE') as SupplierStatusCode;
       const defaultCategoryId = categoriesQuery.data?.find((item) => item.code === 'SUPPLIER')?.id ?? '';
-      const cityName = normalizeOptional(values.cityName);
-      const selectedCity = cityName ? filteredCities.find((item) => item.name.toLowerCase() === cityName.toLowerCase()) : undefined;
+      const cityName = values.cityId ? undefined : normalizeOptional(values.cityName);
       const payload = {
         supplierType: values.supplierType,
         legalName: values.legalName.trim(),
@@ -439,7 +438,7 @@ export function SuppliersPage(): ReactElement {
         streetNumber: normalizeOptional(values.streetNumber),
         addressComplement: normalizeOptional(values.addressComplement),
         neighborhood: normalizeOptional(values.neighborhood),
-        cityId: selectedCity?.id,
+        cityId: values.cityId || undefined,
         cityName,
         stateId: values.stateId || undefined,
         countryCode: normalizeOptional(values.countryCode)?.toUpperCase(),
@@ -624,8 +623,9 @@ export function SuppliersPage(): ReactElement {
                 <SupplierField label="Número"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('streetNumber')} /></SupplierField>
                 <SupplierField label="Complemento"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('addressComplement')} /></SupplierField>
                 <SupplierField label="Bairro"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('neighborhood')} /></SupplierField>
-                <SupplierField label="Cidade" error={errors.cityName?.message} helperText="Digite livremente se a cidade não estiver na lista."><><input list="supplier-city-options" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('cityName', { validate: (value) => !value || !!stateId || 'Selecione o Estado antes de informar a cidade.' })} /><datalist id="supplier-city-options">{filteredCities.map((item) => <option key={item.id} value={item.name} />)}</datalist></></SupplierField>
-                <SupplierField label="Estado"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('stateId')}><option value="">Selecione</option>{(statesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Estado"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('stateId', { onChange: () => { setValue('cityId', ''); setValue('cityName', ''); } })}><option value="">Selecione</option>{(statesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Cidade cadastrada" helperText={stateId ? 'Selecione uma cidade existente ou informe uma nova abaixo.' : 'Selecione o Estado para carregar as cidades.'}><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" disabled={!stateId} {...register('cityId', { onChange: () => setValue('cityName', '') })}><option value="">Selecione</option>{filteredCities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Nova cidade" error={errors.cityName?.message} helperText="Use este campo quando a cidade não existir na lista."><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('cityName', { validate: (value) => !value || !!stateId || 'Selecione o Estado antes de informar a cidade.' })} /></SupplierField>
                 <SupplierField label="País"><input className="min-h-11 rounded-xl border border-slate-300 px-3 uppercase outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('countryCode')} /></SupplierField>
               </div>
             </section>

@@ -114,6 +114,9 @@ fornecedores.
   - campo `Cidade` passa a aceitar texto digitável com sugestões, e a API cria
     automaticamente a cidade em `cadastros.cities` quando ela ainda não existir
     para o estado selecionado;
+  - endereço do fornecedor passa a exibir `Estado` antes de `Cidade`, com estado
+    pelo nome, cidade cadastrada filtrada pela UF e campo próprio para nova
+    cidade;
   - mensagem de credenciais inválidas do login passa a ser exibida em português;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
