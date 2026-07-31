@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
@@ -9,6 +9,7 @@ import { CurrencyInput } from '../components/ui/currency-input';
 import { currency, statusLabel, type ListResponse } from './payables-types';
 
 type EligibleStatus = 'OPEN' | 'OVERDUE' | 'PARTIALLY_PAID';
+type PaymentQueueFilter = 'OPEN' | 'OVERDUE' | 'PAID' | 'ALL';
 
 interface EligibleInstallment {
   installmentId: string;
@@ -98,7 +99,12 @@ interface PaymentDetail extends PaymentHistoryItem {
   attachments: PaymentAttachment[];
 }
 
-const statuses: EligibleStatus[] = ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'];
+const statusOptions: { value: PaymentQueueFilter; label: string }[] = [
+  { value: 'OPEN', label: 'Abertos' },
+  { value: 'OVERDUE', label: 'Atrasados' },
+  { value: 'PAID', label: 'Pagos' },
+  { value: 'ALL', label: 'Todos' },
+];
 const statusStyle: Record<string, string> = {
   OPEN: 'border-blue-200 bg-blue-50 text-blue-700',
   OVERDUE: 'border-red-200 bg-red-50 text-red-700',
@@ -147,8 +153,8 @@ function treasuryErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function initialStatus(value: string | null): EligibleStatus {
-  return statuses.includes(value as EligibleStatus) ? value as EligibleStatus : 'OPEN';
+function initialStatus(value: string | null): PaymentQueueFilter {
+  return statusOptions.some((item) => item.value === value) ? value as PaymentQueueFilter : 'OPEN';
 }
 
 function initialDate(value: string | null): string {
@@ -163,9 +169,10 @@ export function PaymentsPage(): ReactElement {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<EligibleStatus>(initialStatus(searchParams.get('status')));
+  const [status, setStatus] = useState<PaymentQueueFilter>(initialStatus(searchParams.get('status')));
   const [companyId, setCompanyId] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
   const [dueFrom, setDueFrom] = useState(initialDate(searchParams.get('dueFrom')));
   const [dueTo, setDueTo] = useState(initialDate(searchParams.get('dueTo')));
   const [selected, setSelected] = useState<EligibleInstallment>();
@@ -199,12 +206,13 @@ export function PaymentsPage(): ReactElement {
   const installments = useQuery({
     queryKey: ['payment-eligible-installments', page, pageSize, search, status, companyId, supplierId, dueFrom, dueTo, requestedPayableTitleId, requestedInstallmentId],
     queryFn: async () => {
+      const eligibleStatus = status === 'OPEN' || status === 'OVERDUE' ? status : undefined;
       const response = await httpClient.get<ListResponse<EligibleInstallment>>('/api/v1/payable-installments/eligible-for-payment', {
         params: {
           page,
           pageSize: requestedPayableTitleId || requestedInstallmentId ? 1 : pageSize,
           search: search || undefined,
-          status: status || undefined,
+          status: eligibleStatus,
           companyId: companyId || undefined,
           supplierId: supplierId || undefined,
           dueFrom: dueFrom || undefined,
@@ -215,6 +223,7 @@ export function PaymentsPage(): ReactElement {
       });
       return response.data;
     },
+    enabled: status !== 'PAID',
   });
 
   const companies = useLookup('/companies');
@@ -239,10 +248,10 @@ export function PaymentsPage(): ReactElement {
   });
 
   const paymentHistory = useQuery({
-    queryKey: ['payment-history', search, companyId, supplierId],
+    queryKey: ['payment-history', search, companyId, supplierId, status],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<PaymentHistoryItem>>('/api/v1/payments', {
-        params: { pageSize: 10, search: search || undefined, companyId: companyId || undefined, supplierId: supplierId || undefined },
+        params: { pageSize: 10, search: search || undefined, status: status === 'PAID' ? 'EFFECTIVE' : undefined, companyId: companyId || undefined, supplierId: supplierId || undefined },
       });
       return response.data;
     },
@@ -253,6 +262,13 @@ export function PaymentsPage(): ReactElement {
     queryFn: async () => (await httpClient.get<PaymentDetail>(`/api/v1/payments/${detailFor?.id}`)).data,
     enabled: Boolean(detailFor?.id),
   });
+
+  useEffect(() => {
+    const normalized = supplierSearch.trim().toLocaleLowerCase('pt-BR');
+    const match = normalized ? suppliers.data?.find((item) => optionLabel(item).toLocaleLowerCase('pt-BR') === normalized) : undefined;
+    const nextSupplierId = match?.id ?? '';
+    if (nextSupplierId !== supplierId) setSupplierId(nextSupplierId);
+  }, [supplierId, supplierSearch, suppliers.data]);
 
   const uploadReceipt = useMutation<object>({
     mutationFn: async () => {
@@ -369,7 +385,7 @@ export function PaymentsPage(): ReactElement {
   const totalPages = Math.max(1, Math.ceil((installments.data?.total ?? 0) / pageSize));
   const firstItem = installments.data?.total ? (page - 1) * pageSize + 1 : 0;
   const lastItem = installments.data?.total ? Math.min(page * pageSize, installments.data.total) : 0;
-  const hasFilters = Boolean(search || status !== 'OPEN' || companyId || supplierId || dueFrom || dueTo || pageSize !== 20 || requestedPayableTitleId || requestedInstallmentId);
+  const hasFilters = Boolean(search || status !== 'OPEN' || companyId || supplierId || supplierSearch || dueFrom || dueTo || pageSize !== 20 || requestedPayableTitleId || requestedInstallmentId);
   const selectedAccount = bankBalances.data?.find((item) => item.bankAccountId === bankAccountId);
   const totalMovement = movementAmount(principalAmount, interestAmount, penaltyAmount, discountAmount, additionalAmount);
   const exceedsOpenBalance = selected ? Number(principalAmount || 0) > Number(selected.openBalance) : false;
@@ -380,9 +396,9 @@ export function PaymentsPage(): ReactElement {
 
   const summary = useMemo(() => ({
     openTotal: rows.reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
-    overdueTotal: rows.filter((item) => item.installmentStatusCode === 'OVERDUE').reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
-    partialCount: rows.filter((item) => item.installmentStatusCode === 'PARTIALLY_PAID').length,
-  }), [rows]);
+    overdueTotal: rows.filter((item) => item.installmentStatusCode === 'OVERDUE' || (item.dueDate < today() && Number(item.openBalance || 0) > 0)).reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
+    paidCount: paymentHistory.data?.total ?? 0,
+  }), [paymentHistory.data?.total, rows]);
 
   function openDialog(item: EligibleInstallment): void {
     setSelected(item);
@@ -412,6 +428,7 @@ export function PaymentsPage(): ReactElement {
     setStatus('OPEN');
     setCompanyId('');
     setSupplierId('');
+    setSupplierSearch('');
     setDueFrom('');
     setDueTo('');
     setPage(1);
@@ -423,6 +440,14 @@ export function PaymentsPage(): ReactElement {
     setReverseFor(item);
     setReverseReason('');
     reversePayment.reset();
+  }
+
+  function changeSupplierFilter(value: string): void {
+    setSupplierSearch(value);
+    const normalized = value.trim().toLocaleLowerCase('pt-BR');
+    const match = suppliers.data?.find((item) => optionLabel(item).toLocaleLowerCase('pt-BR') === normalized);
+    setSupplierId(match?.id ?? '');
+    setPage(1);
   }
 
   function closeDetailDialog(): void {
@@ -465,7 +490,7 @@ export function PaymentsPage(): ReactElement {
       <section className="grid gap-4 md:grid-cols-3">
         <Card><p className="text-sm font-semibold text-slate-500">Aberto na fila</p><p className="mt-2 text-2xl font-black text-slate-950">{currency(summary.openTotal)}</p></Card>
         <Card><p className="text-sm font-semibold text-slate-500">Atrasado na fila</p><p className="mt-2 text-2xl font-black text-red-700">{currency(summary.overdueTotal)}</p></Card>
-        <Card><p className="text-sm font-semibold text-slate-500">Pagamentos parciais</p><p className="mt-2 text-2xl font-black text-amber-700">{summary.partialCount}</p></Card>
+        <Card><p className="text-sm font-semibold text-slate-500">Pagamentos efetuados</p><p className="mt-2 text-2xl font-black text-emerald-700">{summary.paidCount}</p></Card>
       </section>
 
       <Card>
@@ -483,12 +508,14 @@ export function PaymentsPage(): ReactElement {
             <option value="">Todas as empresas</option>
             {companies.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
           </select>
-          <select aria-label="Filtrar por fornecedor" value={supplierId} onChange={(event) => { setSupplierId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
-            <option value="">Todos os fornecedores</option>
-            {suppliers.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
-          </select>
-          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value as EligibleStatus); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
-            {statuses.map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
+          <div>
+            <input aria-label="Buscar fornecedor" list="payment-supplier-options" value={supplierSearch} onChange={(event) => changeSupplierFilter(event.target.value)} placeholder="Buscar fornecedor..." className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+            <datalist id="payment-supplier-options">
+              {suppliers.data?.map((item) => <option key={item.id} value={optionLabel(item)} />)}
+            </datalist>
+          </div>
+          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value as PaymentQueueFilter); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            {statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </div>
 
@@ -504,7 +531,7 @@ export function PaymentsPage(): ReactElement {
         </div>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-          {installments.isLoading ? <p className="py-12 text-center text-slate-500">Carregando parcelas...</p> : installments.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar parcelas elegíveis.</p> : <>
+          {status === 'PAID' ? <p className="py-12 text-center text-slate-500">Pagamentos já efetuados aparecem no histórico abaixo, com detalhe, comprovante e estorno.</p> : installments.isLoading ? <p className="py-12 text-center text-slate-500">Carregando parcelas...</p> : installments.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar parcelas elegíveis.</p> : <>
             <div className="hidden grid-cols-[116px_1.4fr_150px_130px_130px_110px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
               <span>Vencimento</span><span>Fornecedor / Documento</span><span>Empresa</span><span>Parcela</span><span className="text-right">Saldo aberto</span><span className="text-right">Ação</span>
             </div>

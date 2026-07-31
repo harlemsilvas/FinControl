@@ -1,7 +1,7 @@
 # FinControl — Next Task
 
-**Última atualização:** 30/07/2026
-**Status:** correção do cadastro de fornecedores em produção em validação final
+**Última atualização:** 31/07/2026
+**Status:** refinamento operacional da tela Baixa de Pagamentos em validação
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -120,6 +120,15 @@ fornecedores.
   - consulta de cidades em fornecedores passa a usar `pageSize=100`, respeitando
     o contrato da API e evitando `citiesQuery` vazia por erro 400;
   - mensagem de credenciais inválidas do login passa a ser exibida em português;
+- refinamento local em 31/07/2026 para `Baixa de Pagamentos`:
+  - API de parcelas elegíveis calcula atraso dinamicamente por `due_date <
+    CURRENT_DATE`, evitando que boleto manual ou recorrente vencido permaneça
+    invisível no filtro `Atrasados` por ainda estar gravado como `OPEN`;
+  - tela substitui o card `Pagamentos parciais` por `Pagamentos efetuados`;
+  - filtro operacional passa a oferecer `Abertos`, `Atrasados`, `Pagos` e
+    `Todos`, sem expor `Parcialmente pago` como opção principal;
+  - filtro de fornecedor passa a ser campo de busca com sugestões em vez de
+    select fixo;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;

@@ -67,7 +67,9 @@ describe('PayablesRepository business safeguards',()=>{
     expect(result.data[0]?.companyName).toBe('ABC Center');
     expect(result.data[0]?.openBalance).toBe('150.00');
     expect(query.mock.calls[0]?.[0]).toContain('i.open_balance > 0');
+    expect(query.mock.calls[0]?.[0]).toContain("WHEN i.due_date < CURRENT_DATE THEN 'OVERDUE'");
     expect(query.mock.calls[1]?.[0]).toContain('ORDER BY i.due_date ASC');
+    expect(query.mock.calls[1]?.[0]).toContain("WHEN i.due_date < CURRENT_DATE THEN 'OVERDUE'");
   });
 
   it('filters eligible installments by payable title and installment id', async () => {

@@ -373,3 +373,20 @@ posteriores, porque exigem decisões adicionais de tesouraria.
 - Exceção auditada entre CNPJs fica para ciclo futuro.
 - Ajuste manual de saldo pode existir no MVP, somente para admin e sempre auditado.
 - Saldo inicial da conta será lançado como primeiro movimento de entrada do tipo `Saldo de Caixa`.
+
+## 16. Refinamento operacional em 31/07/2026
+
+- A classificação de parcela atrasada na fila de baixa passa a ser calculada
+  dinamicamente pela data de vencimento quando ainda há saldo aberto, evitando
+  depender apenas do status persistido no momento da criação ou último recálculo.
+- O card `Pagamentos parciais` foi substituído por `Pagamentos efetuados`,
+  alinhado ao uso operacional inicial de boleto com baixa integral.
+- O filtro principal da tela passa a expor `Abertos`, `Atrasados`, `Pagos` e
+  `Todos`; `Parcialmente pago` continua tratado internamente pelo domínio, mas
+  não é opção principal da experiência de baixa.
+- O filtro de fornecedor passa a ser busca com sugestões, evitando select longo
+  conforme o cadastro cresce.
+- A seção `Pagamentos realizados` permanece necessária nesta etapa porque
+  concentra detalhe do pagamento, comprovantes e estorno auditado. A evolução
+  recomendada é reorganizar `Parcelas elegíveis` e `Pagamentos realizados` em
+  abas no mesmo quadro, sem remover o histórico.

@@ -532,12 +532,18 @@ export class PayablesRepository {
 
   async listPaymentEligibleInstallments(page: number, pageSize: number, filters: PaymentEligibleInstallmentFilters = {}): Promise<object> {
     const values: unknown[] = [];
-    const conditions = ['i.deleted_at IS NULL', 't.deleted_at IS NULL', 'i.open_balance > 0', "ims.code IN ('OPEN','OVERDUE','PARTIALLY_PAID')", "ts.code <> 'CANCELLED'"];
+    const effectiveStatus = `CASE
+        WHEN i.open_balance <= 0 THEN 'PAID'
+        WHEN i.open_balance < i.amount THEN 'PARTIALLY_PAID'
+        WHEN i.due_date < CURRENT_DATE THEN 'OVERDUE'
+        ELSE ims.code
+      END`;
+    const conditions = ['i.deleted_at IS NULL', 't.deleted_at IS NULL', 'i.open_balance > 0', `${effectiveStatus} IN ('OPEN','OVERDUE','PARTIALLY_PAID')`, "ts.code <> 'CANCELLED'"];
     if (filters.search) {
       values.push(`%${filters.search}%`);
       conditions.push(`(t.document_number ILIKE $${values.length} OR t.description ILIKE $${values.length} OR s.legal_name ILIKE $${values.length})`);
     }
-    if (filters.status) { values.push(filters.status); conditions.push(`ims.code=$${values.length}`); }
+    if (filters.status) { values.push(filters.status); conditions.push(`${effectiveStatus}=$${values.length}`); }
     if (filters.dueFrom) { values.push(filters.dueFrom); conditions.push(`i.due_date >= $${values.length}::date`); }
     if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`i.due_date <= $${values.length}::date`); }
     if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
@@ -559,7 +565,7 @@ export class PayablesRepository {
         i.id installment_id,i.payable_title_id,t.company_id,COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
         t.supplier_id,s.legal_name supplier_name,t.category_id,c.name category_name,t.document_number,t.document_series,t.description,
         i.installment_number,i.installment_count,i.amount::text amount,i.open_balance::text open_balance,i.due_date,
-        i.payment_method_id,pm.name payment_method_name,ims.code installment_status_code,ts.code title_status_code
+        i.payment_method_id,pm.name payment_method_name,${effectiveStatus} installment_status_code,ts.code title_status_code
       ${from} WHERE ${where}
       ORDER BY i.due_date ASC,t.document_number ASC,i.installment_number ASC
       LIMIT $${values.length - 1} OFFSET $${values.length}`, values);

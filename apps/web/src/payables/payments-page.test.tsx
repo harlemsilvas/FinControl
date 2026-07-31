@@ -137,7 +137,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 function eligiblePaymentParams(): Record<string, unknown> | undefined {
-  return mocks.get.mock.calls.find(([url]) => url === '/api/v1/payable-installments/eligible-for-payment')?.[1]?.params;
+  return [...mocks.get.mock.calls].reverse().find(([url]) => url === '/api/v1/payable-installments/eligible-for-payment')?.[1]?.params;
+}
+
+function paymentHistoryParams(): Record<string, unknown> | undefined {
+  const calls = mocks.get.mock.calls as Array<[string, { params?: Record<string, unknown> }?]>;
+  return [...calls].reverse().find(([url]) => url === '/api/v1/payments')?.[1]?.params;
 }
 
 vi.mock('../api/http-client', () => ({
@@ -174,6 +179,7 @@ describe('PaymentsPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Baixa de Pagamentos' })).toBeInTheDocument();
     expect(screen.getByLabelText('Filtrar por status')).toHaveValue('OPEN');
+    expect(screen.getByText('Pagamentos efetuados')).toBeInTheDocument();
     expect((await screen.findAllByText('CIA BRASILEIRA DIST AUTO S.A')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('R$ 403,06').length).toBeGreaterThan(0);
     await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
@@ -209,6 +215,27 @@ describe('PaymentsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Baixar' }));
     expect(await screen.findByRole('dialog', { name: 'Baixar parcela' })).toBeInTheDocument();
+  });
+
+  it('uses a paid operational filter without requesting eligible installments', async () => {
+    renderPage();
+
+    await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
+    mocks.get.mockClear();
+
+    fireEvent.change(screen.getByLabelText('Filtrar por status'), { target: { value: 'PAID' } });
+
+    expect(await screen.findByText('Pagamentos já efetuados aparecem no histórico abaixo, com detalhe, comprovante e estorno.')).toBeInTheDocument();
+    await waitFor(() => expect(paymentHistoryParams()?.status).toBe('EFFECTIVE'));
+    expect(mocks.get.mock.calls.some(([url]) => url === '/api/v1/payable-installments/eligible-for-payment')).toBe(false);
+  });
+
+  it('filters by supplier using a searchable suggestion input', async () => {
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText('Buscar fornecedor'), { target: { value: 'CIA BRASILEIRA DIST AUTO S.A' } });
+
+    await waitFor(() => expect(eligiblePaymentParams()?.supplierId).toBe('supplier-id'));
   });
 
   it('posts an initial cash balance movement', async () => {
