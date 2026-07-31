@@ -695,8 +695,14 @@ export class PayablesRepository {
     return this.database.transaction(async (tx) => {
       const company = await tx.query(`SELECT 1 FROM cadastros.companies WHERE id=$1 AND is_active AND deleted_at IS NULL`, [input.companyId]);
       if (!company.rowCount) throw new ApplicationError({ code: 'INVALID_REFERENCE', message: 'Company must be active to create a payable title', statusCode: 400, details: { field: 'companyId' } });
-      const duplicate = await tx.query(`SELECT 1 FROM financeiro.payable_titles WHERE company_id=$1 AND supplier_id=$2 AND lower(trim(document_number))=lower(trim($3))
-        AND coalesce(lower(trim(document_series)),'')=coalesce(lower(trim($4)),'') AND deleted_at IS NULL LIMIT 1`, [input.companyId,input.supplierId,input.documentNumber,input.documentSeries ?? null]);
+      const duplicate = await tx.query(`SELECT 1 FROM financeiro.payable_titles t
+        JOIN financeiro.payable_installments i ON i.payable_title_id=t.id AND i.deleted_at IS NULL
+        WHERE t.company_id=$1 AND t.supplier_id=$2 AND lower(trim(t.document_number))=lower(trim($3))
+        AND coalesce(lower(trim(t.document_series)),'')=coalesce(lower(trim($4)),'') AND t.deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM unnest($5::integer[],$6::date[]) incoming(installment_number,due_date)
+          WHERE incoming.installment_number=i.installment_number AND incoming.due_date=i.due_date
+        ) LIMIT 1`, [input.companyId,input.supplierId,input.documentNumber,input.documentSeries ?? null,input.installments.map(item=>item.installmentNumber),input.installments.map(item=>item.dueDate)]);
       if (duplicate.rowCount && !input.duplicateConfirmed) throw new ApplicationError({ code: 'POSSIBLE_DUPLICATE', message: 'A possible duplicate title exists', statusCode: 409 });
       const title = await tx.query(`INSERT INTO financeiro.payable_titles (company_id,supplier_id,category_id,document_type_id,payment_term_id,cost_center_id,
         document_number,document_series,description,origin_code,issue_date,original_amount,discount_amount,additional_amount,status_id,notes,

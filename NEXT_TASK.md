@@ -35,6 +35,21 @@ fornecedores.
   - botão `Calendário` direcionando para a tela `Agenda`;
   - filtro padrão de status em `Notas ativas` (`OPEN`);
   - coluna inicial de seleção removida enquanto não houver seleção em lote;
+- refinamento local em 31/07/2026 para `Nova Conta a Pagar`:
+  - criação manual passa a exibir somente as abas `Dados da Conta`, `Parcelas`,
+    `Anexos` e `Observações`;
+  - `Forma de Pagamento` deixa de aparecer na aba principal e em `Parcelas`;
+  - forma técnica da parcela continua sendo preenchida internamente como
+    `Boleto`, porque o banco ainda exige `payment_method_id`;
+  - bloco `Ocorrência` foi removido da criação manual;
+  - `Impostos` e `Aprovações` foram ocultadas até haver fluxo funcional;
+  - `Histórico / Descrição` não bloqueia salvamento vazio e é gerado pelo
+    contexto `Empresa - Fornecedor - Documento - Vencimento`;
+  - `Tipo de Documento` usa `Boleto` como fallback quando não selecionado;
+  - conta parcelada manual continua pela aba `Parcelas`, com botão
+    `Adicionar parcela`;
+  - regra de possível duplicidade passa a exigir coincidência de parcela e
+    vencimento, além de empresa, fornecedor, documento e série;
 - correções locais aplicadas em 28/07/2026:
   - clique em item da Agenda abre `/payments` filtrado pela data de vencimento
     e status `OPEN`, sem abrir automaticamente o modal de baixa;

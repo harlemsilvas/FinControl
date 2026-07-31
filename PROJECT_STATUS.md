@@ -179,6 +179,20 @@ Estado consolidado:
   `Dados da Conta` passam a ficar bloqueados e orientam o usuário a alterar
   esses dados pela aba `Parcelas`, que é a fonte efetiva de persistência da
   cobrança.
+- em 31/07/2026, a tela `Nova Conta a Pagar` foi simplificada para o lançamento
+  manual:
+  - abas visíveis reduzidas para `Dados da Conta`, `Parcelas`, `Anexos` e
+    `Observações`;
+  - `Forma de Pagamento` saiu da aba principal e da aba `Parcelas`;
+  - bloco `Ocorrência` saiu da criação manual, preservando recorrências no
+    fluxo próprio;
+  - `Histórico / Descrição` passa a ser gerado automaticamente quando o usuário
+    deixa vazio;
+  - `Tipo de Documento` e forma técnica da parcela usam `Boleto` como fallback
+    interno para manter compatibilidade com o banco atual.
+  - alerta de possível duplicidade na criação manual passa a considerar também
+    parcela e vencimento, evitando aviso indevido quando o mesmo documento tem
+    vencimento diferente.
 
 ### Vínculo obrigatório de empresa em títulos manuais em 28/07/2026
 

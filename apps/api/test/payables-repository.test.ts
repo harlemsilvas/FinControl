@@ -40,6 +40,26 @@ describe('PayablesRepository business safeguards',()=>{
     await expect(repo.create(validTitle,'user-id')).rejects.toMatchObject({code:'POSSIBLE_DUPLICATE',statusCode:409});
     expect(query).toHaveBeenCalledTimes(2);
     expect(query.mock.calls[1]?.[0]).toContain('company_id=$1');
+    expect(query.mock.calls[1]?.[0]).toContain('incoming.due_date=i.due_date');
+  });
+
+  it('does not warn duplicate when the same supplier and document have a different due date', async () => {
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[{id:'payable-id',document_number:'NF-1'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    await expect(repo.create(validTitle,'user-id')).resolves.toMatchObject({id:'payable-id'});
+    expect(query.mock.calls[1]?.[1]).toEqual([
+      validTitle.companyId,
+      validTitle.supplierId,
+      validTitle.documentNumber,
+      null,
+      [1],
+      ['2026-07-30'],
+    ]);
   });
 
   it('rejects manual payable titles when the selected company is inactive or missing', async () => {
