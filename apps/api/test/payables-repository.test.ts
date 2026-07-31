@@ -259,15 +259,17 @@ describe('PayablesRepository business safeguards',()=>{
 
   it('lists payments with reversal marker and operational context',async()=>{
     const query=vi.fn()
-      .mockResolvedValueOnce({rows:[{total:'1'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{total:'1',total_movement_amount:'403.06'}],rowCount:1})
       .mockResolvedValueOnce({rows:[{id:'payment-id',payment_date:'2026-07-22',movement_amount:'403.06',status_code:'REVERSED',reversal_id:'reversal-id',supplier_name:'Fornecedor',company_name:'ABC Center',document_number:'17026',installment_number:1,installment_count:1,bank_name:'Banco Teste',account_name:'Conta Matriz'}],rowCount:1});
     const repo=new PayablesRepository(database({query}));
-    const result=await repo.listPayments(1,20,{companyId:'company-id',status:'REVERSED'}) as {data:{id:string;isReversed:boolean;companyName:string;movementAmount:string}[];total:number};
+    const result=await repo.listPayments(1,20,{companyId:'company-id',status:'REVERSED'}) as {data:{id:string;isReversed:boolean;companyName:string;movementAmount:string}[];total:number;totalMovementAmount:string};
     expect(result.total).toBe(1);
+    expect(result.totalMovementAmount).toBe('403.06');
     expect(result.data[0]?.id).toBe('payment-id');
     expect(result.data[0]?.isReversed).toBe(true);
     expect(result.data[0]?.companyName).toBe('ABC Center');
     expect(result.data[0]?.movementAmount).toBe('403.06');
+    expect(query.mock.calls[0]?.[0]).toContain('COALESCE(SUM(p.movement_amount),0)::text total_movement_amount');
     expect(query.mock.calls[1]?.[0]).toContain('LEFT JOIN financeiro.payment_reversals');
   });
 

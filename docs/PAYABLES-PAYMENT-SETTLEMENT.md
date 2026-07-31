@@ -380,7 +380,9 @@ posteriores, porque exigem decisões adicionais de tesouraria.
   dinamicamente pela data de vencimento quando ainda há saldo aberto, evitando
   depender apenas do status persistido no momento da criação ou último recálculo.
 - O card `Pagamentos parciais` foi substituído por `Pagamentos efetuados`,
-  alinhado ao uso operacional inicial de boleto com baixa integral.
+  alinhado ao uso operacional inicial de boleto com baixa integral. Esse card
+  exibe o valor monetário total dos pagamentos filtrados, e não a quantidade de
+  pagamentos.
 - O filtro principal da tela passa a expor `Abertos`, `Atrasados`, `Pagos` e
   `Todos`; `Parcialmente pago` continua tratado internamente pelo domínio, mas
   não é opção principal da experiência de baixa.
@@ -390,3 +392,5 @@ posteriores, porque exigem decisões adicionais de tesouraria.
   concentra detalhe do pagamento, comprovantes e estorno auditado. A evolução
   recomendada é reorganizar `Parcelas elegíveis` e `Pagamentos realizados` em
   abas no mesmo quadro, sem remover o histórico.
+- No histórico de pagamentos, a tag de status fica em coluna própria antes do
+  valor pago, para não sobrepor nem competir visualmente com o montante.

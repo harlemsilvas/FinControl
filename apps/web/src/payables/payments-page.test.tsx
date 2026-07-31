@@ -79,6 +79,7 @@ const mocks = vi.hoisted(() => ({
           page: 1,
           pageSize: 10,
           total: 1,
+          totalMovementAmount: '403.06',
         },
       });
     }
@@ -180,8 +181,8 @@ describe('PaymentsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Baixa de Pagamentos' })).toBeInTheDocument();
     expect(screen.getByLabelText('Filtrar por status')).toHaveValue('OPEN');
     expect(screen.getByText('Pagamentos efetuados')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText(/R\$\s*403,06/).length).toBeGreaterThan(1));
     expect((await screen.findAllByText('CIA BRASILEIRA DIST AUTO S.A')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('R$ 403,06').length).toBeGreaterThan(0);
     await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Baixar' }));
@@ -306,6 +307,19 @@ describe('PaymentsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar estorno' }));
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/payments/payment-id/reverse', { reason: 'Pagamento lançado em duplicidade' }));
+  });
+
+  it('keeps payment status separated from the paid amount in history rows', async () => {
+    renderPage();
+
+    const history = await screen.findByText('Pagamentos realizados');
+    const card = history.closest('section');
+    expect(card).not.toBeNull();
+    const row = (await within(card!).findByText('Banco Teste - Conta Matriz')).closest('div');
+    expect(row).not.toBeNull();
+    const cells = Array.from(row!.children).map((child) => child.textContent ?? '');
+    expect(cells[4]).toBe('EFFECTIVE');
+    expect(cells[5]).toContain('R$');
   });
 
   it('opens payment detail with treasury movement and attachment trail', async () => {

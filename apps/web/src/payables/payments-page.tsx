@@ -62,6 +62,9 @@ interface PaymentHistoryItem {
   transactionNumber?: string | null;
   reversalReason?: string | null;
 }
+interface PaymentHistoryResponse extends ListResponse<PaymentHistoryItem> {
+  totalMovementAmount?: string | number;
+}
 interface PaymentBankMovement {
   id: string;
   movementType: string;
@@ -250,7 +253,7 @@ export function PaymentsPage(): ReactElement {
   const paymentHistory = useQuery({
     queryKey: ['payment-history', search, companyId, supplierId, status],
     queryFn: async () => {
-      const response = await httpClient.get<ListResponse<PaymentHistoryItem>>('/api/v1/payments', {
+      const response = await httpClient.get<PaymentHistoryResponse>('/api/v1/payments', {
         params: { pageSize: 10, search: search || undefined, status: status === 'PAID' ? 'EFFECTIVE' : undefined, companyId: companyId || undefined, supplierId: supplierId || undefined },
       });
       return response.data;
@@ -397,8 +400,8 @@ export function PaymentsPage(): ReactElement {
   const summary = useMemo(() => ({
     openTotal: rows.reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
     overdueTotal: rows.filter((item) => item.installmentStatusCode === 'OVERDUE' || (item.dueDate < today() && Number(item.openBalance || 0) > 0)).reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
-    paidCount: paymentHistory.data?.total ?? 0,
-  }), [paymentHistory.data?.total, rows]);
+    paidTotal: Number(paymentHistory.data?.totalMovementAmount ?? 0),
+  }), [paymentHistory.data?.totalMovementAmount, rows]);
 
   function openDialog(item: EligibleInstallment): void {
     setSelected(item);
@@ -490,7 +493,7 @@ export function PaymentsPage(): ReactElement {
       <section className="grid gap-4 md:grid-cols-3">
         <Card><p className="text-sm font-semibold text-slate-500">Aberto na fila</p><p className="mt-2 text-2xl font-black text-slate-950">{currency(summary.openTotal)}</p></Card>
         <Card><p className="text-sm font-semibold text-slate-500">Atrasado na fila</p><p className="mt-2 text-2xl font-black text-red-700">{currency(summary.overdueTotal)}</p></Card>
-        <Card><p className="text-sm font-semibold text-slate-500">Pagamentos efetuados</p><p className="mt-2 text-2xl font-black text-emerald-700">{summary.paidCount}</p></Card>
+        <Card><p className="text-sm font-semibold text-slate-500">Pagamentos efetuados</p><p className="mt-2 text-2xl font-black text-emerald-700">{currency(summary.paidTotal)}</p></Card>
       </section>
 
       <Card>
@@ -569,14 +572,14 @@ export function PaymentsPage(): ReactElement {
         </div>
         <div className="overflow-hidden rounded-2xl border border-slate-200">
           {paymentHistory.isLoading ? <p className="py-12 text-center text-slate-500">Carregando pagamentos...</p> : paymentHistory.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar pagamentos.</p> : <div className="divide-y divide-slate-100">
-            {(paymentHistory.data?.data ?? []).map((item) => <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[116px_1.4fr_150px_140px_120px_160px] xl:items-center">
+            {(paymentHistory.data?.data ?? []).map((item) => <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[116px_1.4fr_140px_180px_96px_130px_160px] xl:items-center">
               <span className="font-semibold text-slate-700">{datePtBr(item.paymentDate)}</span>
               <span className="min-w-0"><span className="block truncate font-bold text-slate-950">{item.supplierName}</span><span className="block truncate text-xs text-slate-500">{paymentDocumentLabel(item)} - {item.description}</span></span>
               <span className="truncate text-slate-600">{item.companyName ?? '-'}</span>
               <span className="truncate text-slate-600">{item.bankName} - {item.accountName}</span>
+              <span className={`w-fit rounded-full border px-2 py-0.5 text-xs font-bold ${item.isReversed ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{item.isReversed ? 'Estornado' : statusLabel(item.statusCode)}</span>
               <span className="font-black text-slate-950 xl:text-right">{currency(item.movementAmount)}</span>
               <span className="flex items-center justify-end gap-2">
-                <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${item.isReversed ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{item.isReversed ? 'Estornado' : statusLabel(item.statusCode)}</span>
                 <Button variant="secondary" onClick={() => setDetailFor(item)}>Ver</Button>
                 <Button variant="danger" disabled={item.isReversed} onClick={() => openReverseDialog(item)}>Estornar</Button>
               </span>

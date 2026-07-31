@@ -125,10 +125,14 @@ fornecedores.
     CURRENT_DATE`, evitando que boleto manual ou recorrente vencido permaneça
     invisível no filtro `Atrasados` por ainda estar gravado como `OPEN`;
   - tela substitui o card `Pagamentos parciais` por `Pagamentos efetuados`;
+  - card `Pagamentos efetuados` passa a exibir o valor monetário total dos
+    pagamentos filtrados, e não a quantidade de pagamentos;
   - filtro operacional passa a oferecer `Abertos`, `Atrasados`, `Pagos` e
     `Todos`, sem expor `Parcialmente pago` como opção principal;
   - filtro de fornecedor passa a ser campo de busca com sugestões em vez de
     select fixo;
+  - tag de status do histórico de pagamentos fica em coluna própria antes do
+    valor, evitando sobreposição sobre o montante pago;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;

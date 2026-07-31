@@ -595,7 +595,10 @@ export class PayablesRepository {
       JOIN tesouraria.banks b ON b.id=ba.bank_id
       LEFT JOIN cadastros.companies company ON company.id=t.company_id
       LEFT JOIN financeiro.payment_reversals pr ON pr.payment_id=p.id`;
-    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
+    const count = await this.database.query<{ total: string; total_movement_amount: string } & Record<string, unknown>>(
+      `SELECT count(*)::text total,COALESCE(SUM(p.movement_amount),0)::text total_movement_amount ${from} WHERE ${where}`,
+      values,
+    );
     values.push(pageSize, (page - 1) * pageSize);
     const result = await this.database.query(`SELECT
         p.id,p.payable_installment_id,p.bank_account_id,p.payment_method_id,p.payment_date,p.principal_amount::text principal_amount,
@@ -609,7 +612,7 @@ export class PayablesRepository {
       ${from} WHERE ${where}
       ORDER BY p.payment_date DESC,p.created_at DESC,p.id DESC
       LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
-    return { data: result.rows.map((row) => ({ ...api(row), isReversed: Boolean(row.reversal_id) })), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
+    return { data: result.rows.map((row) => ({ ...api(row), isReversed: Boolean(row.reversal_id) })), page, pageSize, total: Number(count.rows[0]?.total ?? 0), totalMovementAmount: count.rows[0]?.total_movement_amount ?? '0' };
   }
 
   async getPayment(id: string): Promise<object | null> {

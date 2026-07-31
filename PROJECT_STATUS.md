@@ -109,16 +109,20 @@ Estado consolidado:
 - movimentos de conta bancária e histórico de pagamentos incorporados à trilha;
 - comprovantes locais privados previstos e checklist marcado como implementado;
 - sincronização futura com Google Drive permanece pendente e explicitamente
-  futura.
+  futura;
 - em 31/07/2026, a tela `Baixa de Pagamentos` iniciou refinamento operacional:
   - parcelas vencidas passam a ser classificadas como atrasadas dinamicamente
     pela data de vencimento na API, mesmo que o status gravado ainda esteja
     `OPEN`;
   - card `Pagamentos parciais` foi substituído por `Pagamentos efetuados`;
+  - o card `Pagamentos efetuados` exibe o total monetário dos pagamentos
+    filtrados, não a quantidade de registros;
   - filtro principal da fila passou a usar as opções `Abertos`, `Atrasados`,
     `Pagos` e `Todos`, removendo `Parcialmente pago` da experiência principal;
   - filtro de fornecedor da baixa passou de select fixo para campo de busca
-    com sugestões.
+    com sugestões;
+  - no histórico de pagamentos, a tag de status foi posicionada em coluna
+    própria antes do valor pago, evitando sobreposição visual.
 
 ### Notas Fiscais e Contas
 
