@@ -117,6 +117,8 @@ fornecedores.
   - endereço do fornecedor passa a exibir `Estado` antes de `Cidade`, com estado
     pelo nome, cidade cadastrada filtrada pela UF e campo próprio para nova
     cidade;
+  - consulta de cidades em fornecedores passa a usar `pageSize=100`, respeitando
+    o contrato da API e evitando `citiesQuery` vazia por erro 400;
   - mensagem de credenciais inválidas do login passa a ser exibida em português;
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em

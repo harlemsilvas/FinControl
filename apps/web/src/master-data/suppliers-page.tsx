@@ -325,7 +325,7 @@ export function SuppliersPage(): ReactElement {
   });
   const citiesQuery = useQuery({
     queryKey: ['cities'],
-    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/cities', { params: { pageSize: 500, active: true } })).data.data,
+    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/cities', { params: { pageSize: 100, active: true } })).data.data,
     staleTime: 60000,
   });
   const paymentMethodsQuery = useQuery({

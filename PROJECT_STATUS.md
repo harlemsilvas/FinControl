@@ -256,6 +256,10 @@ Estado consolidado:
   `Estado` aparece antes de `Cidade`, o estado exibe apenas o nome, a cidade
   cadastrada é filtrada pela UF selecionada e uma cidade nova pode ser informada
   em campo próprio quando não existir na lista.
+- corrigida a consulta de cidades da tela de fornecedores para respeitar o
+  limite oficial de paginação da API (`pageSize <= 100`); antes a tela usava
+  `pageSize=500`, a API retornava validação 400 e `citiesQuery` ficava sem
+  dados.
 - a mensagem de credenciais inválidas do login passou a ser retornada em
   português como `E-mail ou senha inválidos.`.
 
