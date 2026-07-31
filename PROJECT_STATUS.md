@@ -158,6 +158,13 @@ Estado consolidado:
   filtrada por data de vencimento e status `OPEN`, sem abrir automaticamente o
   modal de baixa;
 - a baixa manual continua iniciando pelo botão `Baixar` da linha selecionada;
+- em 31/07/2026, a Agenda Financeira recebeu refinamento de usabilidade:
+  - botões redundantes `Hoje` e campo de data de referência foram removidos da
+    barra superior da agenda;
+  - rodapé `Total previsto no período` foi removido por redundância com os
+    cards superiores;
+  - indicador `+N contas` no calendário passou a ser acionável, abrindo painel
+    lateral com todas as contas do dia e links para a baixa filtrada.
 - a tela `Baixa de Pagamentos` passa a iniciar sempre com status `OPEN`;
 - endpoint de parcelas elegíveis para baixa aceita filtros diretos por título
   e parcela, evitando depender da primeira página da fila;
@@ -201,6 +208,14 @@ Estado consolidado:
   distintas;
 - o link da Agenda para `Baixa de Pagamentos` preserva a empresa selecionada
   quando o filtro estiver ativo.
+- em 31/07/2026, a tela `Visão geral` recebeu refinamento operacional:
+  - card `Vence hoje` passa a ser alimentado por totalização própria da API,
+    sem depender da lista limitada de próximos compromissos;
+  - endpoint `/api/v1/dashboard` passa a retornar `today` e `todayCount` no
+    `summary`;
+  - filtros de vencimento da tela passam a ser por mês/ano, convertidos
+    internamente para primeiro e último dia do mês;
+  - grade dos filtros foi ajustada para melhor comportamento responsivo.
 
 ### Administração de usuários e acessos em 29/07/2026
 
@@ -273,6 +288,8 @@ Estado consolidado:
   limite oficial de paginação da API (`pageSize <= 100`); antes a tela usava
   `pageSize=500`, a API retornava validação 400 e `citiesQuery` ficava sem
   dados.
+- adicionada em 31/07/2026 a categoria de fornecedor `PARTICULAR` por migration
+  nova, preservando a imutabilidade da migration original de categorias.
 - a mensagem de credenciais inválidas do login passou a ser retornada em
   português como `E-mail ou senha inválidos.`.
 

@@ -25,6 +25,8 @@ export class IntelligenceRepository {
     const summary = await this.database.query(`SELECT
         COALESCE(sum(i.open_balance),0)::text total_payable,
         COALESCE(sum(i.open_balance) FILTER (WHERE i.due_date < CURRENT_DATE),0)::text overdue,
+        COALESCE(sum(i.open_balance) FILTER (WHERE i.due_date = CURRENT_DATE),0)::text today,
+        (count(*) FILTER (WHERE i.due_date = CURRENT_DATE))::text today_count,
         COALESCE(sum(i.open_balance) FILTER (WHERE i.due_date >= CURRENT_DATE),0)::text upcoming,
         (SELECT COALESCE(sum(p.movement_amount),0)::text FROM financeiro.payments p
           JOIN financeiro.payment_statuses ps ON ps.id=p.status_id

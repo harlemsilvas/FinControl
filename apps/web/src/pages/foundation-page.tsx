@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
-import { monthRange, shortDate, type DashboardResponse, type OptionResponse, type UpcomingItem } from '../intelligence/contracts';
+import { monthEnd, monthKey, monthStart, shortDate, type DashboardResponse, type OptionResponse, type UpcomingItem } from '../intelligence/contracts';
 import { currency } from '../payables/payables-types';
 
 const highlightStyles = {
@@ -42,12 +42,14 @@ function countByHighlight(items: UpcomingItem[], highlight: UpcomingItem['highli
 }
 
 export function FoundationPage(): ReactElement {
-  const initial = monthRange();
-  const [from, setFrom] = useState(initial.from);
-  const [to, setTo] = useState(initial.to);
+  const initialMonth = monthKey();
+  const [fromMonth, setFromMonth] = useState(initialMonth);
+  const [toMonth, setToMonth] = useState(initialMonth);
   const [supplierId, setSupplier] = useState('');
   const [categoryId, setCategory] = useState('');
   const [companyId, setCompany] = useState('');
+  const from = monthStart(fromMonth || initialMonth);
+  const to = monthEnd(toMonth || fromMonth || initialMonth);
 
   const query = useQuery({
     queryKey: ['dashboard', from, to, supplierId, categoryId, companyId],
@@ -81,8 +83,8 @@ export function FoundationPage(): ReactElement {
   const upcomingItems = query.data?.upcoming ?? [];
   const categoryPoints = query.data?.categories ?? [];
   const dueSeries = query.data?.dueSeries ?? [];
-  const todayAmount = amountByHighlight(upcomingItems, 'TODAY');
-  const todayCount = countByHighlight(upcomingItems, 'TODAY');
+  const todayAmount = summary?.today ?? amountByHighlight(upcomingItems, 'TODAY');
+  const todayCount = Number(summary?.todayCount ?? countByHighlight(upcomingItems, 'TODAY'));
   const upcomingCount = countByHighlight(upcomingItems, 'UPCOMING');
   const overdueCount = countByHighlight(upcomingItems, 'OVERDUE');
   const maximumCategory = Math.max(1, ...categoryPoints.map((item) => Number(item.amount)));
@@ -179,31 +181,31 @@ export function FoundationPage(): ReactElement {
             Abrir agenda financeira
           </Link>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Vencimento inicial
+        <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
+            Mês inicial
             <input
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              type="month"
+              value={fromMonth}
+              onChange={(event) => setFromMonth(event.target.value)}
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Vencimento final
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
+            Mês final
             <input
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              type="month"
+              value={toMonth}
+              onChange={(event) => setToMonth(event.target.value)}
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
             Empresa
             <select
               value={companyId}
               onChange={(event) => setCompany(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Todas as empresas</option>
               {companies.data?.map((item) => (
@@ -213,12 +215,12 @@ export function FoundationPage(): ReactElement {
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
             Fornecedor
             <select
               value={supplierId}
               onChange={(event) => setSupplier(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Todos os fornecedores</option>
               {suppliers.data?.map((item) => (
@@ -228,12 +230,12 @@ export function FoundationPage(): ReactElement {
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
             Categoria
             <select
               value={categoryId}
               onChange={(event) => setCategory(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Todas as categorias</option>
               {categories.data?.map((item) => (

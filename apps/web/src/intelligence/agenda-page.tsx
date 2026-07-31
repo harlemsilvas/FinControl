@@ -77,6 +77,10 @@ function periodTitle(view: View, reference: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function fullDate(value: string): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${value}T00:00:00Z`));
+}
+
 function amountOf(items: AgendaItem[], highlight: AgendaItem['highlight']): string {
   return items.reduce((total, item) => total + (item.highlight === highlight ? Number(item.openBalance) : 0), 0).toFixed(2);
 }
@@ -145,6 +149,7 @@ function CalendarItem({ item, companyId }: { item: AgendaItem; companyId: string
 export function AgendaPage(): ReactElement {
   const [view, setView] = useState<View>('month');
   const [reference, setReference] = useState(iso(new Date()));
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [companyId, setCompany] = useState('');
   const [supplierId, setSupplier] = useState('');
   const [categoryId, setCategory] = useState('');
@@ -174,6 +179,7 @@ export function AgendaPage(): ReactElement {
 
   const items = useMemo(() => query.data?.data ?? [], [query.data?.data]);
   const grouped = useMemo(() => groupByDueDate(items), [items]);
+  const selectedDayItems = selectedDay ? grouped.get(selectedDay) ?? [] : [];
   const overdueCount = items.filter((item) => item.highlight === 'OVERDUE').length;
   const todayCount = items.filter((item) => item.highlight === 'TODAY').length;
   const upcomingCount = items.filter((item) => item.highlight === 'UPCOMING').length;
@@ -204,8 +210,6 @@ export function AgendaPage(): ReactElement {
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setReference(moveReference(reference, view, -1))} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:bg-slate-50" aria-label="Periodo anterior">‹</button>
             <button type="button" onClick={() => setReference(moveReference(reference, view, 1))} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-lg font-bold text-slate-700 transition hover:bg-slate-50" aria-label="Proximo periodo">›</button>
-            <button type="button" onClick={() => setReference(iso(new Date()))} className="min-h-10 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Hoje</button>
-            <input aria-label="Data de referencia" type="date" value={reference} onChange={(event) => setReference(event.target.value)} className="min-h-10 rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
           </div>
           <h2 className="text-center text-2xl font-black text-slate-950">{periodTitle(view, reference)}</h2>
           <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -246,8 +250,9 @@ export function AgendaPage(): ReactElement {
         {query.isError ? (
           <p role="alert" className="p-12 text-center font-semibold text-red-700">Nao foi possivel carregar a agenda.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <div className={view === 'day' ? 'min-w-[360px]' : 'min-w-[980px]'}>
+          <div className={selectedDay ? 'grid lg:grid-cols-[minmax(0,1fr)_360px]' : 'block'}>
+            <div className="overflow-x-auto">
+              <div className={view === 'day' ? 'min-w-[360px]' : 'min-w-[980px]'}>
               {view !== 'day' && (
                 <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-sm font-bold text-slate-700">
                   {weekdays.map((weekday) => <div key={weekday} className="px-3 py-3">{weekday}</div>)}
@@ -267,20 +272,39 @@ export function AgendaPage(): ReactElement {
                       <div className="grid min-w-0 gap-1.5">
                         {isCalendarLoading && day.key === days[0]?.key ? <p className="p-2 text-xs text-slate-500">Carregando...</p> : null}
                         {visibleItems.map((item) => <CalendarItem key={item.id} item={item} companyId={companyId} />)}
-                        {hiddenCount > 0 && <span className="px-2 text-xs font-bold text-blue-700">+{hiddenCount} conta{hiddenCount === 1 ? '' : 's'}</span>}
+                        {hiddenCount > 0 && (
+                          <button type="button" onClick={() => setSelectedDay(day.key)} className="rounded-lg px-2 py-1 text-left text-xs font-bold text-blue-700 transition hover:bg-blue-50">
+                            +{hiddenCount} conta{hiddenCount === 1 ? '' : 's'}
+                          </button>
+                        )}
                       </div>
                     </article>
                   );
                 })}
               </div>
             </div>
+            </div>
+
+            {selectedDay ? (
+              <aside className="border-t border-slate-200 bg-slate-50/70 p-4 lg:border-l lg:border-t-0">
+                <div className="grid gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-950">Contas do dia</h3>
+                      <p className="mt-1 text-sm text-slate-500">{fullDate(selectedDay)}</p>
+                    </div>
+                    <button type="button" onClick={() => setSelectedDay(null)} className="rounded-lg px-2 py-1 text-sm font-bold text-slate-500 transition hover:bg-white hover:text-slate-800" aria-label="Fechar contas do dia">
+                      ×
+                    </button>
+                  </div>
+                  <div className="grid max-h-[560px] gap-2 overflow-y-auto pr-1">
+                    {selectedDayItems.map((item) => <CalendarItem key={item.id} item={item} companyId={companyId} />)}
+                  </div>
+                </div>
+              </aside>
+            ) : null}
           </div>
         )}
-
-        <footer className="flex flex-col gap-2 border-t border-slate-200 bg-white px-4 py-4 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between">
-          <span>Total previsto no periodo: <strong className="text-blue-700">{currency(dashboard.data?.summary.totalPayable ?? query.data?.total ?? 0)}</strong></span>
-          <span>{query.data?.count ?? 0} documento{(query.data?.count ?? 0) === 1 ? '' : 's'}</span>
-        </footer>
       </section>
     </div>
   );

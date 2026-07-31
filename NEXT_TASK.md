@@ -1,7 +1,7 @@
 # FinControl — Next Task
 
 **Última atualização:** 31/07/2026
-**Status:** refinamento operacional da tela Baixa de Pagamentos em validação
+**Status:** refinamento operacional da tela Visão Geral em validação local
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -39,6 +39,12 @@ fornecedores.
   - clique em item da Agenda abre `/payments` filtrado pela data de vencimento
     e status `OPEN`, sem abrir automaticamente o modal de baixa;
   - a baixa continua sendo iniciada manualmente pelo botão `Baixar` da linha;
+  - em 31/07/2026, a Agenda teve controles redundantes removidos:
+    - botão `Hoje`;
+    - campo manual de data de referência;
+    - rodapé `Total previsto no período`;
+  - indicador `+N contas` do calendário passa a abrir painel lateral com todas
+    as contas do dia, preservando os links para baixa filtrada;
   - tela `Baixa de Pagamentos` inicia sempre com status `OPEN`;
   - endpoint de parcelas elegíveis aceita `payableTitleId` e `installmentId`;
   - cadastro de contas bancárias busca detalhe antes de preencher edição,
@@ -119,6 +125,8 @@ fornecedores.
     cidade;
   - consulta de cidades em fornecedores passa a usar `pageSize=100`, respeitando
     o contrato da API e evitando `citiesQuery` vazia por erro 400;
+  - categoria `PARTICULAR` adicionada por migration nova, sem alterar a
+    migration original já aplicada de categorias de fornecedor;
   - mensagem de credenciais inválidas do login passa a ser exibida em português;
 - refinamento local em 31/07/2026 para `Baixa de Pagamentos`:
   - API de parcelas elegíveis calcula atraso dinamicamente por `due_date <
@@ -133,6 +141,16 @@ fornecedores.
     select fixo;
   - tag de status do histórico de pagamentos fica em coluna própria antes do
     valor, evitando sobreposição sobre o montante pago;
+- refinamento local em 31/07/2026 para `Visão geral`:
+  - card `Vence hoje` passa a consumir `summary.today` e
+    `summary.todayCount` retornados pela API `/api/v1/dashboard`;
+  - endpoint `/api/v1/dashboard` calcula total monetário e quantidade de
+    títulos que vencem na data atual dentro dos filtros aplicados;
+  - filtros `Vencimento inicial` e `Vencimento final` foram substituídos por
+    `Mês inicial` e `Mês final`, mantendo conversão interna para datas ISO;
+  - filtros receberam ajuste responsivo para reduzir estouro ou
+    desaparecimento em telas redimensionadas;
+  - `docs/002-correcoes-visao_geral.md` registra o pacote aplicado.
 - rotina de checagem final criada em 28/07/2026:
   - `./Checar_alteracao.sh` executa validações completas e gera log em
     `logs/alteracoes/`;
