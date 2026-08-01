@@ -19,6 +19,8 @@ import { IntelligenceRepository } from '../../domains/intelligence/intelligence-
 import { intelligenceRoutes } from '../../domains/intelligence/intelligence-routes.js';
 import { UsersRepository } from '../../domains/administration/users-repository.js';
 import { usersRoutes } from '../../domains/administration/users-routes.js';
+import { BackupsService } from '../../domains/administration/backups-service.js';
+import { backupsRoutes } from '../../domains/administration/backups-routes.js';
 import { registerOpenApi } from './openapi.js';
 
 export interface BuildAppOptions {
@@ -99,6 +101,15 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(usersRoutes, {
     prefix: '/api/v1', authRepository, authService, tokenService,
     repository: new UsersRepository(options.database),
+  });
+  void app.register(backupsRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    service: new BackupsService(
+      options.database,
+      options.environment.BACKUP_DIRECTORY,
+      options.environment.BACKUP_SCRIPT_PATH,
+      options.environment.BACKUP_SCRIPT_USE_SUDO,
+    ),
   });
 
   app.addHook('onClose', async () => {

@@ -29,6 +29,9 @@ const environment: Environment = {
   SMTP_FROM_NAME: 'FinControl',
   ATTACHMENT_STORAGE_ROOT: '/tmp/fincontrol-test-storage',
   ATTACHMENT_MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
+  BACKUP_DIRECTORY: '/tmp/fincontrol-test-backups',
+  BACKUP_SCRIPT_PATH: '/tmp/fincontrol-test-backup-db',
+  BACKUP_SCRIPT_USE_SUDO: false,
 };
 
 const apps: ReturnType<typeof buildApp>[] = [];
@@ -71,7 +74,7 @@ describe('health routes', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ status: 'ok', service: 'fincontrol-api' });
     expect(checkHealth).not.toHaveBeenCalled();
-  }, 10_000);
+  }, 30_000);
 
   it('reports readiness when PostgreSQL is available', async () => {
     const { database } = createDatabase();

@@ -2,11 +2,13 @@ import { useState, type ReactElement } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { FinControlMark } from '../components/brand/fincontrol-mark';
+import { environment } from '../config/environment';
 
 type MenuItem = {
   label: string;
   to?: string;
   icon: string;
+  permission?: string;
 };
 
 type MenuSection = {
@@ -58,15 +60,12 @@ const menuSections: MenuSection[] = [
     title: 'Configurações',
     items: [
       { label: 'Usuários', to: '/users', icon: '♙' },
+      { label: 'Backups', to: '/backups', icon: '▣', permission: 'BACKUP_MANAGE' },
       { label: 'Perfis de Acesso', to: '/access-profiles', icon: '⚙' },
       { label: 'Parâmetros', to: '/parameters', icon: '⚙' },
     ],
   },
 ];
-
-function sectionIsActive(section: MenuSection, pathname: string): boolean {
-  return section.items.some((item) => item.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)));
-}
 
 function MenuEntry({ item }: { item: MenuItem }): ReactElement {
   const content = (
@@ -108,14 +107,21 @@ function MenuEntry({ item }: { item: MenuItem }): ReactElement {
   );
 }
 
-function MenuSectionGroup({ section, pathname }: { section: MenuSection; pathname: string }): ReactElement {
-  const active = sectionIsActive(section, pathname);
+function userCanSee(item: MenuItem, isMaster: boolean, permissions: string[]): boolean {
+  return !item.permission || isMaster || permissions.includes(item.permission);
+}
+
+function MenuSectionGroup({ section, pathname, isMaster, permissions }: { section: MenuSection; pathname: string; isMaster: boolean; permissions: string[] }): ReactElement | null {
+  const visibleItems = section.items.filter((item) => userCanSee(item, isMaster, permissions));
+  const active = visibleItems.some((item) => item.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)));
   const [isOpen, setIsOpen] = useState(active || !section.title);
+
+  if (visibleItems.length === 0) return null;
 
   if (!section.title) {
     return (
       <div className="space-y-1">
-        {section.items.map((item) => (
+        {visibleItems.map((item) => (
           <MenuEntry key={item.label} item={item} />
         ))}
       </div>
@@ -135,7 +141,7 @@ function MenuSectionGroup({ section, pathname }: { section: MenuSection; pathnam
       </button>
       {isOpen ? (
         <div className="space-y-1 px-2 pb-2">
-          {section.items.map((item) => (
+          {visibleItems.map((item) => (
             <MenuEntry key={item.label} item={item} />
           ))}
         </div>
@@ -144,15 +150,36 @@ function MenuSectionGroup({ section, pathname }: { section: MenuSection; pathnam
   );
 }
 
+function formatBuildTime(value: string): string {
+  if (value === 'local') return 'build local';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(date);
+}
+
 export function AppShell(): ReactElement {
   const auth = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { session } = auth;
+  const permissions = session?.user.permissions ?? [];
+  const isMaster = Boolean(session?.user.isMaster);
   const companies = session?.user.companies ?? [];
   const defaultCompany = companies.find((company) => company.id === session?.user.defaultCompanyId)
     ?? companies.find((company) => company.isDefault);
   const companyLabel = defaultCompany?.tradeName || defaultCompany?.legalName;
+  const shortSha = environment.VITE_GIT_SHA.slice(0, 12);
+  const buildTimeLabel = formatBuildTime(environment.VITE_BUILD_TIME);
+  const versionDetails = [
+    `Versão ${environment.VITE_APP_VERSION}`,
+    `Release ${environment.VITE_RELEASE_ID}`,
+    `SHA ${shortSha}`,
+    buildTimeLabel,
+  ].join(' • ');
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 lg:flex">
@@ -175,11 +202,15 @@ export function AppShell(): ReactElement {
 
           <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-5" aria-label="Menu principal">
             {menuSections.map((section, index) => (
-              <MenuSectionGroup key={section.title ?? `main-${index}`} section={section} pathname={location.pathname} />
+              <MenuSectionGroup key={section.title ?? `main-${index}`} section={section} pathname={location.pathname} isMaster={isMaster} permissions={permissions} />
             ))}
           </nav>
 
-          <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-400">FinControl v1.0.0</div>
+          <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-400" title={versionDetails}>
+            <p className="font-semibold text-slate-300">FinControl v{environment.VITE_APP_VERSION}</p>
+            <p className="mt-1 truncate">release {environment.VITE_RELEASE_ID}</p>
+            <p className="mt-1 truncate">sha {shortSha}</p>
+          </div>
         </div>
       </aside>
       ) : null}

@@ -1,7 +1,7 @@
 # FinControl — Next Task
 
 **Última atualização:** 01/08/2026
-**Status:** correção de CI pós-deploy controlado em validação; próxima pauta é versionamento/cache de deploy
+**Status:** pacote de versionamento/cache implementado localmente e em validação focada
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -40,6 +40,40 @@ dos documentos numerados em `docs/`.
   - revisar cache headers do Nginx para `index.html` e assets;
   - garantir que deploy novo não entregue página antiga após atualização;
   - documentar rotina de verificação pós-deploy na VPS.
+- pacote local de versionamento/cache em 01/08/2026:
+  - menu lateral passa a exibir `FinControl v{version}`, `release {shortSha}` e
+    `sha {shortSha}`;
+  - frontend aceita `VITE_APP_VERSION`, `VITE_GIT_SHA`, `VITE_BUILD_TIME` e
+    `VITE_RELEASE_ID`;
+  - deploy nativo da VPS injeta versão do `package.json`, SHA completo, release
+    curta e timestamp UTC no build da web;
+  - deploy gera `version.json` no diretório publicado do frontend;
+  - Nginx mantém `/fincontrol/assets/` com cache imutável e passa a servir
+    `/fincontrol/` e `/fincontrol/version.json` sem cache;
+  - imagens Docker web também aceitam os mesmos build args.
+- pacote local de backup/restore em 01/08/2026:
+  - criado `deploy/vps/bin/backup-db` para backup lógico PostgreSQL em formato
+    custom com checksum SHA-256 e metadados JSON;
+  - criado `deploy/vps/bin/restore-db` com confirmação explícita `RESTORE`,
+    validação de checksum, backup automático `pre-restore`, parada/restart da
+    API e restauração via `pg_restore`;
+  - `install-control-plane` passa a instalar `backup-db` e `restore-db` em
+    `/opt/fincontrol/bin`;
+  - `deploy` passa a executar backup `pre-deploy-{shortSha}` antes de aplicar
+    migrations;
+  - criado `docs/VPS-BACKUP-RESTORE-RUNBOOK.md` com comandos operacionais.
+- pacote local de gestão web de backups em 01/08/2026:
+  - migration nova cria permissão `BACKUP_MANAGE` e associa ao perfil `MASTER`;
+  - API recebe `GET /api/v1/backups`, `POST /api/v1/backups` e
+    `GET /api/v1/backups/:name/download`;
+  - backend executa somente o script fixo `backup-db` e pode usar
+    `sudo -n` controlado por `BACKUP_SCRIPT_USE_SUDO`;
+  - solicitações de criação e exportação são auditadas em
+    `administracao.audit_events`;
+  - frontend recebe tela `Configurações > Backups` em `/backups`;
+  - menu lateral exibe `Backups` apenas para Master ou usuário com
+    `BACKUP_MANAGE`;
+  - tela permite consultar, gerar backup e exportar o arquivo para cópia local.
 - correção local aplicada para saldo inicial:
   - campo `Valor inicial` usando máscara de moeda;
   - mensagem amigável quando a conta já possui saldo inicial ativo;
@@ -384,6 +418,27 @@ dos documentos numerados em `docs/`.
     aprovado, 38 testes;
   - `npm test --workspace @fincontrol/api`: aprovado, 95 testes e 5 testes de
     integração opt-in pulados.
+- Validação focada do pacote de versionamento/cache em 01/08/2026:
+  - `npm test --workspace @fincontrol/web -- app.test.tsx`: aprovado, 1 teste;
+  - `npm run typecheck --workspace @fincontrol/web`: aprovado;
+  - `npm run lint --workspace @fincontrol/web`: aprovado;
+  - `VITE_APP_VERSION=0.1.0 VITE_GIT_SHA=1234567890abcdef VITE_BUILD_TIME=2026-08-01T15:30:00Z VITE_RELEASE_ID=1234567890ab npm run build --workspace @fincontrol/web`:
+    aprovado.
+- Validação focada do pacote de backup/restore em 01/08/2026:
+  - `bash -n deploy/vps/bin/backup-db`: aprovado;
+  - `bash -n deploy/vps/bin/restore-db`: aprovado;
+  - `bash -n deploy/vps/bin/install-control-plane`: aprovado;
+  - `bash -n deploy/vps/bin/deploy`: aprovado.
+- Validação focada da gestão web de backups em 01/08/2026:
+  - `bash scripts/validate-migrations.sh`: aprovado, 57 migrations;
+  - `npm test --workspace @fincontrol/api -- http-contract.test.ts environment.test.ts health.test.ts`:
+    aprovado, 26 testes;
+  - `npm test --workspace @fincontrol/web -- backups-page.test.tsx app.test.tsx`:
+    aprovado, 2 testes;
+  - `npm run typecheck --workspace @fincontrol/api`: aprovado;
+  - `npm run typecheck --workspace @fincontrol/web`: aprovado;
+  - `npm run lint --workspace @fincontrol/api`: aprovado;
+  - `npm run lint --workspace @fincontrol/web`: aprovado.
 
 ## Critério de conclusão
 

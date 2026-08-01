@@ -85,7 +85,7 @@ O Node.js global não será alterado. Será instalado Node.js 22 isolado para o 
 └── sites-enabled/hrmmotos.com.br
 ```
 
-O banco usa um volume Docker nomeado. Backups lógicos devem ser gravados fora do volume em `/opt/fincontrol/shared/backups`; o volume nunca deve ser removido por rotinas de deploy.
+O banco usa um volume Docker nomeado. Backups lógicos devem ser gravados fora do volume em `/opt/fincontrol/shared/backups`; o volume nunca deve ser removido por rotinas de deploy. A rotina operacional versionada de backup e restore esta em `docs/VPS-BACKUP-RESTORE-RUNBOOK.md`.
 
 ## 3. Preparação no hPanel
 

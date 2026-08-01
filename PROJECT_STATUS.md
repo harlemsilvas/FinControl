@@ -52,6 +52,27 @@ Este documento registra o estado consolidado do projeto sem substituir:
   cache do frontend/deploy para eliminar risco de página antiga após publicação
   na VPS. A solução deve definir fonte única de versão, expor build/SHA para
   diagnóstico e ajustar headers/rotina de verificação pós-deploy.
+- Pacote local iniciado em 01/08/2026:
+  - menu lateral passa a exibir versão, release e SHA do build;
+  - deploy nativo injeta metadados `VITE_*` e gera `version.json` no frontend;
+  - Nginx versionado mantém assets com cache imutável e desativa cache para SPA
+    e `version.json`.
+- Rotina local de backup/restore iniciada em 01/08/2026:
+  - backup lógico PostgreSQL versionado em `deploy/vps/bin/backup-db`, com
+    dump custom, checksum SHA-256 e metadados;
+  - restore versionado em `deploy/vps/bin/restore-db`, com confirmação
+    explícita, backup de segurança antes da restauração e parada/restart da API;
+  - deploy nativo passa a gerar backup `pre-deploy-{shortSha}` antes de
+    migrations;
+  - runbook operacional registrado em `docs/VPS-BACKUP-RESTORE-RUNBOOK.md`.
+- Gestão web de backups iniciada em 01/08/2026:
+  - permissão `BACKUP_MANAGE` criada por migration e associada ao perfil
+    `MASTER`;
+  - API administrativa permite listar, gerar e exportar backups usando o script
+    versionado fixo de backup;
+  - tela `/backups` em `Configurações > Backups` permite consulta, geração e
+    exportação local de cópia do backup para usuários autorizados;
+  - criação e exportação de backup são registradas em auditoria.
 
 ## 3. Avanços além da Fase 16
 

@@ -197,6 +197,7 @@ commit_sha="$(as_fincontrol git -C "$work_dir/repo" rev-parse "$deploy_ref^{comm
 short_sha="${commit_sha:0:12}"
 release_dir="$APP_ROOT/releases/$short_sha"
 web_release_dir="$WEB_ROOT/releases/$short_sha"
+build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 previous_api_target="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
 previous_web_target="$(readlink -f "$WEB_ROOT/current" 2>/dev/null || true)"
 
@@ -218,10 +219,24 @@ echo "Running checks"
 as_fincontrol "$NPM_BIN" run typecheck
 as_fincontrol "$NPM_BIN" test
 as_fincontrol "$NPM_BIN" run build --workspace @fincontrol/api
+app_version="$(as_fincontrol "$NODE_BIN" -p "require('./package.json').version")"
 as_fincontrol env VITE_BASE_PATH=/fincontrol/ VITE_API_URL=/fincontrol \
+  VITE_APP_VERSION="$app_version" VITE_GIT_SHA="$commit_sha" \
+  VITE_BUILD_TIME="$build_time" VITE_RELEASE_ID="$short_sha" \
   "$NPM_BIN" run build --workspace @fincontrol/web
 
+cat > "$release_dir/apps/web/dist/version.json" <<EOF_VERSION
+{
+  "app": "FinControl",
+  "version": "$app_version",
+  "commitSha": "$commit_sha",
+  "releaseId": "$short_sha",
+  "buildTime": "$build_time"
+}
+EOF_VERSION
+
 echo "Applying database migrations"
+"$release_dir/deploy/vps/bin/backup-db" "pre-deploy-$short_sha"
 apply_migrations
 
 echo "Verifying database"

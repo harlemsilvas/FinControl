@@ -10,8 +10,11 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 install -d -o fincontrol -g fincontrol -m 750 "$APP_ROOT/bin" "$APP_ROOT/shared"
+install -d -o root -g fincontrol -m 750 "$APP_ROOT/shared/backups"
 install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/deploy" "$APP_ROOT/bin/deploy"
 install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/rollback" "$APP_ROOT/bin/rollback"
+install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/backup-db" "$APP_ROOT/bin/backup-db"
+install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/restore-db" "$APP_ROOT/bin/restore-db"
 install -o fincontrol -g fincontrol -m 644 "$REPO_DIR/deploy/vps/pm2/ecosystem.config.cjs" "$APP_ROOT/shared/ecosystem.config.cjs"
 install -o root -g root -m 644 "$REPO_DIR/deploy/vps/systemd/pm2-fincontrol.service" "/etc/systemd/system/pm2-fincontrol.service"
 
@@ -23,6 +26,8 @@ fi
 echo "Installed FinControl control plane:"
 echo "  $APP_ROOT/bin/deploy"
 echo "  $APP_ROOT/bin/rollback"
+echo "  $APP_ROOT/bin/backup-db"
+echo "  $APP_ROOT/bin/restore-db"
 echo "  $APP_ROOT/shared/ecosystem.config.cjs"
 echo "  /etc/systemd/system/pm2-fincontrol.service"
 echo

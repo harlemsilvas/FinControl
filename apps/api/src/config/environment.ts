@@ -39,6 +39,9 @@ const environmentSchema = z.object({
   SMTP_FROM_NAME: z.string().min(1).default('FinControl'),
   ATTACHMENT_STORAGE_ROOT: z.string().min(1).default('/opt/fincontrol/storage'),
   ATTACHMENT_MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  BACKUP_DIRECTORY: z.string().min(1).default('/opt/fincontrol/shared/backups'),
+  BACKUP_SCRIPT_PATH: z.string().min(1).default('/opt/fincontrol/bin/backup-db'),
+  BACKUP_SCRIPT_USE_SUDO: envBoolean,
 }).superRefine((environment, context) => {
   if (!environment.SMTP_ENABLED) return;
   if (!environment.SMTP_HOST) {

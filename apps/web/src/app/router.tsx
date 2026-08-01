@@ -18,6 +18,7 @@ import { PlannedFeaturePage } from '../pages/planned-feature-page';
 import { plannedFeatures } from '../pages/planned-features';
 import { environment } from '../config/environment';
 import { UsersPage } from '../administration/users-page';
+import { BackupsPage } from '../administration/backups-page';
 
 export const router = createBrowserRouter(
   [
@@ -38,6 +39,7 @@ export const router = createBrowserRouter(
             { path: 'xml-imports', element: <XmlImportsListPage /> },
             { path: 'recurrences', element: <RecurrencesPage /> },
             { path: 'users', element: <UsersPage /> },
+            { path: 'backups', element: <BackupsPage /> },
             { path: 'payables/new', element: <PayableFormPage /> },
             { path: 'payables/:id', element: <PayableFormPage /> },
             { path: 'suppliers', element: <SuppliersPage /> },

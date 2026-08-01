@@ -290,6 +290,29 @@ export function registerOpenApi(app: FastifyInstance): void {
       '/api/v1/users/{id}': entityPath('Administracao', 'Usuario'),
       '/api/v1/users/{id}/reactivate': actionPath('Administracao', 'Reativa usuario', {}),
       '/api/v1/users/{id}/password-reset': actionPath('Administracao', 'Envia recuperacao de senha por e-mail', {}),
+      '/api/v1/backups': {
+        get: {
+          tags: ['Administracao'],
+          summary: 'Lista backups disponiveis do banco de dados.',
+          security: bearerSecurity,
+          responses: { '200': { description: 'Backups disponiveis' } },
+        },
+        post: {
+          tags: ['Administracao'],
+          summary: 'Gera um novo backup do banco de dados.',
+          security: bearerSecurity,
+          responses: { '201': { description: 'Backup gerado' } },
+        },
+      },
+      '/api/v1/backups/{name}/download': {
+        get: {
+          tags: ['Administracao'],
+          summary: 'Exporta um arquivo de backup para copia local.',
+          security: bearerSecurity,
+          parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': { description: 'Arquivo de backup' } },
+        },
+      },
       '/api/v1/payables': {
         get: {
           tags: ['Financeiro'],
