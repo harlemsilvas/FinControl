@@ -48,6 +48,10 @@ Este documento registra o estado consolidado do projeto sem substituir:
 - Workflow `.github/workflows/deploy-production.yml` já existe no repositório.
 - Pendência operacional ainda aberta: uso efetivo do environment `production`
   do GitHub com deploy do pacote mais recente validado.
+- Pauta aberta para 01/08/2026: revisar versionamento visível e política de
+  cache do frontend/deploy para eliminar risco de página antiga após publicação
+  na VPS. A solução deve definir fonte única de versão, expor build/SHA para
+  diagnóstico e ajustar headers/rotina de verificação pós-deploy.
 
 ## 3. Avanços além da Fase 16
 
@@ -352,6 +356,19 @@ Estado consolidado:
 - referências seedadas por migration (`INVOICE`, `PIX`, `IMMEDIATE`,
   `ACTIVE`, `SUPPLIER`) são verificadas explicitamente, evitando enviar
   `"undefined"` para campos UUID no PostgreSQL.
+
+### Correção de CI pós-deploy controlado em 01/08/2026
+
+Estado consolidado:
+
+- deploy controlado por `ad968a4` expôs falha unitária em
+  `payables-repository.test.ts` causada por dependência da data real do runner;
+- o teste de revisão de recorrência que usa `2026-08-01` como data efetiva
+  passou a congelar o relógio em `2026-07-20`, preservando o cenário funcional
+  sem alterar código de produção;
+- validações locais aprovadas:
+  - `npm test --workspace @fincontrol/api -- payables-repository.test.ts`;
+  - `npm test --workspace @fincontrol/api`.
 
 ### Recorrências
 

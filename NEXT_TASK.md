@@ -1,17 +1,16 @@
 # FinControl — Next Task
 
-**Última atualização:** 31/07/2026
-**Status:** refinamento operacional da tela Visão Geral em validação local
+**Última atualização:** 01/08/2026
+**Status:** correção de CI pós-deploy controlado em validação; próxima pauta é versionamento/cache de deploy
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Validar e publicar o refinamento do MVP de `Configurações > Usuários`, agora
-com recuperação/redefinição de senha, envio SMTP real a partir da outbox,
-bloqueio de autoalterações perigosas e identidade visual alinhada na tela de
-login, incluindo a correção operacional detectada em produção no cadastro de
-fornecedores.
+Retomar o desenvolvimento atacando primeiro o versionamento visível do sistema
+e a estratégia anti-cache do frontend/deploy, para evitar página antiga após
+publicação na VPS. Depois disso, seguir com novas correções funcionais a partir
+dos documentos numerados em `docs/`.
 
 ## Escopo desta tarefa
 
@@ -24,6 +23,23 @@ fornecedores.
 - manter fora do pacote os arquivos locais/artefatos ainda não conferidos;
 - branch `feature/matriz-filial-xml` enviada ao GitHub e com upstream
   configurado;
+- último pacote enviado em 31/07/2026:
+  - `ad968a4 feat(payables): simplify manual payable entry`;
+  - `Checar_alteracao.sh` executado antes do commit com `STATUS: OK`;
+  - push realizado para `feature/matriz-filial-xml`;
+- correção local em 01/08/2026 após deploy controlado por `ad968a4`:
+  - teste unitário de recorrência deixou de depender da data real do runner;
+  - caso `keeps predecessor end date valid when revision starts on the original recurrence start date`
+    congela o relógio em `2026-07-20`, mantendo `2026-08-01` como data futura
+    válida;
+  - código de produção não foi alterado nessa correção.
+- pauta prioritária para 01/08/2026:
+  - revisar versionamento exibido no menu lateral/rodapé da aplicação;
+  - definir fonte única de versão do sistema;
+  - incluir SHA/build/release no frontend para diagnóstico;
+  - revisar cache headers do Nginx para `index.html` e assets;
+  - garantir que deploy novo não entregue página antiga após atualização;
+  - documentar rotina de verificação pós-deploy na VPS.
 - correção local aplicada para saldo inicial:
   - campo `Valor inicial` usando máscara de moeda;
   - mensagem amigável quando a conta já possui saldo inicial ativo;
@@ -363,6 +379,11 @@ fornecedores.
   - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
     `logs/alteracoes/checar_alteracao_20260729_175516.log`;
   - como o status retornou `OK`, o log não foi analisado.
+- Validação da correção de CI em 01/08/2026:
+  - `npm test --workspace @fincontrol/api -- payables-repository.test.ts`:
+    aprovado, 38 testes;
+  - `npm test --workspace @fincontrol/api`: aprovado, 95 testes e 5 testes de
+    integração opt-in pulados.
 
 ## Critério de conclusão
 
