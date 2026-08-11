@@ -6,6 +6,10 @@ O **FinControl** é um sistema financeiro modular desenvolvido para centralizar 
 
 O projeto foi desenvolvido com foco em arquitetura modular, segurança, rastreabilidade, qualidade de código, documentação e evolução contínua.
 
+> Status atual: sistema em desenvolvimento ativo, já com deploy validado em VPS
+> e evolução contínua do módulo financeiro. O FinControl não deve ser tratado
+> como produto finalizado; o README separa funcionalidades existentes de roadmap.
+
 ---
 
 ## Visão Geral
@@ -21,10 +25,12 @@ A aplicação atualmente contempla funcionalidades relacionadas a:
 * Fornecedores, categorias, centros de custo e marcadores
 * Tipos de documento, formas e condições de pagamento
 * Notas Fiscais e Contas, preservando o domínio técnico de Contas a Pagar
-* Contas recorrentes com geração, revisão futura e cancelamento de série
-* Baixa de pagamentos, saldo oficial e movimentos de conta bancária
+* Contas recorrentes com geração, pré-visualização, revisão futura e cancelamento de série
+* Baixa de pagamentos com juros, multa, acréscimos, desconto e estorno auditado
+* Saldo oficial, saldo inicial, entrada provisória de caixa e movimentos de conta bancária
 * Dashboard financeiro e Agenda financeira
-* Importação e acompanhamento operacional de XMLs
+* Importação e acompanhamento operacional de XMLs de NFe
+* Validação do destinatário do XML pelo CNPJ cadastrado em Empresas
 * Backups PostgreSQL com geração, listagem e exportação por usuários autorizados
 * API REST com documentação interativa Swagger / OpenAPI
 * Testes automatizados, typecheck, lint e validações de integração
@@ -98,6 +104,59 @@ FinControl
 ```
 
 A separação dos componentes facilita manutenção, testes, implantação e evolução independente das diferentes partes da aplicação.
+
+---
+
+## Funcionalidades Implementadas
+
+### Administração e segurança
+
+* Login com JWT, refresh token e proteção de rotas
+* Perfis, permissões e autorização por ação
+* Administração de usuários
+* Vínculo de usuários a empresas permitidas
+* Recuperação/redefinição de senha com token e envio SMTP
+* Auditoria de operações sensíveis
+
+### Cadastros
+
+* Empresas matriz/filial
+* Parâmetros por empresa
+* Fornecedores
+* Categorias financeiras
+* Centros de custo
+* Tipos de documento
+* Formas e condições de pagamento
+* Bancos e contas bancárias
+
+### Financeiro
+
+* Notas Fiscais e Contas
+* Lançamento manual com empresa obrigatória
+* Parcelas, vencimentos e descrição por parcela
+* Alerta de possível duplicidade com confirmação consciente
+* Recorrências com geração por janela, revisão futura e cancelamento de série
+* Agenda financeira mensal, semanal e diária
+* Baixa de pagamentos com cálculo do valor movimentado
+* Histórico de pagamentos com filtros, paginação e estorno
+* Movimentos de tesouraria vinculados aos pagamentos
+
+### XML de NFe
+
+* Leitura de XML no frontend
+* Prévia de chave, emitente, destinatário, valores, vencimentos e itens
+* Bloqueio de importação quando o CNPJ destinatário não existe em Empresas
+* Vinculação automática à empresa destinatária cadastrada
+* Geração de conta a pagar a partir do XML importado
+* Listagem, detalhe, reprocessamento e exclusão lógica de XMLs importados
+
+### Operação e infraestrutura
+
+* Dashboard financeiro
+* Backups PostgreSQL pela interface web para usuários autorizados
+* Scripts versionados de backup e restore na VPS
+* Versionamento visível no frontend com versão, release e SHA
+* Deploy controlado por SHA imutável via GitHub Actions
 
 ---
 
@@ -221,6 +280,18 @@ A documentação permite consultar endpoints, contratos e estruturas utilizadas 
 
 O FinControl possui ambiente de implantação validado em **VPS Linux**.
 
+Ambiente publicado:
+
+```text
+https://hrmmotos.com.br/fincontrol/
+```
+
+Swagger / OpenAPI:
+
+```text
+https://hrmmotos.com.br/fincontrol/docs/
+```
+
 A arquitetura atualmente utilizada contempla:
 
 ```text
@@ -246,7 +317,22 @@ No ambiente de produção:
 
 O projeto também possui estrutura de CI/CD utilizando GitHub Actions.
 
-O processo de deploy manual controlado já foi validado e a evolução para execução automatizada do workflow de produção faz parte da continuidade do projeto.
+O deploy recomendado é o workflow **Deploy VPS Native**, acionado manualmente com:
+
+* `deploy_ref`: branch, tag ou SHA imutável;
+* `run_checks`: validação antes do deploy;
+* `confirmation`: valor `DEPLOY`.
+
+O deploy nativo executa o script controlado da VPS e publica exatamente o commit resolvido.
+
+Último deploy validado registrado na continuidade:
+
+```text
+commit d107d1d
+workflow run 31543548787
+```
+
+O commit posterior `ebe63c1` registra apenas documentação de continuidade pós-deploy.
 
 ---
 
@@ -285,6 +371,8 @@ A arquitetura está preparada para expansão futura para módulos como:
 * Relatórios e indicadores
 * Integrações bancárias
 * Integrações externas
+* Sistema próprio de notificações toast
+* Sincronização futura de comprovantes com armazenamento externo
 
 Esses módulos representam a evolução planejada da arquitetura e não necessariamente funcionalidades já disponíveis na versão atual.
 
@@ -373,7 +461,26 @@ Principais etapas já implementadas:
 * Estrutura de CI/CD
 * Provisionamento de VPS
 * Deploy manual controlado
+* Deploy nativo controlado por SHA
 * Swagger / OpenAPI
+
+Validação completa mais recente executada localmente e repetida no CI:
+
+```bash
+git diff --check
+bash scripts/validate-migrations.sh
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+Resultado local do último pacote funcional:
+
+* API: 101 testes aprovados e 5 integrações opt-in puladas
+* Web: 50 testes aprovados
+* Build de API e frontend aprovado
+* CI do GitHub aprovado após push
 
 O desenvolvimento continua de forma incremental e documentada.
 
