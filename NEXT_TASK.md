@@ -74,6 +74,40 @@ dos documentos numerados em `docs/`.
   - menu lateral exibe `Backups` apenas para Master ou usuário com
     `BACKUP_MANAGE`;
   - tela permite consultar, gerar backup e exportar o arquivo para cópia local.
+- correção local em 10/08/2026 para recorrências:
+  - cadastro de série recorrente com `Data final` além de 6 meses foi
+    confirmado como permitido e coberto por teste;
+  - a regra de 6 meses permanece restrita à geração de títulos por operação;
+  - a janela de geração passou a ser calculada a partir da primeira ocorrência
+    pendente da série, não da data atual, com teto `+6 meses - 1 dia`, corrigindo
+    séries futuras que começavam meses depois do cadastro;
+  - preview/geração com `Gerar até` maior que a janela permitida deixa de
+    retornar erro bloqueante e passa a limitar a operação automaticamente à data
+    máxima gerável, com aviso ao usuário;
+  - modal de geração passou a exibir a vigência da série e a tratar `Gerar até`
+    e `Quantidade de ocorrências` como alternativas, evitando payload ambíguo;
+  - teste instável de revisão de recorrência teve relógio congelado para não
+    quebrar conforme a data real avança.
+- correção local em 10/08/2026 para listagens operacionais:
+  - `/api/v1/payables` passa a ocultar por padrão títulos vinculados a séries
+    recorrentes `CANCELLED` ou `FINISHED`;
+  - `Notas Fiscais e Contas` ganhou filtro `Recorrências operacionais`,
+    `Recorrências desativadas` e `Todas as recorrências`;
+  - `Pagamentos realizados` na tela de baixa ganhou paginação independente,
+    seletor de quantidade por página e filtros por data de pagamento;
+  - filtros compartilhados de busca, empresa e fornecedor continuam afetando
+    fila de parcelas e histórico, mas cada lista mantém sua própria paginação.
+- ajuste local em 11/08/2026 para higiene de repositório e README:
+  - README reforçado para apresentar o FinControl como ERP financeiro full
+    stack em desenvolvimento ativo, separando funcionalidades existentes de
+    roadmap futuro;
+  - `.venv` e `id_fincontrol` removidos do controle de versão local sem apagar
+    os arquivos da máquina;
+  - `.gitignore` reforçado para impedir novo rastreamento da `.venv` e da chave
+    local `id_fincontrol`;
+  - pendência crítica: revogar/rotacionar a chave SSH exposta e, em etapa
+    controlada separada, limpar o histórico Git antes de considerar o segredo
+    totalmente removido do repositório remoto.
 - correção local aplicada para saldo inicial:
   - campo `Valor inicial` usando máscara de moeda;
   - mensagem amigável quando a conta já possui saldo inicial ativo;
@@ -439,6 +473,22 @@ dos documentos numerados em `docs/`.
   - `npm run typecheck --workspace @fincontrol/web`: aprovado;
   - `npm run lint --workspace @fincontrol/api`: aprovado;
   - `npm run lint --workspace @fincontrol/web`: aprovado.
+- Validação focada da correção de recorrências em 10/08/2026:
+  - `npm test --workspace @fincontrol/api -- payables-repository.test.ts`:
+    aprovado, 42 testes;
+  - `npm test --workspace @fincontrol/web -- recurrences-page.test.tsx`:
+    aprovado, 4 testes;
+  - `npm run typecheck --workspace @fincontrol/api`: aprovado;
+  - `npm run typecheck --workspace @fincontrol/web`: aprovado.
+- Validação focada das listagens operacionais em 10/08/2026:
+  - `npm test --workspace @fincontrol/api -- payables-repository.test.ts`:
+    aprovado, 42 testes;
+  - `npm test --workspace @fincontrol/web -- payables-list-page.test.tsx payments-page.test.tsx`:
+    aprovado, 20 testes;
+  - `npm run typecheck --workspace @fincontrol/api` e
+    `npm run typecheck --workspace @fincontrol/web` foram iniciados, mas
+    interrompidos por demora excessiva sem saída de erro no WSL; rodar
+    `./Checar_alteracao.sh` antes de commit/deploy.
 
 ## Critério de conclusão
 

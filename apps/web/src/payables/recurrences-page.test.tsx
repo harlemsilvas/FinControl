@@ -74,11 +74,26 @@ const mocks = vi.hoisted(() => ({
     }
     return Promise.resolve({ data: { data: [] } });
   }),
-  post: vi.fn((url: string) => {
+  post: vi.fn((url: string, payload?: unknown) => {
     if (url === '/api/v1/recurrences') {
       return Promise.resolve({ data: { id: 'rec-new' } });
     }
     if (url === '/api/v1/recurrences/rec-1/preview-generation') {
+      if (typeof payload === 'object' && payload !== null && 'untilDate' in payload) {
+        return Promise.resolve({
+          data: {
+            recurrenceId: 'rec-1',
+            total: 2,
+            limitedByGenerationWindow: true,
+            maxGenerationDate: '2027-01-20',
+            requestedUntilDate: '2027-07-31',
+            occurrences: [
+              { occurrenceDate: '2026-08-05', dueDate: '2026-08-05', sequenceNumber: 2, documentNumber: 'ALUGUEL-HRM-20260805', amount: 2500 },
+              { occurrenceDate: '2026-09-05', dueDate: '2026-09-05', sequenceNumber: 3, documentNumber: 'ALUGUEL-HRM-20260905', amount: 2500 },
+            ],
+          },
+        });
+      }
       return Promise.resolve({
         data: {
           recurrenceId: 'rec-1',
@@ -169,7 +184,7 @@ describe('RecurrencesPage', () => {
     fireEvent.change(screen.getByLabelText('Documento base'), { target: { value: 'ALUGUEL-CPS' } });
     fireEvent.change(screen.getByLabelText('Valor base'), { target: { value: '1800' } });
     fireEvent.change(screen.getByLabelText('Data inicial'), { target: { value: '2026-07-23' } });
-    fireEvent.change(screen.getByLabelText('Data final'), { target: { value: '2026-12-23' } });
+    fireEvent.change(screen.getByLabelText('Data final'), { target: { value: '2027-07-31' } });
     fireEvent.change(screen.getByLabelText('Dia de vencimento'), { target: { value: '23' } });
     fireEvent.change(screen.getByLabelText('Observações'), { target: { value: 'Contrato anual com reajuste futuro fora do MVP.' } });
 
@@ -187,7 +202,7 @@ describe('RecurrencesPage', () => {
       baseDocumentNumber: 'ALUGUEL-CPS',
       baseAmount: 1800,
       startDate: '2026-07-23',
-      endDate: '2026-12-23',
+      endDate: '2027-07-31',
       dueDay: 23,
     })));
   });
@@ -199,6 +214,7 @@ describe('RecurrencesPage', () => {
     const firstGenerateButton = generateButtons[0];
     if (!firstGenerateButton) throw new Error('Generate button not found');
     fireEvent.click(firstGenerateButton);
+    expect(await screen.findByText('Vigência da série: 01/07/2026 até 31/12/2026')).toBeTruthy();
 
     fireEvent.change(await screen.findByLabelText('Ou quantidade de ocorrências'), { target: { value: '2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Pré-visualizar' }));
@@ -211,6 +227,19 @@ describe('RecurrencesPage', () => {
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/generate', { occurrenceCount: 2, untilDate: undefined }));
     expect(await screen.findByText('2 títulos gerados com sucesso.')).toBeTruthy();
+  });
+
+  it('previews a long requested generation date with a generation-window warning', async () => {
+    renderPage();
+
+    const generateButtons = await screen.findAllByRole('button', { name: 'Gerar' });
+    fireEvent.click(generateButtons[0]!);
+
+    fireEvent.change(await screen.findByLabelText('Gerar até'), { target: { value: '2027-07-31' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Pré-visualizar' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/preview-generation', { untilDate: '2027-07-31', occurrenceCount: undefined }));
+    expect(await screen.findByText(/o preview foi limitado até 20\/01\/2027/i)).toBeTruthy();
   });
 
   it('cancels a recurrence with optional future-title cancellation', async () => {

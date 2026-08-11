@@ -113,10 +113,27 @@ describe('PayablesListPage', () => {
     expect(screen.getByLabelText('Filtrar por empresa')).toHaveProperty('value', '');
     expect(screen.getByText('ABC Center • Compra de peças')).toBeTruthy();
     expect(screen.getByLabelText('Filtrar por status')).toHaveProperty('value', 'OPEN');
+    expect(screen.getByLabelText('Filtrar por recorrência')).toHaveProperty('value', 'OPERATIONAL');
     expect(screen.getByRole('option', { name: 'Todos' })).toBeTruthy();
     expect(screen.queryByLabelText(/Selecionar/)).toBeNull();
     expect(screen.getByText('Recorrente')).toBeTruthy();
-    await waitFor(() => expect(getPayablesParams()?.status).toBe('OPEN'));
+    await waitFor(() => expect(getPayablesParams()).toMatchObject({ status: 'OPEN', recurrenceStatus: 'OPERATIONAL' }));
+  });
+
+  it('can explicitly request deactivated recurrence titles', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PayablesListPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(await screen.findByLabelText('Filtrar por recorrência'), { target: { value: 'TERMINAL' } });
+
+    await waitFor(() => expect(getLastPayablesParams()?.recurrenceStatus).toBe('TERMINAL'));
   });
 
   it('sends the selected company as an explicit list filter', async () => {

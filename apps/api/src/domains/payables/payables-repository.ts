@@ -6,7 +6,7 @@ export interface InstallmentInput { installmentNumber: number; installmentCount:
 export interface TitleInput { companyId: string; supplierId: string; categoryId: string; documentTypeId: string; paymentTermId?: string | null; costCenterId?: string | null;
   documentNumber: string; documentSeries?: string | null; description: string; originCode?: string; issueDate: string; originalAmount: number;
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
-export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string; companyId?: string }
+export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string; companyId?: string; recurrenceStatus?: 'OPERATIONAL' | 'TERMINAL' | 'ALL' }
 export interface XmlImportListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
 export interface PaymentEligibleInstallmentFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; companyId?: string; payableTitleId?: string; installmentId?: string }
 export interface PaymentListFilters { search?: string; status?: string; paidFrom?: string; paidTo?: string; supplierId?: string; companyId?: string }
@@ -23,6 +23,7 @@ interface RecurrenceCancellableTitleRow extends Record<string, unknown> { payabl
 interface ResolvedCompany { id: string; companyType: 'MAIN' | 'BRANCH'; legalName: string; tradeName: string | null; parameters: CompanyParameters | null }
 interface CompanyParameters { defaultFinancialCategoryId: string | null; defaultPaymentMethodId: string | null; defaultPaymentTermId: string | null; defaultCostCenterId: string | null; defaultDocumentTypeId: string | null; defaultBankAccountId: string | null; xmlAutoCreateSupplier: boolean; xmlRequireKnownRecipient: boolean }
 interface RecurrenceRow extends Record<string, unknown> { id: string; company_id: string; supplier_id: string; category_id: string; cost_center_id: string | null; document_type_id: string; payment_method_id: string; payment_term_id: string | null; description: string; base_document_number: string | null; base_amount: string; frequency_code: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL'; start_date: string | Date; end_date: string | Date | null; max_occurrences: number | null; due_day: number | null; generation_window_months: number; status_code: string; generated_count: string }
+interface RecurrenceGenerationPlan { occurrences: { occurrenceDate: string; dueDate: string; sequenceNumber: number; documentNumber: string; amount: number }[]; maxGenerationDate: string; limitedByGenerationWindow: boolean; requestedUntilDate: string | null }
 
 function camel(key: string): string { return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()); }
 function api(row: Record<string, unknown>): Record<string, unknown> { return Object.fromEntries(Object.entries(row).map(([key, value]) => [camel(key), value])); }
@@ -323,15 +324,16 @@ export class PayablesRepository {
 
   async previewRecurrenceGeneration(id: string, input: RecurrenceGenerationInput, userId: string): Promise<object> {
     const recurrence = await this.loadRecurrenceForGeneration(this.database, id);
-    const occurrences = await this.calculatePendingOccurrences(this.database, recurrence, input);
-    await this.audit(this.database,'PAYABLE_RECURRENCE',id,'GENERATION_PREVIEWED',userId,null,{ input, occurrences });
-    return { recurrenceId: id, occurrences, total: occurrences.length };
+    const plan = await this.calculatePendingOccurrences(this.database, recurrence, input);
+    await this.audit(this.database,'PAYABLE_RECURRENCE',id,'GENERATION_PREVIEWED',userId,null,{ input, ...plan });
+    return { recurrenceId: id, ...plan, total: plan.occurrences.length };
   }
 
   async generateRecurrenceTitles(id: string, input: RecurrenceGenerationInput, userId: string): Promise<object> {
     return this.database.transaction(async (tx) => {
       const recurrence = await this.loadRecurrenceForGeneration(tx, id, true);
-      const occurrences = await this.calculatePendingOccurrences(tx, recurrence, input);
+      const plan = await this.calculatePendingOccurrences(tx, recurrence, input);
+      const occurrences = plan.occurrences;
       if (!occurrences.length) throw new ApplicationError({ code:'RECURRENCE_NO_OCCURRENCES_TO_GENERATE', message:'There are no pending occurrences to generate', statusCode:409 });
       const generated: object[] = [];
       for (const occurrence of occurrences) {
@@ -374,8 +376,8 @@ export class PayablesRepository {
           is_active=CASE WHEN $5 THEN false ELSE is_active END,
           updated_by=$4
         WHERE id=$1`, [id,lastOccurrence,isFinished ? null : nextOccurrence,userId,isFinished]);
-      await this.audit(tx,'PAYABLE_RECURRENCE',id,'GENERATED_TITLES',userId,null,{ input, generatedCount: generated.length, lastOccurrence, nextOccurrence: isFinished ? null : nextOccurrence, finished: isFinished });
-      return { recurrenceId: id, generated, total: generated.length };
+      await this.audit(tx,'PAYABLE_RECURRENCE',id,'GENERATED_TITLES',userId,null,{ input, generatedCount: generated.length, lastOccurrence, nextOccurrence: isFinished ? null : nextOccurrence, finished: isFinished, limitedByGenerationWindow: plan.limitedByGenerationWindow, maxGenerationDate: plan.maxGenerationDate });
+      return { recurrenceId: id, generated, total: generated.length, limitedByGenerationWindow: plan.limitedByGenerationWindow, maxGenerationDate: plan.maxGenerationDate, requestedUntilDate: plan.requestedUntilDate };
     });
   }
 
@@ -391,21 +393,24 @@ export class PayablesRepository {
     return recurrence;
   }
 
-  private async calculatePendingOccurrences(executor: QueryExecutor, recurrence: RecurrenceRow, input: RecurrenceGenerationInput): Promise<{ occurrenceDate: string; dueDate: string; sequenceNumber: number; documentNumber: string; amount: number }[]> {
+  private async calculatePendingOccurrences(executor: QueryExecutor, recurrence: RecurrenceRow, input: RecurrenceGenerationInput): Promise<RecurrenceGenerationPlan> {
     if (!input.untilDate && !input.occurrenceCount) throw new ApplicationError({ code:'RECURRENCE_GENERATION_TARGET_REQUIRED', message:'Until date or occurrence count is required', statusCode:400 });
-    const today = new Date().toISOString().slice(0, 10);
-    const maxWindowDate = addMonths(today, Math.min(Number(recurrence.generation_window_months || 6), 6));
-    if (input.untilDate && input.untilDate > maxWindowDate) throw new ApplicationError({ code:'RECURRENCE_GENERATION_WINDOW_EXCEEDED', message:'Generation is limited to at most 6 months ahead', statusCode:400 });
-    const stopDate = minDate(input.untilDate ?? maxWindowDate, maxWindowDate, dateString(recurrence.end_date));
     const existingResult = await executor.query<{ occurrence_date: string | Date; sequence_number: number } & Record<string, unknown>>(`SELECT occurrence_date,sequence_number FROM financeiro.payable_recurrence_titles WHERE recurrence_id=$1 ORDER BY occurrence_date`, [recurrence.id]);
     const existingDates = new Set(existingResult.rows.map((row) => dateString(row.occurrence_date)!));
+    let firstPendingOccurrence = dateString(recurrence.start_date)!;
+    for (let safety = 0; safety < 1000 && existingDates.has(firstPendingOccurrence); safety += 1) {
+      firstPendingOccurrence = this.nextOccurrenceAfter(recurrence, firstPendingOccurrence);
+    }
+    const maxWindowDate = addDays(addMonths(firstPendingOccurrence, Math.min(Number(recurrence.generation_window_months || 6), 6)), -1);
+    const limitedByGenerationWindow = Boolean(input.untilDate && input.untilDate > maxWindowDate);
+    const stopDate = minDate(input.untilDate ?? maxWindowDate, maxWindowDate, dateString(recurrence.end_date));
     const generatedCount = Number(recurrence.generated_count || 0);
     const remainingAllowed = recurrence.max_occurrences == null ? Number.POSITIVE_INFINITY : Math.max(0, recurrence.max_occurrences - generatedCount);
     const requestedCount = input.occurrenceCount ?? Number.POSITIVE_INFINITY;
     const limit = Math.min(requestedCount, remainingAllowed);
-    if (limit <= 0) return [];
+    if (limit <= 0) return { occurrences: [], maxGenerationDate: maxWindowDate, limitedByGenerationWindow, requestedUntilDate: input.untilDate ?? null };
     const result: { occurrenceDate: string; dueDate: string; sequenceNumber: number; documentNumber: string; amount: number }[] = [];
-    let occurrence = dateString(recurrence.start_date)!;
+    let occurrence = firstPendingOccurrence;
     let sequence = generatedCount + 1;
     for (let safety = 0; safety < 1000 && occurrence <= stopDate && result.length < limit; safety += 1) {
       if (!existingDates.has(occurrence)) {
@@ -414,7 +419,7 @@ export class PayablesRepository {
       }
       occurrence = this.nextOccurrenceAfter(recurrence, occurrence);
     }
-    return result;
+    return { occurrences: result, maxGenerationDate: maxWindowDate, limitedByGenerationWindow, requestedUntilDate: input.untilDate ?? null };
   }
 
   private nextOccurrenceAfter(recurrence: Pick<RecurrenceRow,'frequency_code'|'due_day'>, occurrenceDate: string): string {
@@ -471,6 +476,8 @@ export class PayablesRepository {
     if (filters.companyId) { values.push(filters.companyId); conditions.push(`t.company_id=$${values.length}`); }
     if (filters.dueFrom) { values.push(filters.dueFrom); conditions.push(`first_i.due_date >= $${values.length}::date`); }
     if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`first_i.due_date <= $${values.length}::date`); }
+    if (filters.recurrenceStatus === 'TERMINAL') conditions.push(`recurrence.recurrence_status_code IN ('CANCELLED','FINISHED')`);
+    else if (filters.recurrenceStatus !== 'ALL') conditions.push(`(recurrence.recurrence_id IS NULL OR recurrence.recurrence_status_code NOT IN ('CANCELLED','FINISHED'))`);
 
     const where = conditions.join(' AND ');
     const from = `FROM financeiro.payable_titles t JOIN cadastros.suppliers s ON s.id=t.supplier_id

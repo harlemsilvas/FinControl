@@ -171,6 +171,8 @@ export function PaymentsPage(): ReactElement {
   const requestedInstallmentId = searchParams.get('installmentId') ?? '';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(20);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<PaymentQueueFilter>(initialStatus(searchParams.get('status')));
   const [companyId, setCompanyId] = useState('');
@@ -178,6 +180,8 @@ export function PaymentsPage(): ReactElement {
   const [supplierSearch, setSupplierSearch] = useState('');
   const [dueFrom, setDueFrom] = useState(initialDate(searchParams.get('dueFrom')));
   const [dueTo, setDueTo] = useState(initialDate(searchParams.get('dueTo')));
+  const [paidFrom, setPaidFrom] = useState('');
+  const [paidTo, setPaidTo] = useState('');
   const [selected, setSelected] = useState<EligibleInstallment>();
   const [bankAccountId, setBankAccountId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
@@ -251,10 +255,19 @@ export function PaymentsPage(): ReactElement {
   });
 
   const paymentHistory = useQuery({
-    queryKey: ['payment-history', search, companyId, supplierId, status],
+    queryKey: ['payment-history', historyPage, historyPageSize, search, companyId, supplierId, status, paidFrom, paidTo],
     queryFn: async () => {
       const response = await httpClient.get<PaymentHistoryResponse>('/api/v1/payments', {
-        params: { pageSize: 10, search: search || undefined, status: status === 'PAID' ? 'EFFECTIVE' : undefined, companyId: companyId || undefined, supplierId: supplierId || undefined },
+        params: {
+          page: historyPage,
+          pageSize: historyPageSize,
+          search: search || undefined,
+          status: status === 'PAID' ? 'EFFECTIVE' : undefined,
+          companyId: companyId || undefined,
+          supplierId: supplierId || undefined,
+          paidFrom: paidFrom || undefined,
+          paidTo: paidTo || undefined,
+        },
       });
       return response.data;
     },
@@ -386,9 +399,13 @@ export function PaymentsPage(): ReactElement {
 
   const rows = useMemo(() => installments.data?.data ?? [], [installments.data?.data]);
   const totalPages = Math.max(1, Math.ceil((installments.data?.total ?? 0) / pageSize));
+  const historyTotalPages = Math.max(1, Math.ceil((paymentHistory.data?.total ?? 0) / historyPageSize));
   const firstItem = installments.data?.total ? (page - 1) * pageSize + 1 : 0;
   const lastItem = installments.data?.total ? Math.min(page * pageSize, installments.data.total) : 0;
+  const firstHistoryItem = paymentHistory.data?.total ? (historyPage - 1) * historyPageSize + 1 : 0;
+  const lastHistoryItem = paymentHistory.data?.total ? Math.min(historyPage * historyPageSize, paymentHistory.data.total) : 0;
   const hasFilters = Boolean(search || status !== 'OPEN' || companyId || supplierId || supplierSearch || dueFrom || dueTo || pageSize !== 20 || requestedPayableTitleId || requestedInstallmentId);
+  const hasHistoryFilters = Boolean(search || companyId || supplierId || supplierSearch || paidFrom || paidTo || historyPageSize !== 20);
   const selectedAccount = bankBalances.data?.find((item) => item.bankAccountId === bankAccountId);
   const totalMovement = movementAmount(principalAmount, interestAmount, penaltyAmount, discountAmount, additionalAmount);
   const exceedsOpenBalance = selected ? Number(principalAmount || 0) > Number(selected.openBalance) : false;
@@ -434,9 +451,25 @@ export function PaymentsPage(): ReactElement {
     setSupplierSearch('');
     setDueFrom('');
     setDueTo('');
+    setPaidFrom('');
+    setPaidTo('');
     setPage(1);
+    setHistoryPage(1);
     setPageSize(20);
+    setHistoryPageSize(20);
     setSearchParams({}, { replace: true });
+  }
+
+  function clearHistoryFilters(): void {
+    setSearch('');
+    setCompanyId('');
+    setSupplierId('');
+    setSupplierSearch('');
+    setPaidFrom('');
+    setPaidTo('');
+    setPage(1);
+    setHistoryPage(1);
+    setHistoryPageSize(20);
   }
 
   function openReverseDialog(item: PaymentHistoryItem): void {
@@ -451,6 +484,7 @@ export function PaymentsPage(): ReactElement {
     const match = suppliers.data?.find((item) => optionLabel(item).toLocaleLowerCase('pt-BR') === normalized);
     setSupplierId(match?.id ?? '');
     setPage(1);
+    setHistoryPage(1);
   }
 
   function closeDetailDialog(): void {
@@ -506,8 +540,8 @@ export function PaymentsPage(): ReactElement {
         </div>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_220px_220px_170px]">
-          <input aria-label="Pesquisar parcelas" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar fornecedor, documento ou descrição..." className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
-          <select aria-label="Filtrar por empresa" value={companyId} onChange={(event) => { setCompanyId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+          <input aria-label="Pesquisar parcelas" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); setHistoryPage(1); }} placeholder="Buscar fornecedor, documento ou descrição..." className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+          <select aria-label="Filtrar por empresa" value={companyId} onChange={(event) => { setCompanyId(event.target.value); setPage(1); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
             <option value="">Todas as empresas</option>
             {companies.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
           </select>
@@ -517,7 +551,7 @@ export function PaymentsPage(): ReactElement {
               {suppliers.data?.map((item) => <option key={item.id} value={optionLabel(item)} />)}
             </datalist>
           </div>
-          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value as PaymentQueueFilter); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value as PaymentQueueFilter); setPage(1); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
             {statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </div>
@@ -566,9 +600,20 @@ export function PaymentsPage(): ReactElement {
         <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-950">Pagamentos realizados</h2>
-            <p className="mt-1 text-sm text-slate-500">Histórico recente para conferência e estorno auditado.</p>
+            <p className="mt-1 text-sm text-slate-500">Histórico paginado para conferência, comprovantes e estorno auditado.</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{paymentHistory.data?.total ?? 0} pagamento{(paymentHistory.data?.total ?? 0) === 1 ? '' : 's'}</span>
+        </div>
+        <div className="mb-5 grid gap-3 xl:grid-cols-[170px_170px_170px_auto]">
+          <input aria-label="Pagamento inicial" type="date" value={paidFrom} onChange={(event) => { setPaidFrom(event.target.value); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+          <input aria-label="Pagamento final" type="date" value={paidTo} onChange={(event) => { setPaidTo(event.target.value); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+          <select aria-label="Pagamentos por página" value={historyPageSize} onChange={(event) => { setHistoryPageSize(Number(event.target.value)); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            <option value={10}>10 por página</option>
+            <option value={20}>20 por página</option>
+            <option value={50}>50 por página</option>
+            <option value={100}>100 por página</option>
+          </select>
+          <Button variant="secondary" disabled={!hasHistoryFilters} onClick={clearHistoryFilters}>Limpar histórico</Button>
         </div>
         <div className="overflow-hidden rounded-2xl border border-slate-200">
           {paymentHistory.isLoading ? <p className="py-12 text-center text-slate-500">Carregando pagamentos...</p> : paymentHistory.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar pagamentos.</p> : <div className="divide-y divide-slate-100">
@@ -586,6 +631,14 @@ export function PaymentsPage(): ReactElement {
             </div>)}
             {(paymentHistory.data?.data ?? []).length === 0 && <p className="py-12 text-center text-slate-500">Nenhum pagamento registrado.</p>}
           </div>}
+        </div>
+        <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-5 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-sm text-slate-500">Exibindo {firstHistoryItem}-{lastHistoryItem} de {paymentHistory.data?.total ?? 0} • Total filtrado: <strong className="text-emerald-700">{currency(summary.paidTotal)}</strong></p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" disabled={historyPage === 1} onClick={() => setHistoryPage((value) => value - 1)}>Anterior</Button>
+            <span className="grid min-w-10 place-items-center rounded-lg bg-emerald-700 text-sm font-bold text-white">{historyPage}/{historyTotalPages}</span>
+            <Button variant="secondary" disabled={historyPage >= historyTotalPages} onClick={() => setHistoryPage((value) => value + 1)}>Próxima</Button>
+          </div>
         </div>
       </Card>
 

@@ -12,6 +12,7 @@ import { XmlImportDialog } from './xml-import-dialog';
 
 const statuses = ['OPEN', 'OVERDUE', 'IN_APPROVAL', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'] as const;
 type PeriodPreset = 'day' | 'week' | 'month' | 'year' | 'custom';
+type RecurrenceListFilter = 'OPERATIONAL' | 'TERMINAL' | 'ALL';
 
 const statusStyle: Record<string, string> = {
   DRAFT: 'border-slate-200 bg-slate-50 text-slate-700',
@@ -87,12 +88,13 @@ export function PayablesListPage(): ReactElement {
   const [supplierId, setSupplierId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [companyId, setCompanyId] = useState('');
+  const [recurrenceStatus, setRecurrenceStatus] = useState<RecurrenceListFilter>('OPERATIONAL');
   const [xmlImportOpen, setXmlImportOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [totalsVisible, setTotalsVisible] = useState(true);
 
   const query = useQuery({
-    queryKey: ['payables', page, pageSize, search, status, dueFrom, dueTo, supplierId, categoryId, companyId],
+    queryKey: ['payables', page, pageSize, search, status, dueFrom, dueTo, supplierId, categoryId, companyId, recurrenceStatus],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<PayableListItem>>('/api/v1/payables', {
         params: {
@@ -105,6 +107,7 @@ export function PayablesListPage(): ReactElement {
           supplierId: supplierId || undefined,
           categoryId: categoryId || undefined,
           companyId: companyId || undefined,
+          recurrenceStatus,
         },
       });
       return response.data;
@@ -134,7 +137,7 @@ export function PayablesListPage(): ReactElement {
   const firstItem = query.data?.total ? (page - 1) * pageSize + 1 : 0;
   const lastItem = query.data?.total ? Math.min(page * pageSize, query.data.total) : 0;
   const defaultRange = rangeForPreset('month');
-  const hasFilters = Boolean(search || status !== 'OPEN' || supplierId || categoryId || companyId || dueFrom !== defaultRange.from || dueTo !== defaultRange.to || period !== 'month');
+  const hasFilters = Boolean(search || status !== 'OPEN' || supplierId || categoryId || companyId || recurrenceStatus !== 'OPERATIONAL' || dueFrom !== defaultRange.from || dueTo !== defaultRange.to || period !== 'month');
   const summary = useMemo(() => {
     const openRows = rows.filter((item) => item.statusCode !== 'PAID' && item.statusCode !== 'CANCELLED');
     const overdueRows = rows.filter((item) => item.statusCode === 'OVERDUE');
@@ -170,6 +173,7 @@ export function PayablesListPage(): ReactElement {
     setSupplierId('');
     setCategoryId('');
     setCompanyId('');
+    setRecurrenceStatus('OPERATIONAL');
     setPeriod('month');
     setDueFrom(nextRange.from);
     setDueTo(nextRange.to);
@@ -285,7 +289,7 @@ export function PayablesListPage(): ReactElement {
           <input aria-label="Vencimento final" type="date" value={dueTo} onChange={(event) => { setDueTo(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[220px_220px_220px_180px_150px_auto]">
+        <div className="mt-3 grid gap-3 xl:grid-cols-[220px_220px_220px_180px_190px_150px_auto]">
           <select aria-label="Filtrar por empresa" value={companyId} onChange={(event) => { setCompanyId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
             <option value="">Todas as empresas</option>
             {companies.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
@@ -302,6 +306,11 @@ export function PayablesListPage(): ReactElement {
             <option value="">Todos</option>
             <option value="OPEN">Notas ativas</option>
             {statuses.filter((item) => item !== 'OPEN').map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
+          </select>
+          <select aria-label="Filtrar por recorrência" value={recurrenceStatus} onChange={(event) => { setRecurrenceStatus(event.target.value as RecurrenceListFilter); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+            <option value="OPERATIONAL">Recorrências operacionais</option>
+            <option value="TERMINAL">Recorrências desativadas</option>
+            <option value="ALL">Todas as recorrências</option>
           </select>
           <select aria-label="Registros por página" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
             <option value={10}>10 por página</option>

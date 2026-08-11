@@ -182,20 +182,27 @@ describe('PayablesRepository business safeguards',()=>{
     });
     const query = queryMock as QueryExecutor['query'];
     const repo = new PayablesRepository(database({ query }));
-    const result = await repo.reviseRecurrenceFromDate('rec-1', {
-      effectiveDate: '2026-08-05',
-      description: 'Aluguel reajustado',
-      baseAmount: 2750,
-      companyId: validRecurrence.companyId,
-      supplierId: validRecurrence.supplierId,
-      categoryId: validRecurrence.categoryId,
-      documentTypeId: validRecurrence.documentTypeId,
-      paymentMethodId: validRecurrence.paymentMethodId,
-      frequencyCode: validRecurrence.frequencyCode,
-      dueDay: 5,
-      reason: 'Reajuste anual',
-      cancelFutureTitles: true,
-    }, 'user-id') as { previousRecurrenceId: string; recurrenceId: string; effectiveDate: string; cancelledFutureTitles: number };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-20T12:00:00.000Z'));
+    let result: { previousRecurrenceId: string; recurrenceId: string; effectiveDate: string; cancelledFutureTitles: number };
+    try {
+      result = await repo.reviseRecurrenceFromDate('rec-1', {
+        effectiveDate: '2026-08-05',
+        description: 'Aluguel reajustado',
+        baseAmount: 2750,
+        companyId: validRecurrence.companyId,
+        supplierId: validRecurrence.supplierId,
+        categoryId: validRecurrence.categoryId,
+        documentTypeId: validRecurrence.documentTypeId,
+        paymentMethodId: validRecurrence.paymentMethodId,
+        frequencyCode: validRecurrence.frequencyCode,
+        dueDay: 5,
+        reason: 'Reajuste anual',
+        cancelFutureTitles: true,
+      }, 'user-id') as { previousRecurrenceId: string; recurrenceId: string; effectiveDate: string; cancelledFutureTitles: number };
+    } finally {
+      vi.useRealTimers();
+    }
     expect(result.previousRecurrenceId).toBe('rec-1');
     expect(result.recurrenceId).toBe('rec-2');
     expect(result.effectiveDate).toBe('2026-08-05');
@@ -297,6 +304,22 @@ describe('PayablesRepository business safeguards',()=>{
     expect(result.data[0]?.movementAmount).toBe('403.06');
     expect(query.mock.calls[0]?.[0]).toContain('COALESCE(SUM(p.movement_amount),0)::text total_movement_amount');
     expect(query.mock.calls[1]?.[0]).toContain('LEFT JOIN financeiro.payment_reversals');
+  });
+
+  it('hides terminal recurrence titles by default and exposes them through an explicit filter', async()=>{
+    const defaultQuery=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'0'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query:defaultQuery}));
+    await repo.list(1,20,{status:'OPEN'});
+    expect(defaultQuery.mock.calls[0]?.[0]).toContain("recurrence.recurrence_status_code NOT IN ('CANCELLED','FINISHED')");
+
+    const terminalQuery=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'0'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0});
+    const terminalRepo=new PayablesRepository(database({query:terminalQuery}));
+    await terminalRepo.list(1,20,{status:'OPEN',recurrenceStatus:'TERMINAL'});
+    expect(terminalQuery.mock.calls[0]?.[0]).toContain("recurrence.recurrence_status_code IN ('CANCELLED','FINISHED')");
   });
 
   it('returns payment detail with treasury movements and attachments',async()=>{
@@ -545,6 +568,24 @@ describe('PayablesRepository business safeguards',()=>{
     expect(query.mock.calls[6]?.[0]).toContain('INSERT INTO administracao.audit_events');
   });
 
+  it('allows a recurrence end date beyond the six-month generation window', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',description:'Contrato anual',end_date:'2027-07-31',generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.createRecurrence({...validRecurrence,startDate:'2026-08-01',endDate:'2027-07-31'},'user-id') as {id:string;endDate:string;generationWindowMonths:number};
+    const insertValues=query.mock.calls[5]?.[1] as unknown[] | undefined;
+    expect(result.id).toBe('recurrence-id');
+    expect(result.endDate).toBe('2027-07-31');
+    expect(result.generationWindowMonths).toBe(6);
+    expect(insertValues?.[12]).toBe('2027-07-31');
+  });
+
   it('blocks recurrence reactivation when current status is not suspended', async()=>{
     const query=vi.fn().mockResolvedValueOnce({rows:[{id:'recurrence-id',status_code:'ACTIVE'}],rowCount:1});
     const repo=new PayablesRepository(database({query}));
@@ -571,6 +612,51 @@ describe('PayablesRepository business safeguards',()=>{
     expect(result.occurrences[0]?.documentNumber).toBe('ALUGUEL-HRM-20260805');
     expect(result.occurrences[0]?.sequenceNumber).toBe(2);
     expect(query.mock.calls[2]?.[0]).toContain('INSERT INTO administracao.audit_events');
+  });
+
+  it('limits recurrence preview to the generation window instead of rejecting a longer requested date', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',start_date:'2026-08-05',end_date:'2027-07-31',base_amount:'2500.00',base_document_number:'EMPRESTIMO-ABC2',frequency_code:'MONTHLY',due_day:5,status_code:'ACTIVE',generated_count:'0',max_occurrences:null,generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-20T12:00:00.000Z'));
+    try {
+      const result=await repo.previewRecurrenceGeneration('recurrence-id',{untilDate:'2027-07-31'},'user-id') as {total:number;limitedByGenerationWindow:boolean;maxGenerationDate:string;occurrences:{occurrenceDate:string}[]};
+      expect(result.total).toBe(6);
+      expect(result.limitedByGenerationWindow).toBe(true);
+      expect(result.maxGenerationDate).toBe('2027-02-04');
+      expect(result.occurrences.at(-1)?.occurrenceDate).toBe('2027-01-05');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses the first pending recurrence date as the six-month generation window base', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',start_date:'2026-11-21',end_date:'2027-04-21',base_amount:'1424.00',base_document_number:'emprest-mp',frequency_code:'MONTHLY',due_day:21,status_code:'ACTIVE',generated_count:'0',max_occurrences:null,generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T12:00:00.000Z'));
+    try {
+      const result=await repo.previewRecurrenceGeneration('recurrence-id',{untilDate:'2027-04-21'},'user-id') as {total:number;limitedByGenerationWindow:boolean;maxGenerationDate:string;occurrences:{occurrenceDate:string}[]};
+      expect(result.total).toBe(6);
+      expect(result.limitedByGenerationWindow).toBe(false);
+      expect(result.maxGenerationDate).toBe('2027-05-20');
+      expect(result.occurrences.map((item)=>item.occurrenceDate)).toEqual([
+        '2026-11-21',
+        '2026-12-21',
+        '2027-01-21',
+        '2027-02-21',
+        '2027-03-21',
+        '2027-04-21',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('generates recurrence titles and updates the next occurrence', async()=>{

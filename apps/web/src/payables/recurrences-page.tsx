@@ -31,8 +31,8 @@ interface RecurrenceListItem {
   statusCode: RecurrenceStatus;
 }
 interface GenerationOccurrence { occurrenceDate: string; dueDate: string; sequenceNumber: number; documentNumber: string; amount: number }
-interface GenerationPreview { recurrenceId: string; occurrences: GenerationOccurrence[]; total: number }
-interface GenerationResult { recurrenceId: string; generated: { id: string; documentNumber: string; occurrenceDate: string }[]; total: number }
+interface GenerationPreview { recurrenceId: string; occurrences: GenerationOccurrence[]; total: number; limitedByGenerationWindow?: boolean; maxGenerationDate?: string; requestedUntilDate?: string | null }
+interface GenerationResult { recurrenceId: string; generated: { id: string; documentNumber: string; occurrenceDate: string }[]; total: number; limitedByGenerationWindow?: boolean; maxGenerationDate?: string; requestedUntilDate?: string | null }
 interface RecurrenceCancellationResult { id: string; cancelledFutureTitles: number; cancelledFutureTitlesRequested: boolean }
 interface CancellationPreviewTitle { payableTitleId: string; occurrenceDate: string; sequenceNumber: number; documentNumber: string; documentSeries?: string | null; description: string; statusCode: string; dueDate: string; openBalance: string | number; installmentCount: number }
 interface CancellationPreview { recurrenceId: string; titles: CancellationPreviewTitle[]; total: number }
@@ -215,7 +215,10 @@ export function RecurrencesPage(): ReactElement {
     },
     onSuccess: (result) => {
       setPreview(result);
-      setStatusMessage(result.total > 0 ? `${result.total} ocorrência${result.total === 1 ? '' : 's'} pronta${result.total === 1 ? '' : 's'} para revisão antes da geração.` : 'Não há novas ocorrências dentro dos limites informados.');
+      const limitMessage = result.limitedByGenerationWindow && result.maxGenerationDate
+        ? ` A data solicitada passa da janela permitida; o preview foi limitado até ${datePtBr(result.maxGenerationDate)}.`
+        : '';
+      setStatusMessage(result.total > 0 ? `${result.total} ocorrência${result.total === 1 ? '' : 's'} pronta${result.total === 1 ? '' : 's'} para revisão antes da geração.${limitMessage}` : `Não há novas ocorrências dentro dos limites informados.${limitMessage}`);
     },
   });
 
@@ -226,7 +229,10 @@ export function RecurrencesPage(): ReactElement {
       return response.data;
     },
     onSuccess: async (result) => {
-      setMessage(`${result.total} título${result.total === 1 ? '' : 's'} gerado${result.total === 1 ? '' : 's'} com sucesso.`);
+      const limitMessage = result.limitedByGenerationWindow && result.maxGenerationDate
+        ? ` A geração foi limitada até ${datePtBr(result.maxGenerationDate)}; execute nova geração mais adiante para continuar a série.`
+        : '';
+      setMessage(`${result.total} título${result.total === 1 ? '' : 's'} gerado${result.total === 1 ? '' : 's'} com sucesso.${limitMessage}`);
       setStatusMessage('');
       setGenerateFor(null);
       setPreview(null);
@@ -299,7 +305,9 @@ export function RecurrencesPage(): ReactElement {
   }), [rows]);
 
   function generationPayload(): { untilDate?: string; occurrenceCount?: number } {
-    return { untilDate: untilDate || undefined, occurrenceCount: occurrenceCount ? Number(occurrenceCount) : undefined };
+    return untilDate
+      ? { untilDate, occurrenceCount: undefined }
+      : { untilDate: undefined, occurrenceCount: occurrenceCount ? Number(occurrenceCount) : undefined };
   }
 
   function openCreate(): void {
@@ -461,19 +469,19 @@ export function RecurrencesPage(): ReactElement {
       {generateFor && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4">
         <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
           <div className="mb-5 flex items-start justify-between gap-4">
-            <div><h2 className="text-2xl font-black text-slate-950">Gerar títulos recorrentes</h2><p className="mt-1 text-sm text-slate-500">{generateFor.description} • {currency(generateFor.baseAmount)}</p></div>
+            <div><h2 className="text-2xl font-black text-slate-950">Gerar títulos recorrentes</h2><p className="mt-1 text-sm text-slate-500">{generateFor.description} • {currency(generateFor.baseAmount)}</p><p className="mt-1 text-xs font-semibold text-slate-500">Vigência da série: {datePtBr(generateFor.startDate)} até {generateFor.endDate ? datePtBr(generateFor.endDate) : 'sem prazo final'}</p></div>
             <button type="button" className="text-2xl text-slate-400 hover:text-slate-700" onClick={() => setGenerateFor(null)}>×</button>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Gerar até</span><input type="date" value={untilDate} onChange={(event) => { setUntilDate(event.target.value); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
-            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Ou quantidade de ocorrências</span><input type="number" min="1" max="366" value={occurrenceCount} onChange={(event) => { setOccurrenceCount(event.target.value); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Gerar até</span><input type="date" value={untilDate} onChange={(event) => { setUntilDate(event.target.value); setOccurrenceCount(''); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Ou quantidade de ocorrências</span><input type="number" min="1" max="366" value={occurrenceCount} onChange={(event) => { setOccurrenceCount(event.target.value); setUntilDate(''); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
           </div>
           <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <p className="font-semibold">Como funciona a geração</p>
-            <p className="mt-1">Primeiro revise o preview. A confirmação cria os títulos e parcelas futuras com base nas ocorrências ainda não geradas.</p>
+            <p className="mt-1">A data final da série pode ser maior que 6 meses. Aqui, porém, cada operação gera somente uma janela curta de títulos futuros para evitar lançamentos em excesso.</p>
           </div>
           <div className="mt-4 flex justify-end"><Button variant="secondary" disabled={previewMutation.isPending} onClick={() => previewMutation.mutate()}>{previewMutation.isPending ? 'Calculando...' : 'Pré-visualizar'}</Button></div>
-          {previewMutation.isError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">Não foi possível gerar o preview. Verifique o limite de até 6 meses.</p>}
+          {previewMutation.isError && <p role="alert" className="mt-4 text-sm font-semibold text-red-700">Não foi possível gerar o preview. A vigência da série pode ser longa, mas a geração de títulos por operação fica limitada a até 6 meses.</p>}
           {statusMessage && <p className="mt-4 text-sm font-semibold text-slate-700">{statusMessage}</p>}
           {preview && <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
             <div className="grid grid-cols-[90px_1fr_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500"><span>Venc.</span><span>Documento</span><span className="text-right">Valor</span></div>

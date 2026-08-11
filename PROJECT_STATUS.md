@@ -146,6 +146,8 @@ Estado consolidado:
     `Pagos` e `Todos`, removendo `Parcialmente pago` da experiência principal;
   - filtro de fornecedor da baixa passou de select fixo para campo de busca
     com sugestões;
+  - histórico `Pagamentos realizados` passou a ter filtros próprios por data
+    de pagamento, paginação independente e seleção de registros por página;
   - no histórico de pagamentos, a tag de status foi posicionada em coluna
     própria antes do valor pago, evitando sobreposição visual.
 
@@ -163,6 +165,9 @@ Estado consolidado:
   limpar filtros retorna para esse padrão;
 - filtro de status também oferece a opção `Todos`, permitindo listar títulos em
   qualquer situação quando necessário;
+- títulos vinculados a séries recorrentes `CANCELLED` ou `FINISHED` deixam de
+  aparecer na listagem padrão; há filtro exclusivo para consultar
+  `Recorrências desativadas` ou `Todas as recorrências` quando necessário;
 - coluna inicial de seleção em lote removida da listagem enquanto a rotina de
   seleção múltipla não estiver disponível.
 
@@ -409,6 +414,19 @@ Estado consolidado:
 - revisão de série a partir de data futura implementada, com encerramento da
   série anterior e criação de nova vigência;
 - mensagens de erro de recorrência refinadas para o usuário final;
+- em 10/08/2026, validado e reforçado que a data final da série pode ser maior
+  que 6 meses; o limite de 6 meses se aplica somente à geração de títulos por
+  operação, não ao cadastro da vigência da recorrência;
+- a janela de geração de 6 meses é calculada a partir da primeira ocorrência
+  pendente da série, e não da data atual, usando `+6 meses - 1 dia` para não
+  incluir o primeiro vencimento do sétimo mês; isso permite séries futuras como
+  `21/11/2026` a `21/04/2027` em uma única geração controlada;
+- preview e geração de títulos recorrentes deixam de falhar quando o usuário
+  informa uma data maior que a janela permitida; a operação passa a ser
+  limitada automaticamente até a data máxima gerável e retorna aviso explícito;
+- tela de geração de títulos recorrentes passou a exibir a vigência da série e
+  separar melhor `Gerar até` de `Quantidade de ocorrências`, evitando enviar os
+  dois critérios ao mesmo tempo;
 - cobertura de backend e frontend ampliada para os fluxos de recorrência;
 - validação backend/frontend/PostgreSQL local registrada em
   `docs/PAYABLES-RECURRENCES-VALIDATION-2026-07-23.md`.

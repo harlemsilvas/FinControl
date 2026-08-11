@@ -77,7 +77,7 @@ const mocks = vi.hoisted(() => ({
             paymentMethodName: 'Boleto',
           }],
           page: 1,
-          pageSize: 10,
+          pageSize: 20,
           total: 1,
           totalMovementAmount: '403.06',
         },
@@ -184,6 +184,7 @@ describe('PaymentsPage', () => {
     await waitFor(() => expect(screen.getAllByText(/R\$\s*403,06/).length).toBeGreaterThan(1));
     expect((await screen.findAllByText('CIA BRASILEIRA DIST AUTO S.A')).length).toBeGreaterThan(0);
     await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
+    await waitFor(() => expect(paymentHistoryParams()).toMatchObject({ page: 1, pageSize: 20 }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Baixar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Baixar parcela' });
@@ -229,6 +230,23 @@ describe('PaymentsPage', () => {
     expect(await screen.findByText('Pagamentos já efetuados aparecem no histórico abaixo, com detalhe, comprovante e estorno.')).toBeInTheDocument();
     await waitFor(() => expect(paymentHistoryParams()?.status).toBe('EFFECTIVE'));
     expect(mocks.get.mock.calls.some(([url]) => url === '/api/v1/payable-installments/eligible-for-payment')).toBe(false);
+  });
+
+  it('filters and paginates the payment history independently from eligible installments', async () => {
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText('Pagamento inicial'), { target: { value: '2026-06-01' } });
+    fireEvent.change(screen.getByLabelText('Pagamento final'), { target: { value: '2026-06-30' } });
+    fireEvent.change(screen.getByLabelText('Pagamentos por página'), { target: { value: '50' } });
+
+    await waitFor(() => expect(paymentHistoryParams()).toMatchObject({
+      page: 1,
+      pageSize: 50,
+      paidFrom: '2026-06-01',
+      paidTo: '2026-06-30',
+    }));
+    expect(eligiblePaymentParams()?.dueFrom).toBeUndefined();
+    expect(eligiblePaymentParams()?.dueTo).toBeUndefined();
   });
 
   it('filters by supplier using a searchable suggestion input', async () => {
