@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+const optionalText = z.preprocess((value) => value === '' ? undefined : value, z.string().min(1).optional());
+const optionalEmail = z.preprocess((value) => value === '' ? undefined : value, z.email().optional());
+const envBoolean = z.preprocess((value) => {
+  if (value === undefined) return false;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return value;
+}, z.boolean()).default(false);
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_HOST: z.string().min(1).default('127.0.0.1'),
@@ -18,8 +27,32 @@ const environmentSchema = z.object({
   AUTH_REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   AUTH_ISSUER: z.string().min(1).default('fincontrol-api'),
   AUTH_AUDIENCE: z.string().min(1).default('fincontrol'),
+  AUTH_PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(15).max(1440).default(60),
+  PASSWORD_RESET_BASE_URL: z.url().default('http://localhost:5173/password-reset'),
+  SMTP_ENABLED: envBoolean,
+  SMTP_HOST: optionalText,
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: envBoolean,
+  SMTP_USER: optionalText,
+  SMTP_PASSWORD: optionalText,
+  SMTP_FROM_EMAIL: optionalEmail,
+  SMTP_FROM_NAME: z.string().min(1).default('FinControl'),
   ATTACHMENT_STORAGE_ROOT: z.string().min(1).default('/opt/fincontrol/storage'),
   ATTACHMENT_MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  BACKUP_DIRECTORY: z.string().min(1).default('/opt/fincontrol/shared/backups'),
+  BACKUP_SCRIPT_PATH: z.string().min(1).default('/opt/fincontrol/bin/backup-db'),
+  BACKUP_SCRIPT_USE_SUDO: envBoolean,
+}).superRefine((environment, context) => {
+  if (!environment.SMTP_ENABLED) return;
+  if (!environment.SMTP_HOST) {
+    context.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'Required when SMTP_ENABLED is true' });
+  }
+  if (!environment.SMTP_FROM_EMAIL) {
+    context.addIssue({ code: 'custom', path: ['SMTP_FROM_EMAIL'], message: 'Required when SMTP_ENABLED is true' });
+  }
+  if (environment.SMTP_PASSWORD && !environment.SMTP_USER) {
+    context.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'Required when SMTP_PASSWORD is set' });
+  }
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

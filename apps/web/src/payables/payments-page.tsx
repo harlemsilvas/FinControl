@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { CurrencyInput } from '../components/ui/currency-input';
 import { currency, statusLabel, type ListResponse } from './payables-types';
 
 type EligibleStatus = 'OPEN' | 'OVERDUE' | 'PARTIALLY_PAID';
+type PaymentQueueFilter = 'OPEN' | 'OVERDUE' | 'PAID' | 'ALL';
 
 interface EligibleInstallment {
   installmentId: string;
@@ -59,6 +62,9 @@ interface PaymentHistoryItem {
   transactionNumber?: string | null;
   reversalReason?: string | null;
 }
+interface PaymentHistoryResponse extends ListResponse<PaymentHistoryItem> {
+  totalMovementAmount?: string | number;
+}
 interface PaymentBankMovement {
   id: string;
   movementType: string;
@@ -96,7 +102,12 @@ interface PaymentDetail extends PaymentHistoryItem {
   attachments: PaymentAttachment[];
 }
 
-const statuses: EligibleStatus[] = ['OPEN', 'OVERDUE', 'PARTIALLY_PAID'];
+const statusOptions: { value: PaymentQueueFilter; label: string }[] = [
+  { value: 'OPEN', label: 'Abertos' },
+  { value: 'OVERDUE', label: 'Atrasados' },
+  { value: 'PAID', label: 'Pagos' },
+  { value: 'ALL', label: 'Todos' },
+];
 const statusStyle: Record<string, string> = {
   OPEN: 'border-blue-200 bg-blue-50 text-blue-700',
   OVERDUE: 'border-red-200 bg-red-50 text-red-700',
@@ -134,16 +145,43 @@ function movementAmount(principal: string, interest: string, penalty: string, di
   return Number(principal || 0) + Number(interest || 0) + Number(penalty || 0) + Number(additional || 0) - Number(discount || 0);
 }
 
+function treasuryErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.code === 'CASH_BALANCE_ALREADY_EXISTS') {
+    return 'Esta conta bancária já possui um saldo inicial ativo. Para novas entradas de dinheiro, use Entrada de caixa.';
+  }
+  if (error instanceof ApiError && error.code === 'FORBIDDEN') {
+    return 'Somente usuários master podem lançar ajustes manuais de caixa.';
+  }
+  if (error instanceof ApiError && error.message.trim()) return error.message;
+  return fallback;
+}
+
+function initialStatus(value: string | null): PaymentQueueFilter {
+  return statusOptions.some((item) => item.value === value) ? value as PaymentQueueFilter : 'OPEN';
+}
+
+function initialDate(value: string | null): string {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
+
 export function PaymentsPage(): ReactElement {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedPayableTitleId = searchParams.get('payableTitleId') ?? '';
+  const requestedInstallmentId = searchParams.get('installmentId') ?? '';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(20);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<PaymentQueueFilter>(initialStatus(searchParams.get('status')));
   const [companyId, setCompanyId] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [dueFrom, setDueFrom] = useState('');
-  const [dueTo, setDueTo] = useState('');
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [dueFrom, setDueFrom] = useState(initialDate(searchParams.get('dueFrom')));
+  const [dueTo, setDueTo] = useState(initialDate(searchParams.get('dueTo')));
+  const [paidFrom, setPaidFrom] = useState('');
+  const [paidTo, setPaidTo] = useState('');
   const [selected, setSelected] = useState<EligibleInstallment>();
   const [bankAccountId, setBankAccountId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
@@ -160,6 +198,12 @@ export function PaymentsPage(): ReactElement {
   const [cashMovementDate, setCashMovementDate] = useState(today());
   const [cashAmount, setCashAmount] = useState('');
   const [cashReference, setCashReference] = useState('');
+  const [cashEntryOpen, setCashEntryOpen] = useState(false);
+  const [cashEntryBankAccountId, setCashEntryBankAccountId] = useState('');
+  const [cashEntryMovementDate, setCashEntryMovementDate] = useState(today());
+  const [cashEntryAmount, setCashEntryAmount] = useState('');
+  const [cashEntryReference, setCashEntryReference] = useState('');
+  const [cashEntryNotes, setCashEntryNotes] = useState('');
   const [reverseFor, setReverseFor] = useState<PaymentHistoryItem>();
   const [reverseReason, setReverseReason] = useState('');
   const [detailFor, setDetailFor] = useState<PaymentHistoryItem>();
@@ -167,22 +211,26 @@ export function PaymentsPage(): ReactElement {
   const [downloadError, setDownloadError] = useState('');
 
   const installments = useQuery({
-    queryKey: ['payment-eligible-installments', page, pageSize, search, status, companyId, supplierId, dueFrom, dueTo],
+    queryKey: ['payment-eligible-installments', page, pageSize, search, status, companyId, supplierId, dueFrom, dueTo, requestedPayableTitleId, requestedInstallmentId],
     queryFn: async () => {
+      const eligibleStatus = status === 'OPEN' || status === 'OVERDUE' ? status : undefined;
       const response = await httpClient.get<ListResponse<EligibleInstallment>>('/api/v1/payable-installments/eligible-for-payment', {
         params: {
           page,
-          pageSize,
+          pageSize: requestedPayableTitleId || requestedInstallmentId ? 1 : pageSize,
           search: search || undefined,
-          status: status || undefined,
+          status: eligibleStatus,
           companyId: companyId || undefined,
           supplierId: supplierId || undefined,
           dueFrom: dueFrom || undefined,
           dueTo: dueTo || undefined,
+          payableTitleId: requestedPayableTitleId || undefined,
+          installmentId: requestedInstallmentId || undefined,
         },
       });
       return response.data;
     },
+    enabled: status !== 'PAID',
   });
 
   const companies = useLookup('/companies');
@@ -207,10 +255,19 @@ export function PaymentsPage(): ReactElement {
   });
 
   const paymentHistory = useQuery({
-    queryKey: ['payment-history', search, companyId, supplierId],
+    queryKey: ['payment-history', historyPage, historyPageSize, search, companyId, supplierId, status, paidFrom, paidTo],
     queryFn: async () => {
-      const response = await httpClient.get<ListResponse<PaymentHistoryItem>>('/api/v1/payments', {
-        params: { pageSize: 10, search: search || undefined, companyId: companyId || undefined, supplierId: supplierId || undefined },
+      const response = await httpClient.get<PaymentHistoryResponse>('/api/v1/payments', {
+        params: {
+          page: historyPage,
+          pageSize: historyPageSize,
+          search: search || undefined,
+          status: status === 'PAID' ? 'EFFECTIVE' : undefined,
+          companyId: companyId || undefined,
+          supplierId: supplierId || undefined,
+          paidFrom: paidFrom || undefined,
+          paidTo: paidTo || undefined,
+        },
       });
       return response.data;
     },
@@ -221,6 +278,13 @@ export function PaymentsPage(): ReactElement {
     queryFn: async () => (await httpClient.get<PaymentDetail>(`/api/v1/payments/${detailFor?.id}`)).data,
     enabled: Boolean(detailFor?.id),
   });
+
+  useEffect(() => {
+    const normalized = supplierSearch.trim().toLocaleLowerCase('pt-BR');
+    const match = normalized ? suppliers.data?.find((item) => optionLabel(item).toLocaleLowerCase('pt-BR') === normalized) : undefined;
+    const nextSupplierId = match?.id ?? '';
+    if (nextSupplierId !== supplierId) setSupplierId(nextSupplierId);
+  }, [supplierId, supplierSearch, suppliers.data]);
 
   const uploadReceipt = useMutation<object>({
     mutationFn: async () => {
@@ -289,6 +353,32 @@ export function PaymentsPage(): ReactElement {
     },
   });
 
+  const cashEntry = useMutation<object>({
+    mutationFn: async () => {
+      const response = await httpClient.post<object>('/api/v1/bank-account-movements/manual-entry', {
+        bankAccountId: cashEntryBankAccountId,
+        movementType: 'MANUAL_ADJUSTMENT',
+        movementDate: cashEntryMovementDate,
+        amount: Number(cashEntryAmount),
+        description: 'Entrada provisória de caixa',
+        referenceNumber: cashEntryReference || null,
+        notes: cashEntryNotes || 'Lançamento provisório para alimentar saldo oficial até a implantação da conciliação bancária.',
+      });
+      return response.data;
+    },
+    onSuccess: async () => {
+      setCashEntryOpen(false);
+      setCashEntryBankAccountId('');
+      setCashEntryAmount('');
+      setCashEntryReference('');
+      setCashEntryNotes('');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['payment-all-bank-balances'] }),
+        queryClient.invalidateQueries({ queryKey: ['payment-bank-balances'] }),
+      ]);
+    },
+  });
+
   const reversePayment = useMutation<object>({
     mutationFn: async () => {
       if (!reverseFor) throw new Error('Pagamento não selecionado.');
@@ -309,21 +399,35 @@ export function PaymentsPage(): ReactElement {
 
   const rows = useMemo(() => installments.data?.data ?? [], [installments.data?.data]);
   const totalPages = Math.max(1, Math.ceil((installments.data?.total ?? 0) / pageSize));
+  const historyTotalPages = Math.max(1, Math.ceil((paymentHistory.data?.total ?? 0) / historyPageSize));
   const firstItem = installments.data?.total ? (page - 1) * pageSize + 1 : 0;
   const lastItem = installments.data?.total ? Math.min(page * pageSize, installments.data.total) : 0;
-  const hasFilters = Boolean(search || status || companyId || supplierId || dueFrom || dueTo || pageSize !== 20);
+  const firstHistoryItem = paymentHistory.data?.total ? (historyPage - 1) * historyPageSize + 1 : 0;
+  const lastHistoryItem = paymentHistory.data?.total ? Math.min(historyPage * historyPageSize, paymentHistory.data.total) : 0;
+  const hasFilters = Boolean(search || status !== 'OPEN' || companyId || supplierId || supplierSearch || dueFrom || dueTo || pageSize !== 20 || requestedPayableTitleId || requestedInstallmentId);
+  const hasHistoryFilters = Boolean(search || companyId || supplierId || supplierSearch || paidFrom || paidTo || historyPageSize !== 20);
   const selectedAccount = bankBalances.data?.find((item) => item.bankAccountId === bankAccountId);
   const totalMovement = movementAmount(principalAmount, interestAmount, penaltyAmount, discountAmount, additionalAmount);
   const exceedsOpenBalance = selected ? Number(principalAmount || 0) > Number(selected.openBalance) : false;
   const insufficientBalance = selectedAccount ? Number(selectedAccount.officialBalance) < totalMovement : false;
-  const canSubmit = Boolean(selected && bankAccountId && paymentMethodId && paymentDate && Number(principalAmount) > 0 && totalMovement > 0 && (!exceedsOpenBalance || overpaymentConfirmed));
+  const paymentBlockReason = !selected ? ''
+    : !bankAccountId ? 'Selecione a conta bancária para confirmar a baixa.'
+    : !paymentMethodId ? 'Selecione a forma de pagamento para confirmar a baixa.'
+    : !paymentDate ? 'Informe a data do pagamento para confirmar a baixa.'
+    : Number(principalAmount) <= 0 ? 'Informe um valor principal maior que zero.'
+    : totalMovement <= 0 ? 'O valor que sairá da conta precisa ser maior que zero.'
+    : exceedsOpenBalance && !overpaymentConfirmed ? 'Confirme o pagamento acima do saldo aberto para continuar.'
+    : insufficientBalance ? 'Saldo insuficiente na conta bancária selecionada.'
+    : '';
+  const canSubmit = Boolean(selected && !paymentBlockReason);
   const canCreateCashBalance = Boolean(cashBankAccountId && cashMovementDate && Number(cashAmount) > 0);
+  const canCreateCashEntry = Boolean(cashEntryBankAccountId && cashEntryMovementDate && Number(cashEntryAmount) > 0);
 
   const summary = useMemo(() => ({
     openTotal: rows.reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
-    overdueTotal: rows.filter((item) => item.installmentStatusCode === 'OVERDUE').reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
-    partialCount: rows.filter((item) => item.installmentStatusCode === 'PARTIALLY_PAID').length,
-  }), [rows]);
+    overdueTotal: rows.filter((item) => item.installmentStatusCode === 'OVERDUE' || (item.dueDate < today() && Number(item.openBalance || 0) > 0)).reduce((sum, item) => sum + Number(item.openBalance || 0), 0),
+    paidTotal: Number(paymentHistory.data?.totalMovementAmount ?? 0),
+  }), [paymentHistory.data?.totalMovementAmount, rows]);
 
   function openDialog(item: EligibleInstallment): void {
     setSelected(item);
@@ -350,19 +454,46 @@ export function PaymentsPage(): ReactElement {
 
   function clearFilters(): void {
     setSearch('');
-    setStatus('');
+    setStatus('OPEN');
     setCompanyId('');
     setSupplierId('');
+    setSupplierSearch('');
     setDueFrom('');
     setDueTo('');
+    setPaidFrom('');
+    setPaidTo('');
     setPage(1);
+    setHistoryPage(1);
     setPageSize(20);
+    setHistoryPageSize(20);
+    setSearchParams({}, { replace: true });
+  }
+
+  function clearHistoryFilters(): void {
+    setSearch('');
+    setCompanyId('');
+    setSupplierId('');
+    setSupplierSearch('');
+    setPaidFrom('');
+    setPaidTo('');
+    setPage(1);
+    setHistoryPage(1);
+    setHistoryPageSize(20);
   }
 
   function openReverseDialog(item: PaymentHistoryItem): void {
     setReverseFor(item);
     setReverseReason('');
     reversePayment.reset();
+  }
+
+  function changeSupplierFilter(value: string): void {
+    setSupplierSearch(value);
+    const normalized = value.trim().toLocaleLowerCase('pt-BR');
+    const match = suppliers.data?.find((item) => optionLabel(item).toLocaleLowerCase('pt-BR') === normalized);
+    setSupplierId(match?.id ?? '');
+    setPage(1);
+    setHistoryPage(1);
   }
 
   function closeDetailDialog(): void {
@@ -397,6 +528,7 @@ export function PaymentsPage(): ReactElement {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => setCashBalanceOpen(true)}>Lançar saldo inicial</Button>
+          <Button variant="secondary" onClick={() => setCashEntryOpen(true)}>Entrada de caixa</Button>
           <Button variant="secondary" onClick={() => void installments.refetch()}>Atualizar fila</Button>
         </div>
       </header>
@@ -404,7 +536,7 @@ export function PaymentsPage(): ReactElement {
       <section className="grid gap-4 md:grid-cols-3">
         <Card><p className="text-sm font-semibold text-slate-500">Aberto na fila</p><p className="mt-2 text-2xl font-black text-slate-950">{currency(summary.openTotal)}</p></Card>
         <Card><p className="text-sm font-semibold text-slate-500">Atrasado na fila</p><p className="mt-2 text-2xl font-black text-red-700">{currency(summary.overdueTotal)}</p></Card>
-        <Card><p className="text-sm font-semibold text-slate-500">Pagamentos parciais</p><p className="mt-2 text-2xl font-black text-amber-700">{summary.partialCount}</p></Card>
+        <Card><p className="text-sm font-semibold text-slate-500">Pagamentos efetuados</p><p className="mt-2 text-2xl font-black text-emerald-700">{currency(summary.paidTotal)}</p></Card>
       </section>
 
       <Card>
@@ -417,18 +549,19 @@ export function PaymentsPage(): ReactElement {
         </div>
 
         <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_220px_220px_170px]">
-          <input aria-label="Pesquisar parcelas" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar fornecedor, documento ou descrição..." className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
-          <select aria-label="Filtrar por empresa" value={companyId} onChange={(event) => { setCompanyId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+          <input aria-label="Pesquisar parcelas" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); setHistoryPage(1); }} placeholder="Buscar fornecedor, documento ou descrição..." className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+          <select aria-label="Filtrar por empresa" value={companyId} onChange={(event) => { setCompanyId(event.target.value); setPage(1); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
             <option value="">Todas as empresas</option>
             {companies.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
           </select>
-          <select aria-label="Filtrar por fornecedor" value={supplierId} onChange={(event) => { setSupplierId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
-            <option value="">Todos os fornecedores</option>
-            {suppliers.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
-          </select>
-          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
-            <option value="">Todos os status</option>
-            {statuses.map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
+          <div>
+            <input aria-label="Buscar fornecedor" list="payment-supplier-options" value={supplierSearch} onChange={(event) => changeSupplierFilter(event.target.value)} placeholder="Buscar fornecedor..." className="min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+            <datalist id="payment-supplier-options">
+              {suppliers.data?.map((item) => <option key={item.id} value={optionLabel(item)} />)}
+            </datalist>
+          </div>
+          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value as PaymentQueueFilter); setPage(1); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            {statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </div>
 
@@ -444,7 +577,7 @@ export function PaymentsPage(): ReactElement {
         </div>
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-          {installments.isLoading ? <p className="py-12 text-center text-slate-500">Carregando parcelas...</p> : installments.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar parcelas elegíveis.</p> : <>
+          {status === 'PAID' ? <p className="py-12 text-center text-slate-500">Pagamentos já efetuados aparecem no histórico abaixo, com detalhe, comprovante e estorno.</p> : installments.isLoading ? <p className="py-12 text-center text-slate-500">Carregando parcelas...</p> : installments.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar parcelas elegíveis.</p> : <>
             <div className="hidden grid-cols-[116px_1.4fr_150px_130px_130px_110px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 xl:grid">
               <span>Vencimento</span><span>Fornecedor / Documento</span><span>Empresa</span><span>Parcela</span><span className="text-right">Saldo aberto</span><span className="text-right">Ação</span>
             </div>
@@ -476,20 +609,31 @@ export function PaymentsPage(): ReactElement {
         <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-950">Pagamentos realizados</h2>
-            <p className="mt-1 text-sm text-slate-500">Histórico recente para conferência e estorno auditado.</p>
+            <p className="mt-1 text-sm text-slate-500">Histórico paginado para conferência, comprovantes e estorno auditado.</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{paymentHistory.data?.total ?? 0} pagamento{(paymentHistory.data?.total ?? 0) === 1 ? '' : 's'}</span>
         </div>
+        <div className="mb-5 grid gap-3 xl:grid-cols-[170px_170px_170px_auto]">
+          <input aria-label="Pagamento inicial" type="date" value={paidFrom} onChange={(event) => { setPaidFrom(event.target.value); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+          <input aria-label="Pagamento final" type="date" value={paidTo} onChange={(event) => { setPaidTo(event.target.value); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+          <select aria-label="Pagamentos por página" value={historyPageSize} onChange={(event) => { setHistoryPageSize(Number(event.target.value)); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            <option value={10}>10 por página</option>
+            <option value={20}>20 por página</option>
+            <option value={50}>50 por página</option>
+            <option value={100}>100 por página</option>
+          </select>
+          <Button variant="secondary" disabled={!hasHistoryFilters} onClick={clearHistoryFilters}>Limpar histórico</Button>
+        </div>
         <div className="overflow-hidden rounded-2xl border border-slate-200">
           {paymentHistory.isLoading ? <p className="py-12 text-center text-slate-500">Carregando pagamentos...</p> : paymentHistory.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar pagamentos.</p> : <div className="divide-y divide-slate-100">
-            {(paymentHistory.data?.data ?? []).map((item) => <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[116px_1.4fr_150px_140px_120px_160px] xl:items-center">
+            {(paymentHistory.data?.data ?? []).map((item) => <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[116px_1.4fr_140px_180px_96px_130px_160px] xl:items-center">
               <span className="font-semibold text-slate-700">{datePtBr(item.paymentDate)}</span>
               <span className="min-w-0"><span className="block truncate font-bold text-slate-950">{item.supplierName}</span><span className="block truncate text-xs text-slate-500">{paymentDocumentLabel(item)} - {item.description}</span></span>
               <span className="truncate text-slate-600">{item.companyName ?? '-'}</span>
               <span className="truncate text-slate-600">{item.bankName} - {item.accountName}</span>
+              <span className={`w-fit rounded-full border px-2 py-0.5 text-xs font-bold ${item.isReversed ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{item.isReversed ? 'Estornado' : statusLabel(item.statusCode)}</span>
               <span className="font-black text-slate-950 xl:text-right">{currency(item.movementAmount)}</span>
               <span className="flex items-center justify-end gap-2">
-                <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${item.isReversed ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{item.isReversed ? 'Estornado' : statusLabel(item.statusCode)}</span>
                 <Button variant="secondary" onClick={() => setDetailFor(item)}>Ver</Button>
                 <Button variant="danger" disabled={item.isReversed} onClick={() => openReverseDialog(item)}>Estornar</Button>
               </span>
@@ -497,10 +641,18 @@ export function PaymentsPage(): ReactElement {
             {(paymentHistory.data?.data ?? []).length === 0 && <p className="py-12 text-center text-slate-500">Nenhum pagamento registrado.</p>}
           </div>}
         </div>
+        <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-5 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-sm text-slate-500">Exibindo {firstHistoryItem}-{lastHistoryItem} de {paymentHistory.data?.total ?? 0} • Total filtrado: <strong className="text-emerald-700">{currency(summary.paidTotal)}</strong></p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" disabled={historyPage === 1} onClick={() => setHistoryPage((value) => value - 1)}>Anterior</Button>
+            <span className="grid min-w-10 place-items-center rounded-lg bg-emerald-700 text-sm font-bold text-white">{historyPage}/{historyTotalPages}</span>
+            <Button variant="secondary" disabled={historyPage >= historyTotalPages} onClick={() => setHistoryPage((value) => value + 1)}>Próxima</Button>
+          </div>
+        </div>
       </Card>
 
       {selected ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4" role="presentation">
-        <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="Baixar parcela">
+        <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="Baixar parcela">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black text-slate-950">Baixar parcela</h2>
@@ -537,7 +689,7 @@ export function PaymentsPage(): ReactElement {
             </label>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-5">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <MoneyField label="Valor principal" value={principalAmount} onChange={setPrincipalAmount} />
             <MoneyField label="Juros" value={interestAmount} onChange={setInterestAmount} />
             <MoneyField label="Multa" value={penaltyAmount} onChange={setPenaltyAmount} />
@@ -555,7 +707,7 @@ export function PaymentsPage(): ReactElement {
             </div>
             {selectedAccount ? <p className={`mt-2 text-sm font-bold ${insufficientBalance ? 'text-red-700' : 'text-teal-800'}`}>Saldo da conta selecionada: {currency(selectedAccount.officialBalance)}</p> : null}
             {exceedsOpenBalance ? <label className="mt-3 flex items-center gap-2 text-sm font-bold text-amber-800"><input type="checkbox" checked={overpaymentConfirmed} onChange={(event) => setOverpaymentConfirmed(event.target.checked)} /> Confirmo pagamento acima do saldo aberto.</label> : null}
-            {insufficientBalance ? <p role="alert" className="mt-3 text-sm font-bold text-red-700">Saldo insuficiente. A baixa será bloqueada pela API.</p> : null}
+            {paymentBlockReason && !payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-amber-800">{paymentBlockReason}</p> : null}
             {payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-red-700">{payment.error instanceof ApiError ? payment.error.message : 'Não foi possível registrar a baixa.'}</p> : null}
           </div>
 
@@ -588,11 +740,48 @@ export function PaymentsPage(): ReactElement {
             <label className="grid gap-1 text-sm font-bold text-slate-700">Referência
               <input aria-label="Referência do saldo inicial" value={cashReference} onChange={(event) => setCashReference(event.target.value)} placeholder="Opcional" className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
             </label>
-            {cashBalance.error ? <p role="alert" className="text-sm font-bold text-red-700">{cashBalance.error instanceof ApiError ? cashBalance.error.message : 'Não foi possível lançar o saldo inicial.'}</p> : null}
+            {cashBalance.error ? <p role="alert" className="text-sm font-bold text-red-700">{treasuryErrorMessage(cashBalance.error, 'Não foi possível lançar o saldo inicial. Use Entrada de caixa para registrar novos valores após o saldo inicial.')}</p> : null}
           </div>
           <div className="mt-6 flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setCashBalanceOpen(false)}>Cancelar</Button>
             <Button disabled={!canCreateCashBalance || cashBalance.isPending} onClick={() => cashBalance.mutate()}>{cashBalance.isPending ? 'Lançando...' : 'Lançar saldo'}</Button>
+          </div>
+        </div>
+      </div> : null}
+
+      {cashEntryOpen ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4" role="presentation">
+        <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="Entrada de caixa">
+          <div className="flex items-start justify-between gap-4">
+            <div><h2 className="text-2xl font-black text-slate-950">Entrada de caixa</h2><p className="mt-1 text-sm text-slate-600">Ajuste manual provisório para alimentar o saldo oficial até a conciliação bancária.</p></div>
+            <button className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100" onClick={() => setCashEntryOpen(false)} aria-label="Fechar entrada de caixa">X</button>
+          </div>
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+            Use esta opção apenas para entrada operacional de dinheiro enquanto a rotina de conciliação bancária não estiver implantada.
+          </div>
+          <div className="mt-5 grid gap-4">
+            <label className="grid gap-1 text-sm font-bold text-slate-700">Conta bancária
+              <select aria-label="Conta para entrada de caixa" value={cashEntryBankAccountId} onChange={(event) => setCashEntryBankAccountId(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+                <option value="">Selecione</option>
+                {allBankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.companyName ?? '-'} - {item.bankName} - {item.accountName} - saldo {currency(item.officialBalance)}</option>)}
+              </select>
+            </label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <MoneyField label="Valor da entrada" value={cashEntryAmount} onChange={setCashEntryAmount} />
+              <label className="grid gap-1 text-sm font-bold text-slate-700">Data da entrada
+                <input aria-label="Data da entrada de caixa" type="date" value={cashEntryMovementDate} onChange={(event) => setCashEntryMovementDate(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+              </label>
+            </div>
+            <label className="grid gap-1 text-sm font-bold text-slate-700">Referência
+              <input aria-label="Referência da entrada de caixa" value={cashEntryReference} onChange={(event) => setCashEntryReference(event.target.value)} placeholder="Ex.: repasse, depósito ou ajuste operacional" className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+            </label>
+            <label className="grid gap-1 text-sm font-bold text-slate-700">Observações
+              <textarea aria-label="Observações da entrada de caixa" value={cashEntryNotes} onChange={(event) => setCashEntryNotes(event.target.value)} rows={3} placeholder="Opcional. Informe a origem operacional do dinheiro." className="rounded-xl border border-slate-300 px-3 py-2 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+            </label>
+            {cashEntry.error ? <p role="alert" className="text-sm font-bold text-red-700">{treasuryErrorMessage(cashEntry.error, 'Não foi possível lançar a entrada de caixa.')}</p> : null}
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setCashEntryOpen(false)}>Cancelar</Button>
+            <Button disabled={!canCreateCashEntry || cashEntry.isPending} onClick={() => cashEntry.mutate()}>{cashEntry.isPending ? 'Lançando...' : 'Lançar entrada'}</Button>
           </div>
         </div>
       </div> : null}
@@ -718,7 +907,7 @@ function Summary({ label, value, strong = false }: { label: string; value: strin
 }
 
 function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): ReactElement {
-  return <label className="grid gap-1 text-sm font-bold text-slate-700">{label}<input aria-label={label} type="number" min="0" step="0.01" value={value} onChange={(event) => onChange(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" /></label>;
+  return <label className="grid min-w-0 gap-1 text-sm font-bold text-slate-700">{label}<CurrencyInput aria-label={label} value={value} allowEmpty onValueChange={(nextValue) => onChange(nextValue === null ? '' : String(nextValue))} className="min-h-12 w-full min-w-0 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" /></label>;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }): ReactElement {

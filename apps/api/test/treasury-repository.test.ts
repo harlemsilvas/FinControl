@@ -50,7 +50,11 @@ describe('TreasuryRepository bank account movements', () => {
       movementType: 'MANUAL_ADJUSTMENT',
       movementDate: '2026-07-22',
       amount: 100,
-    }, 'user-id', false)).rejects.toMatchObject({ code: 'FORBIDDEN', statusCode: 403 });
+    }, 'user-id', false)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Somente usuários master podem lançar ajustes manuais de caixa.',
+      statusCode: 403,
+    });
   });
 
   it('blocks a second active cash balance movement for the same bank account', async () => {
@@ -63,7 +67,11 @@ describe('TreasuryRepository bank account movements', () => {
       movementType: 'CASH_BALANCE',
       movementDate: '2026-07-22',
       amount: 100,
-    }, 'user-id', false)).rejects.toMatchObject({ code: 'CASH_BALANCE_ALREADY_EXISTS', statusCode: 409 });
+    }, 'user-id', false)).rejects.toMatchObject({
+      code: 'CASH_BALANCE_ALREADY_EXISTS',
+      message: 'Esta conta bancária já possui um saldo inicial ativo. Para novas entradas de dinheiro, use a opção Entrada de caixa.',
+      statusCode: 409,
+    });
   });
 
   it('blocks transfers between different company CNPJs', async () => {

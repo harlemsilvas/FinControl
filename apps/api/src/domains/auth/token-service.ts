@@ -57,7 +57,15 @@ export class TokenService {
     return randomBytes(48).toString('base64url');
   }
 
+  createPasswordResetToken(): string {
+    return randomBytes(48).toString('base64url');
+  }
+
   hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  hashPasswordResetToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }
 
@@ -65,8 +73,16 @@ export class TokenService {
     return new Date(now.getTime() + this.environment.AUTH_REFRESH_TOKEN_TTL_DAYS * 86_400_000);
   }
 
+  passwordResetExpiry(now = new Date()): Date {
+    return new Date(now.getTime() + this.environment.AUTH_PASSWORD_RESET_TTL_MINUTES * 60_000);
+  }
+
   get accessTokenTtlSeconds(): number {
     return this.environment.AUTH_ACCESS_TOKEN_TTL_SECONDS;
+  }
+
+  get passwordResetBaseUrl(): string {
+    return this.environment.PASSWORD_RESET_BASE_URL;
   }
 
   private sign(value: string): string {

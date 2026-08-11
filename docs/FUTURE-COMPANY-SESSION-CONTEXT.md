@@ -1,6 +1,6 @@
 # Feature futura — Contexto de empresa por sessão
 
-**Data:** 22/07/2026  
+**Data:** 29/07/2026
 **Status:** documentado para avaliação futura  
 **Decisão atual:** não implementar empresa ativa global por sessão nesta fase.
 
@@ -16,7 +16,9 @@ Nesta fase, o sistema deve funcionar assim:
 
 - XML importado: a empresa do lançamento é resolvida pelo CNPJ do destinatário presente no documento fiscal.
 - Conta a pagar gerada por XML: deve herdar a empresa resolvida pelo XML e seus parâmetros cadastrados.
-- Consultas e relatórios futuros: devem oferecer filtro explícito por uma empresa ou por todas.
+- Consultas e relatórios: devem oferecer filtro explícito por uma empresa ou por
+  todas. A primeira leva já cobre Dashboard, Agenda Financeira e Notas Fiscais
+  e Contas; relatórios analíticos seguem no roadmap.
 - Baixa e pagamento futuros: devem considerar a empresa da conta/título e a conta bancária/saldo da empresa escolhida na operação de tesouraria.
 
 Portanto, não deve existir no topo do sistema um seletor de "empresa ativa" que altere

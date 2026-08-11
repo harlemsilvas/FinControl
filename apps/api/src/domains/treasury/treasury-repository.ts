@@ -108,7 +108,7 @@ export class TreasuryRepository {
   async createManualEntry(input: BankMovementInput, userId: string, isMaster: boolean): Promise<object> {
     return this.database.transaction(async (tx) => {
       if (input.movementType === 'MANUAL_ADJUSTMENT' && !isMaster) {
-        throw new ApplicationError({ code: 'FORBIDDEN', message: 'Only admin users can create manual balance adjustments', statusCode: 403 });
+        throw new ApplicationError({ code: 'FORBIDDEN', message: 'Somente usuários master podem lançar ajustes manuais de caixa.', statusCode: 403 });
       }
       if (['MARKETPLACE_REPASS', 'MANUAL_ENTRY'].includes(input.movementType) && !input.costCenterId) {
         throw new ApplicationError({ code: 'COST_CENTER_REQUIRED', message: 'Cost center is required for this bank movement', statusCode: 400 });
@@ -230,7 +230,7 @@ export class TreasuryRepository {
       [bankAccountId],
     );
     if (existing.rowCount) {
-      throw new ApplicationError({ code: 'CASH_BALANCE_ALREADY_EXISTS', message: 'Bank account already has an active cash balance movement', statusCode: 409 });
+      throw new ApplicationError({ code: 'CASH_BALANCE_ALREADY_EXISTS', message: 'Esta conta bancária já possui um saldo inicial ativo. Para novas entradas de dinheiro, use a opção Entrada de caixa.', statusCode: 409 });
     }
   }
 

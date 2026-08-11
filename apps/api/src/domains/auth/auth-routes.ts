@@ -14,6 +14,8 @@ interface AuthRoutesOptions {
 
 const loginSchema = z.object({ email: z.email(), password: z.string().min(8).max(200) });
 const refreshSchema = z.object({ refreshToken: z.string().min(32) });
+const forgotPasswordSchema = z.object({ email: z.email().max(255).transform((value) => value.toLowerCase()) });
+const resetPasswordSchema = z.object({ token: z.string().min(32).max(300), password: z.string().min(8).max(200) });
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
@@ -41,6 +43,16 @@ export function authRoutes(app: FastifyInstance, options: AuthRoutesOptions): Pr
   app.post('/refresh', async (request) => {
     const body = parse(refreshSchema, request.body);
     return options.service.refresh(body.refreshToken, context(request));
+  });
+
+  app.post('/password/forgot', async (request) => {
+    const body = parse(forgotPasswordSchema, request.body);
+    return options.service.requestPasswordReset(body.email, context(request));
+  });
+
+  app.post('/password/reset', async (request) => {
+    const body = parse(resetPasswordSchema, request.body);
+    return options.service.resetPassword(body.token, body.password, context(request));
   });
 
   app.post('/logout', { preHandler: authenticate }, async (request, reply) => {

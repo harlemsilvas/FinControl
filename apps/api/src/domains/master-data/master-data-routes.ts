@@ -99,6 +99,9 @@ function withSupplierRules(schema: z.ZodType<Record<string, unknown>>): z.ZodTyp
     const email = typeof value.email === 'string' || value.email == null ? value.email : undefined;
     const financialEmail = typeof value.financialEmail === 'string' || value.financialEmail == null ? value.financialEmail : undefined;
     const postalCode = typeof value.postalCode === 'string' || value.postalCode == null ? value.postalCode : undefined;
+    const payload = value as Record<string, unknown>;
+    const cityName = typeof payload.cityName === 'string' || payload.cityName == null ? payload.cityName : undefined;
+    const stateId = typeof payload.stateId === 'string' || payload.stateId == null ? payload.stateId : undefined;
     if (supplierType === 'INDIVIDUAL' && documentNumber && !/^\d{11}$/.test(documentNumber)) {
       context.addIssue({ code: 'custom', path: ['documentNumber'], message: 'CPF deve conter 11 dígitos.' });
     }
@@ -116,6 +119,9 @@ function withSupplierRules(schema: z.ZodType<Record<string, unknown>>): z.ZodTyp
     }
     if (postalCode && !/^\d{8}$/.test(postalCode)) {
       context.addIssue({ code: 'custom', path: ['postalCode'], message: 'CEP deve conter 8 dígitos.' });
+    }
+    if (cityName && !stateId) {
+      context.addIssue({ code: 'custom', path: ['stateId'], message: 'Estado é obrigatório ao informar a cidade.' });
     }
     for (const [field, label] of [['phone', 'Telefone'], ['mobilePhone', 'Celular'], ['secondaryPhone', 'Telefone adicional']] as const) {
       const phoneValue = typeof value[field] === 'string' || value[field] == null ? value[field] : undefined;
@@ -230,7 +236,7 @@ const supplierBase = z.object({ supplierType: z.enum(['INDIVIDUAL', 'COMPANY', '
   notes: z.string().max(5000).nullable().optional(), isForeign: z.boolean().optional(), isApproved: z.boolean().optional(), isBlocked: z.boolean().optional(), isActive: z.boolean().optional(),
   statusId: nullableUuid(), stateRegistration: nullableText(60), municipalRegistration: nullableText(60), supplierCategoryId: nullableUuid(),
   postalCode: z.unknown().optional(), street: nullableText(255), streetNumber: nullableText(30), addressComplement: nullableText(120), neighborhood: nullableText(120),
-  cityId: nullableUuid(), stateId: nullableUuid(), financialEmail: z.string().trim().max(255).nullable().optional(), markerIds: z.array(uuid).max(50).optional(),
+  cityId: nullableUuid(), cityName: nullableText(160), stateId: nullableUuid(), financialEmail: z.string().trim().max(255).nullable().optional(), markerIds: z.array(uuid).max(50).optional(),
   defaultPaymentMethodId: nullableUuid(), defaultPaymentTermId: nullableUuid(), defaultCostCenterId: nullableUuid(),
   averagePaymentTermDays: z.number().int().min(0).nullable().optional(), preferredPaymentDay: z.number().int().min(1).max(31).nullable().optional(),
   financialNotes: nullableText(5000), internalResponsibleName: nullableText(160), relationshipStartedAt: nullableText(10), internalCode: nullableText(60),

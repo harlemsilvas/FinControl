@@ -5,6 +5,7 @@ export interface IntelligenceFilters {
   to: string;
   supplierId?: string;
   categoryId?: string;
+  companyId?: string;
 }
 
 function camel(key: string): string { return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()); }
@@ -24,20 +25,31 @@ export class IntelligenceRepository {
     const summary = await this.database.query(`SELECT
         COALESCE(sum(i.open_balance),0)::text total_payable,
         COALESCE(sum(i.open_balance) FILTER (WHERE i.due_date < CURRENT_DATE),0)::text overdue,
+        COALESCE(sum(i.open_balance) FILTER (WHERE i.due_date = CURRENT_DATE),0)::text today,
+        (count(*) FILTER (WHERE i.due_date = CURRENT_DATE))::text today_count,
         COALESCE(sum(i.open_balance) FILTER (WHERE i.due_date >= CURRENT_DATE),0)::text upcoming,
         (SELECT COALESCE(sum(p.movement_amount),0)::text FROM financeiro.payments p
           JOIN financeiro.payment_statuses ps ON ps.id=p.status_id
           JOIN financeiro.payable_installments pi ON pi.id=p.payable_installment_id
           JOIN financeiro.payable_titles pt ON pt.id=pi.payable_title_id
           WHERE ps.code='EFFECTIVE' AND p.payment_date BETWEEN $1 AND $2
-          AND ($3::uuid IS NULL OR pt.supplier_id=$3) AND ($4::uuid IS NULL OR pt.category_id=$4)) paid
+          AND ($3::uuid IS NULL OR pt.supplier_id=$3) AND ($4::uuid IS NULL OR pt.category_id=$4)
+          AND ($5::uuid IS NULL OR pt.company_id=$5)) paid,
+        (SELECT count(*)::text FROM financeiro.payments p
+          JOIN financeiro.payment_statuses ps ON ps.id=p.status_id
+          JOIN financeiro.payable_installments pi ON pi.id=p.payable_installment_id
+          JOIN financeiro.payable_titles pt ON pt.id=pi.payable_title_id
+          WHERE ps.code='EFFECTIVE' AND p.payment_date BETWEEN $1 AND $2
+          AND ($3::uuid IS NULL OR pt.supplier_id=$3) AND ($4::uuid IS NULL OR pt.category_id=$4)
+          AND ($5::uuid IS NULL OR pt.company_id=$5)) paid_count
         FROM financeiro.payable_installments i
         JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
         JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
         WHERE i.deleted_at IS NULL AND t.deleted_at IS NULL AND t.is_active AND ts.code<>'CANCELLED'
         AND i.open_balance>0 AND i.due_date BETWEEN $1 AND $2
-        AND ($3::uuid IS NULL OR t.supplier_id=$3) AND ($4::uuid IS NULL OR t.category_id=$4)`,
-        [filters.from, filters.to, filters.supplierId ?? null, filters.categoryId ?? null]);
+        AND ($3::uuid IS NULL OR t.supplier_id=$3) AND ($4::uuid IS NULL OR t.category_id=$4)
+        AND ($5::uuid IS NULL OR t.company_id=$5)`,
+        [filters.from, filters.to, filters.supplierId ?? null, filters.categoryId ?? null, filters.companyId ?? null]);
     const dueSeries = await this.database.query(`SELECT i.due_date::text label,COALESCE(sum(i.open_balance),0)::text amount ${openBase}
         GROUP BY i.due_date ORDER BY i.due_date`, values);
     const categories = await this.database.query(`SELECT c.name label,COALESCE(sum(i.open_balance),0)::text amount
@@ -46,10 +58,13 @@ export class IntelligenceRepository {
         WHERE i.deleted_at IS NULL AND t.deleted_at IS NULL AND t.is_active AND ts.code<>'CANCELLED'
         AND i.open_balance>0 AND i.due_date BETWEEN $1 AND $2 ${clauses}
         GROUP BY c.id,c.name ORDER BY sum(i.open_balance) DESC LIMIT 6`, values);
-    const recent = await this.database.query(`SELECT t.id,t.document_number,s.legal_name supplier_name,i.due_date::text,i.open_balance::text,
+    const recent = await this.database.query(`SELECT t.id,t.document_number,s.legal_name supplier_name,
+        COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
+        i.due_date::text,i.open_balance::text,
         CASE WHEN i.due_date<CURRENT_DATE THEN 'OVERDUE' WHEN i.due_date=CURRENT_DATE THEN 'TODAY' ELSE 'UPCOMING' END highlight
         FROM financeiro.payable_installments i JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
         JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id JOIN cadastros.suppliers s ON s.id=t.supplier_id
+        LEFT JOIN cadastros.companies company ON company.id=t.company_id
         WHERE i.deleted_at IS NULL AND t.deleted_at IS NULL AND t.is_active AND ts.code<>'CANCELLED'
         AND i.open_balance>0 AND i.due_date BETWEEN $1 AND $2 ${clauses}
         ORDER BY i.due_date,i.open_balance DESC LIMIT 8`, values);
@@ -60,12 +75,14 @@ export class IntelligenceRepository {
     const values: unknown[] = [filters.from, filters.to];
     const clauses = this.filters(filters, values);
     const result = await this.database.query(`SELECT i.id,t.id payable_title_id,t.document_number,t.description,
-      s.legal_name supplier_name,c.name category_name,i.installment_number,i.installment_count,
+      s.legal_name supplier_name,COALESCE(NULLIF(company.trade_name,''),company.legal_name) company_name,
+      c.name category_name,i.installment_number,i.installment_count,
       i.due_date::text,i.open_balance::text,
       CASE WHEN i.due_date<CURRENT_DATE THEN 'OVERDUE' WHEN i.due_date=CURRENT_DATE THEN 'TODAY' ELSE 'UPCOMING' END highlight
       FROM financeiro.payable_installments i JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
       JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id
       JOIN cadastros.suppliers s ON s.id=t.supplier_id JOIN cadastros.financial_categories c ON c.id=t.category_id
+      LEFT JOIN cadastros.companies company ON company.id=t.company_id
       WHERE i.deleted_at IS NULL AND t.deleted_at IS NULL AND t.is_active AND ts.code<>'CANCELLED'
       AND i.open_balance>0 AND i.due_date BETWEEN $1 AND $2 ${clauses}
       ORDER BY i.due_date,s.legal_name,t.document_number,i.installment_number`, values);
@@ -77,6 +94,7 @@ export class IntelligenceRepository {
     const conditions: string[] = [];
     if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
     if (filters.categoryId) { values.push(filters.categoryId); conditions.push(`t.category_id=$${values.length}`); }
+    if (filters.companyId) { values.push(filters.companyId); conditions.push(`t.company_id=$${values.length}`); }
     return conditions.length ? `AND ${conditions.join(' AND ')}` : '';
   }
 }

@@ -29,6 +29,7 @@ Correcoes incorporadas durante a validacao:
 - `deploy/vps/pm2/ecosystem.config.cjs`: configuracao PM2 do `fincontrol-api`.
 - `deploy/vps/systemd/pm2-fincontrol.service`: servico systemd dedicado ao PM2 do usuario `fincontrol`.
 - `.github/workflows/deploy-vps.yml`: workflow manual ja existente para chamar `/opt/fincontrol/bin/deploy`.
+- `.github/workflows/deploy-production.yml`: workflow manual simplificado que sempre publica a branch `main`.
 
 ## Instalar na VPS
 
@@ -94,6 +95,114 @@ Criar o environment `production` no GitHub e cadastrar:
 - `VPS_KNOWN_HOSTS`
 
 O workflow exige execucao manual e `confirmation=DEPLOY`.
+
+### Deploy manual pelo GitHub Actions
+
+O workflow `.github/workflows/deploy-vps.yml` executa:
+
+1. validacao da confirmacao textual;
+2. checkout do repositorio com historico suficiente para resolver o alvo;
+3. resolucao do `deploy_ref` para um commit SHA imutavel, aceitando branch,
+   tag, SHA completo ou SHA curto;
+4. checks opcionais (`npm ci`, lint, typecheck, testes, build e validacao de migrations);
+5. chamada SSH para a VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
+```
+
+O `deploy_ref` pode ser uma branch, tag, SHA completo ou SHA curto. A VPS sempre
+recebe o commit resolvido pelo Actions, nao a branch mutavel.
+
+### Sudo sem senha para o deploy
+
+Como o GitHub Actions nao e uma sessao interativa, o usuario SSH configurado em
+`VPS_USER` precisa conseguir executar o deploy sem prompt de senha.
+
+Criar um arquivo sudoers dedicado na VPS:
+
+```bash
+sudo visudo -f /etc/sudoers.d/fincontrol-github-actions
+```
+
+Conteudo recomendado, trocando `deploy` pelo usuario cadastrado em `VPS_USER`:
+
+```text
+deploy ALL=(root) NOPASSWD: /opt/fincontrol/bin/deploy
+```
+
+Validar na VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy --help
+```
+
+Se esse comando retornar erro de uso do script sem pedir senha, a permissao esta
+funcional. Se retornar erro de senha, o workflow falhara antes de alterar a
+aplicacao.
+
+### Segredos necessarios
+
+`VPS_HOST`:
+host ou IP publico da VPS.
+
+`VPS_USER`:
+usuario administrativo usado pelo Actions, por exemplo `deploy` ou `harlem`.
+
+`VPS_SSH_KEY`:
+chave privada SSH desse usuario. A chave publica correspondente deve estar em
+`~/.ssh/authorized_keys` na VPS.
+
+`VPS_KNOWN_HOSTS`:
+linha gerada por:
+
+```bash
+ssh-keyscan -H SEU_HOST_OU_IP
+```
+
+### Migrations
+
+Nao ha fluxo separado para migrations no Actions. O deploy continua chamando o
+script oficial da VPS, que:
+
+- valida ordem, unicidade e transacionalidade das migrations;
+- aplica apenas migrations pendentes;
+- registra checksum em `administracao.schema_versions`;
+- executa `database/scripts/verify_database.sql`.
+
+Novas migrations devem continuar seguindo a convencao atual de nome por data,
+sempre posteriores a ultima migration aplicada e versionada em
+`database/migrations/`.
+
+### Deploy Production sem campos
+
+O workflow `.github/workflows/deploy-production.yml` deve ser o caminho padrao
+quando `main` estiver estabilizada.
+
+Ele nao solicita `deploy_ref` nem confirmacao textual. Ao clicar em `Run
+workflow`, ele:
+
+1. faz checkout de `main`;
+2. resolve `main` para um commit SHA imutavel;
+3. executa checks completos;
+4. aguarda aprovacao do environment `production`, se configurada;
+5. chama `/opt/fincontrol/bin/deploy COMMIT_SHA` na VPS.
+
+Esse workflow depende dos mesmos secrets do environment `production`:
+
+- `VPS_HOST`;
+- `VPS_USER`;
+- `VPS_SSH_KEY`;
+- `VPS_KNOWN_HOSTS`.
+
+Manter o workflow flexivel `Deploy VPS Native` para casos de homologacao ou
+deploy controlado de uma branch/commit especifico. Usar `Deploy Production`
+para rotina normal de producao.
+
+O script remoto valida o runtime antes do deploy: o Node.js 22 e o npm devem
+estar disponiveis em `/opt/fincontrol/.local/bin`, no ambiente do usuario
+`fincontrol`. O PM2 pode permanecer em `/usr/bin/pm2`, mas e executado com o
+PATH do usuario `fincontrol`, permitindo que o shebang use o Node isolado.
 
 Essa e a principal pendencia apos o deploy controlado manual validado.
 

@@ -27,6 +27,11 @@ Thumbs.db
 !.vscode/settings.json
 .agents/
 .codex/
+.venv/
+id_fincontrol
+id_fincontrol.pub
+*.ppk
+branchnova/
 postgres-data/
 backups/
 *.dump
@@ -37,3 +42,4 @@ hrmmotos.com.br
 .local/
 backup/
 backup.sql
+FinControl/

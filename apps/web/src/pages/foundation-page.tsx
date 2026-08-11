@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
-import { monthRange, shortDate, type DashboardResponse, type OptionResponse, type UpcomingItem } from '../intelligence/contracts';
+import { monthEnd, monthKey, monthStart, shortDate, type DashboardResponse, type OptionResponse, type UpcomingItem } from '../intelligence/contracts';
 import { currency } from '../payables/payables-types';
 
 const highlightStyles = {
@@ -42,18 +42,21 @@ function countByHighlight(items: UpcomingItem[], highlight: UpcomingItem['highli
 }
 
 export function FoundationPage(): ReactElement {
-  const initial = monthRange();
-  const [from, setFrom] = useState(initial.from);
-  const [to, setTo] = useState(initial.to);
+  const initialMonth = monthKey();
+  const [fromMonth, setFromMonth] = useState(initialMonth);
+  const [toMonth, setToMonth] = useState(initialMonth);
   const [supplierId, setSupplier] = useState('');
   const [categoryId, setCategory] = useState('');
+  const [companyId, setCompany] = useState('');
+  const from = monthStart(fromMonth || initialMonth);
+  const to = monthEnd(toMonth || fromMonth || initialMonth);
 
   const query = useQuery({
-    queryKey: ['dashboard', from, to, supplierId, categoryId],
+    queryKey: ['dashboard', from, to, supplierId, categoryId, companyId],
     queryFn: async () =>
       (
         await httpClient.get<DashboardResponse>('/api/v1/dashboard', {
-          params: { from, to, supplierId: supplierId || undefined, categoryId: categoryId || undefined },
+          params: { from, to, supplierId: supplierId || undefined, categoryId: categoryId || undefined, companyId: companyId || undefined },
         })
       ).data,
   });
@@ -70,12 +73,18 @@ export function FoundationPage(): ReactElement {
       (await httpClient.get<OptionResponse>('/api/v1/financial-categories', { params: { pageSize: 100, active: true } })).data.data,
   });
 
+  const companies = useQuery({
+    queryKey: ['dashboard-companies'],
+    queryFn: async () =>
+      (await httpClient.get<OptionResponse>('/api/v1/companies', { params: { pageSize: 100, active: true } })).data.data,
+  });
+
   const summary = query.data?.summary;
   const upcomingItems = query.data?.upcoming ?? [];
   const categoryPoints = query.data?.categories ?? [];
   const dueSeries = query.data?.dueSeries ?? [];
-  const todayAmount = amountByHighlight(upcomingItems, 'TODAY');
-  const todayCount = countByHighlight(upcomingItems, 'TODAY');
+  const todayAmount = summary?.today ?? amountByHighlight(upcomingItems, 'TODAY');
+  const todayCount = Number(summary?.todayCount ?? countByHighlight(upcomingItems, 'TODAY'));
   const upcomingCount = countByHighlight(upcomingItems, 'UPCOMING');
   const overdueCount = countByHighlight(upcomingItems, 'OVERDUE');
   const maximumCategory = Math.max(1, ...categoryPoints.map((item) => Number(item.amount)));
@@ -166,37 +175,52 @@ export function FoundationPage(): ReactElement {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="text-lg font-bold">Filtros do dashboard</h2>
-            <p className="mt-1 text-sm text-slate-500">Os indicadores abaixo respeitam período, fornecedor e categoria.</p>
+            <p className="mt-1 text-sm text-slate-500">Os indicadores abaixo respeitam período, empresa, fornecedor e categoria.</p>
           </div>
           <Link className="text-sm font-bold text-blue-700 hover:underline" to="/agenda">
             Abrir agenda financeira
           </Link>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Vencimento inicial
+        <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
+            Mês inicial
             <input
-              type="date"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              type="month"
+              value={fromMonth}
+              onChange={(event) => setFromMonth(event.target.value)}
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            Vencimento final
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
+            Mês final
             <input
-              type="date"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              type="month"
+              value={toMonth}
+              onChange={(event) => setToMonth(event.target.value)}
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
+            Empresa
+            <select
+              value={companyId}
+              onChange={(event) => setCompany(event.target.value)}
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">Todas as empresas</option>
+              {companies.data?.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.legalName ?? item.name ?? item.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
             Fornecedor
             <select
               value={supplierId}
               onChange={(event) => setSupplier(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Todos os fornecedores</option>
               {suppliers.data?.map((item) => (
@@ -206,12 +230,12 @@ export function FoundationPage(): ReactElement {
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700">
             Categoria
             <select
               value={categoryId}
               onChange={(event) => setCategory(event.target.value)}
-              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="min-h-11 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Todas as categorias</option>
               {categories.data?.map((item) => (
@@ -265,7 +289,7 @@ export function FoundationPage(): ReactElement {
                       <span className="text-sm font-bold text-slate-700">{shortDate(item.dueDate)}</span>
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold text-slate-950">{item.supplierName}</span>
-                        <span className="block truncate text-xs text-slate-500">Conta a pagar</span>
+                        <span className="block truncate text-xs text-slate-500">{item.companyName ?? 'Empresa não informada'}</span>
                       </span>
                       <span className="text-sm text-slate-700">{item.documentNumber}</span>
                       <span className="text-sm font-black text-slate-950 lg:text-right">{currency(item.openBalance)}</span>

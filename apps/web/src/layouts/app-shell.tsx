@@ -1,11 +1,14 @@
-import type { ReactElement } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useState, type ReactElement } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
+import { FinControlMark } from '../components/brand/fincontrol-mark';
+import { environment } from '../config/environment';
 
 type MenuItem = {
   label: string;
   to?: string;
   icon: string;
+  permission?: string;
 };
 
 type MenuSection = {
@@ -35,7 +38,7 @@ const menuSections: MenuSection[] = [
   {
     title: 'Financeiro',
     items: [
-      { label: 'Contas a Pagar', to: '/payables', icon: '▩' },
+      { label: 'Notas Fiscais e Contas', to: '/payables', icon: '▩' },
       { label: 'XMLs Importados', to: '/xml-imports', icon: '▧' },
       { label: 'Agenda', to: '/agenda', icon: '□' },
       { label: 'Aprovações', to: '/approvals', icon: '✓' },
@@ -57,24 +60,12 @@ const menuSections: MenuSection[] = [
     title: 'Configurações',
     items: [
       { label: 'Usuários', to: '/users', icon: '♙' },
+      { label: 'Backups', to: '/backups', icon: '▣', permission: 'BACKUP_MANAGE' },
       { label: 'Perfis de Acesso', to: '/access-profiles', icon: '⚙' },
       { label: 'Parâmetros', to: '/parameters', icon: '⚙' },
     ],
   },
 ];
-
-function FinControlMark(): ReactElement {
-  return (
-    <span
-      className="relative grid size-10 shrink-0 place-items-end rounded-xl bg-emerald-500/10 p-1"
-      aria-hidden="true"
-    >
-      <span className="h-4 w-2 rounded-sm bg-emerald-400" />
-      <span className="absolute bottom-1 left-4 h-6 w-2 rounded-sm bg-teal-400" />
-      <span className="absolute bottom-1 right-2 h-8 w-2 rounded-sm bg-cyan-300" />
-    </span>
-  );
-}
 
 function MenuEntry({ item }: { item: MenuItem }): ReactElement {
   const content = (
@@ -116,17 +107,85 @@ function MenuEntry({ item }: { item: MenuItem }): ReactElement {
   );
 }
 
+function userCanSee(item: MenuItem, isMaster: boolean, permissions: string[]): boolean {
+  return !item.permission || isMaster || permissions.includes(item.permission);
+}
+
+function MenuSectionGroup({ section, pathname, isMaster, permissions }: { section: MenuSection; pathname: string; isMaster: boolean; permissions: string[] }): ReactElement | null {
+  const visibleItems = section.items.filter((item) => userCanSee(item, isMaster, permissions));
+  const active = visibleItems.some((item) => item.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)));
+  const [isOpen, setIsOpen] = useState(active || !section.title);
+
+  if (visibleItems.length === 0) return null;
+
+  if (!section.title) {
+    return (
+      <div className="space-y-1">
+        {visibleItems.map((item) => (
+          <MenuEntry key={item.label} item={item} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-white/5 bg-white/[0.03]">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-xs font-extrabold uppercase tracking-wider text-slate-200 transition hover:bg-white/10 hover:text-white"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((value) => !value)}
+      >
+        <span>{section.title}</span>
+        <span className={`text-sm transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
+      </button>
+      {isOpen ? (
+        <div className="space-y-1 px-2 pb-2">
+          {visibleItems.map((item) => (
+            <MenuEntry key={item.label} item={item} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function formatBuildTime(value: string): string {
+  if (value === 'local') return 'build local';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(date);
+}
+
 export function AppShell(): ReactElement {
   const auth = useAuth();
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { session } = auth;
+  const permissions = session?.user.permissions ?? [];
+  const isMaster = Boolean(session?.user.isMaster);
   const companies = session?.user.companies ?? [];
   const defaultCompany = companies.find((company) => company.id === session?.user.defaultCompanyId)
     ?? companies.find((company) => company.isDefault);
   const companyLabel = defaultCompany?.tradeName || defaultCompany?.legalName;
+  const shortSha = environment.VITE_GIT_SHA.slice(0, 12);
+  const buildTimeLabel = formatBuildTime(environment.VITE_BUILD_TIME);
+  const versionDetails = [
+    `Versão ${environment.VITE_APP_VERSION}`,
+    `Release ${environment.VITE_RELEASE_ID}`,
+    `SHA ${shortSha}`,
+    buildTimeLabel,
+  ].join(' • ');
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[260px_1fr]">
-      <aside className="bg-slate-950 text-white lg:min-h-screen">
+    <div className="min-h-screen bg-slate-50 text-slate-950 lg:flex">
+      {sidebarOpen ? <button type="button" className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
+      {sidebarOpen ? (
+      <aside className="fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 text-white shadow-2xl shadow-slate-950/30 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shadow-none">
         <div className="flex h-full flex-col bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.24),transparent_34%),linear-gradient(180deg,#061b3a_0%,#031326_100%)]">
           <div className="flex h-20 items-center gap-3 border-b border-white/10 px-5">
             <FinControlMark />
@@ -136,34 +195,41 @@ export function AppShell(): ReactElement {
                 Contas a pagar
               </p>
             </div>
+            <button type="button" className="ml-auto rounded-lg px-2 py-1 text-lg text-slate-300 hover:bg-white/10 hover:text-white lg:hidden" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)}>
+              ×
+            </button>
           </div>
 
-          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Menu principal">
+          <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-5" aria-label="Menu principal">
             {menuSections.map((section, index) => (
-              <div key={section.title ?? `main-${index}`} className="space-y-1">
-                {section.title ? (
-                  <p className="px-2 pb-1 text-[0.68rem] font-semibold uppercase tracking-wider text-slate-400">
-                    {section.title}
-                  </p>
-                ) : null}
-                <div className="space-y-1">
-                  {section.items.map((item) => (
-                    <MenuEntry key={item.label} item={item} />
-                  ))}
-                </div>
-              </div>
+              <MenuSectionGroup key={section.title ?? `main-${index}`} section={section} pathname={location.pathname} isMaster={isMaster} permissions={permissions} />
             ))}
           </nav>
 
-          <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-400">FinControl v1.0.0</div>
+          <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-400" title={versionDetails}>
+            <p className="font-semibold text-slate-300">FinControl v{environment.VITE_APP_VERSION}</p>
+            <p className="mt-1 truncate">release {environment.VITE_RELEASE_ID}</p>
+            <p className="mt-1 truncate">sha {shortSha}</p>
+          </div>
         </div>
       </aside>
+      ) : null}
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <header className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
-          <div>
-            <p className="text-sm font-semibold">{session?.user.fullName}</p>
-            <p className="text-xs text-slate-500">{companyLabel ?? (session?.user.roles.join(', ') || 'Usuário')}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-xl font-bold text-slate-700 transition hover:bg-slate-50"
+              aria-label={sidebarOpen ? 'Ocultar menu' : 'Mostrar menu'}
+              onClick={() => setSidebarOpen((value) => !value)}
+            >
+              ☰
+            </button>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{session?.user.fullName}</p>
+              <p className="truncate text-xs text-slate-500">{companyLabel ?? (session?.user.roles.join(', ') || 'Usuário')}</p>
+            </div>
           </div>
           <button
             className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
