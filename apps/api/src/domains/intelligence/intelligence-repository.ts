@@ -34,7 +34,14 @@ export class IntelligenceRepository {
           JOIN financeiro.payable_titles pt ON pt.id=pi.payable_title_id
           WHERE ps.code='EFFECTIVE' AND p.payment_date BETWEEN $1 AND $2
           AND ($3::uuid IS NULL OR pt.supplier_id=$3) AND ($4::uuid IS NULL OR pt.category_id=$4)
-          AND ($5::uuid IS NULL OR pt.company_id=$5)) paid
+          AND ($5::uuid IS NULL OR pt.company_id=$5)) paid,
+        (SELECT count(*)::text FROM financeiro.payments p
+          JOIN financeiro.payment_statuses ps ON ps.id=p.status_id
+          JOIN financeiro.payable_installments pi ON pi.id=p.payable_installment_id
+          JOIN financeiro.payable_titles pt ON pt.id=pi.payable_title_id
+          WHERE ps.code='EFFECTIVE' AND p.payment_date BETWEEN $1 AND $2
+          AND ($3::uuid IS NULL OR pt.supplier_id=$3) AND ($4::uuid IS NULL OR pt.category_id=$4)
+          AND ($5::uuid IS NULL OR pt.company_id=$5)) paid_count
         FROM financeiro.payable_installments i
         JOIN financeiro.payable_titles t ON t.id=i.payable_title_id
         JOIN financeiro.payable_title_statuses ts ON ts.id=t.status_id

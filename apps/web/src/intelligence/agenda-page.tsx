@@ -200,7 +200,7 @@ export function AgendaPage(): ReactElement {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard title="Vencimentos no periodo" amount={dashboard.data?.summary.totalPayable ?? query.data?.total ?? 0} count={query.data?.count ?? 0} tone="bg-blue-50 text-blue-700 ring-1 ring-blue-100" icon="□" />
-        <SummaryCard title="Pago" amount={dashboard.data?.summary.paid ?? 0} count={0} tone="bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" icon="✓" />
+        <SummaryCard title="Pago" amount={dashboard.data?.summary.paid ?? 0} count={Number(dashboard.data?.summary.paidCount ?? 0)} tone="bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" icon="✓" />
         <SummaryCard title="A vencer" amount={dashboard.data?.summary.upcoming ?? amountOf(items, 'UPCOMING')} count={upcomingCount + todayCount} tone="bg-sky-50 text-sky-700 ring-1 ring-sky-100" icon="○" />
         <SummaryCard title="Vencido" amount={dashboard.data?.summary.overdue ?? amountOf(items, 'OVERDUE')} count={overdueCount} tone="bg-red-50 text-red-700 ring-1 ring-red-100" icon="!" />
       </section>

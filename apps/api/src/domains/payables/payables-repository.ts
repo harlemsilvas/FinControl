@@ -741,11 +741,11 @@ export class PayablesRepository {
       const row=result.rows[0];if(!row)throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Title not found',statusCode:404});await this.audit(tx,'PAYABLE_TITLE',id,'UPDATED',userId,null,api(row));return api(row);});
   }
 
-  async updateInstallment(id: string, amount: number, dueDate: string, paymentMethodId: string, userId: string): Promise<object> {
+  async updateInstallment(id: string, amount: number, dueDate: string, paymentMethodId: string, notes: string | null, userId: string): Promise<object> {
     return this.database.transaction(async (tx) => {
       const paid = await tx.query(`SELECT 1 FROM financeiro.payments p LEFT JOIN financeiro.payment_reversals r ON r.payment_id=p.id WHERE p.payable_installment_id=$1 AND r.id IS NULL`, [id]);
       if (paid.rowCount) throw new ApplicationError({ code:'PAID_INSTALLMENT_IMMUTABLE',message:'A paid installment cannot be changed before reversal',statusCode:409 });
-      const result = await tx.query(`UPDATE financeiro.payable_installments SET amount=$2,open_balance=$2,due_date=$3,payment_method_id=$4,updated_by=$5 WHERE id=$1 AND deleted_at IS NULL RETURNING *`, [id,amount,dueDate,paymentMethodId,userId]);
+      const result = await tx.query(`UPDATE financeiro.payable_installments SET amount=$2,open_balance=$2,due_date=$3,payment_method_id=$4,notes=$5,updated_by=$6 WHERE id=$1 AND deleted_at IS NULL RETURNING *`, [id,amount,dueDate,paymentMethodId,notes,userId]);
       const row=result.rows[0]; if(!row) throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Installment not found',statusCode:404});
       const valid=await tx.query<{ is_valid:boolean } & Record<string,unknown>>(`SELECT is_valid FROM financeiro.validate_title_installments($1)`,[row.payable_title_id]);
       if(!valid.rows[0]?.is_valid) throw new ApplicationError({code:'INSTALLMENT_TOTAL_MISMATCH',message:'Installments must equal the title total',statusCode:400});
@@ -810,6 +810,12 @@ export class PayablesRepository {
       }
 
       const company = await this.resolveCompanyByDocument(tx, input.recipientDocumentNumber);
+      if (!company) throw new ApplicationError({
+        code: 'XML_IMPORT_COMPANY_REQUIRED',
+        message: 'Recipient company from XML must be registered before importing',
+        statusCode: 400,
+        details: { recipientDocumentNumber: input.recipientDocumentNumber ?? null, recipientLegalName: input.recipientLegalName ?? null },
+      });
       const supplier = await this.findOrCreateXmlSupplier(tx, input, userId);
       const result = await tx.query(`INSERT INTO financeiro.xml_imports (
         access_key,supplier_id,company_id,attachment_id,raw_xml,source_file_name,source_mime_type,source_size_bytes,source_file_hash,
@@ -951,6 +957,12 @@ export class PayablesRepository {
       const issueDate = this.toDateString(xml.issue_date) ?? new Date().toISOString().slice(0, 10);
       const description = input.description?.trim() || `NFe ${documentNumber}${xml.supplier_legal_name ? ` - ${xml.supplier_legal_name}` : ''}`;
       const company = await this.resolveXmlCompany(tx, xml);
+      if (!company) throw new ApplicationError({
+        code: 'XML_IMPORT_COMPANY_REQUIRED',
+        message: 'Recipient company from XML must be registered before generating payable title',
+        statusCode: 400,
+        details: { recipientDocumentNumber: xml.recipient_document_number ?? null },
+      });
       const companyId = company?.id ?? xml.company_id ?? null;
       const parameters = company?.parameters ?? null;
       const categoryId = input.categoryId ?? parameters?.defaultFinancialCategoryId;

@@ -108,6 +108,41 @@ dos documentos numerados em `docs/`.
   - pendência crítica: revogar/rotacionar a chave SSH exposta e, em etapa
     controlada separada, limpar o histórico Git antes de considerar o segredo
     totalmente removido do repositório remoto.
+- correções locais iniciadas em 11/08/2026 para Agenda/Baixa de Pagamentos:
+  - card `Pago` da Agenda deixa de exibir `0 documentos` fixo e passa a usar
+    contagem real de pagamentos efetivos retornada pelo dashboard;
+  - endpoint `/api/v1/dashboard` passa a retornar `summary.paidCount` junto com
+    `summary.paid`;
+  - modal `Baixar parcela` ganha mensagem explícita do motivo que impede a
+    confirmação, diferenciando falta de conta bancária, forma de pagamento,
+    saldo insuficiente e confirmação de pagamento acima do saldo aberto;
+  - campos monetários da baixa ficam responsivos e não devem mais se sobrepor
+    quando informar juros, multa, acréscimos ou desconto;
+  - edição de conta a pagar pela aba `Parcelas` passa a sincronizar o total do
+    título com a soma das parcelas ao salvar, permitindo corrigir valor de uma
+    cobrança ainda em aberto sem cair em `INSTALLMENT_TOTAL_MISMATCH`;
+  - aba `Parcelas` ganha campo `Descrição da parcela`, persistido em
+    `financeiro.payable_installments.notes`, para registrar numeração antiga,
+    referência do boleto ou observação individual da parcela;
+  - importação de XML de NFe passa a exigir destinatário cadastrado e ativo em
+    `Cadastros > Empresas`; se o CNPJ do destinatário não for localizado, o XML
+    não é gravado nem classificado como desconhecido;
+  - modal de XML permite abrir o seletor do sistema tanto pelo campo de arquivo
+    quanto pelo botão `Buscar XML`; a ação `Importar XML` permanece no rodapé
+    ao lado de `Cancelar`;
+  - campo de conferência do XML passa a ser somente leitura e preenchido
+    automaticamente com o CNPJ destinatário lido do arquivo;
+  - modal de importação de XML limpa arquivo, prévia, erros e resultados sempre
+    que é aberto novamente, evitando reaproveitar dados da nota anterior;
+  - backlog de Features recebeu item `Notificações Toast` para criar um padrão
+    próprio, mais visível e personalizável, pois no uso diário as mensagens de
+    erro atuais ficaram discretas demais;
+  - tag de status de pagamento `EFFECTIVE` passa a ser exibida como `Pago` no
+    histórico de pagamentos, preservando o código interno da API;
+  - botão `Calendário` na listagem de Notas Fiscais e Contas passa a se chamar
+    `Agenda`, mantendo o link para `/agenda`;
+  - validação completa do pacote ficou combinada para depois da sequência de
+    correções pontuais.
 - correção local aplicada para saldo inicial:
   - campo `Valor inicial` usando máscara de moeda;
   - mensagem amigável quando a conta já possui saldo inicial ativo;
@@ -489,6 +524,17 @@ dos documentos numerados em `docs/`.
     `npm run typecheck --workspace @fincontrol/web` foram iniciados, mas
     interrompidos por demora excessiva sem saída de erro no WSL; rodar
     `./Checar_alteracao.sh` antes de commit/deploy.
+- Validação completa do pacote de correções operacionais em 11/08/2026:
+  - `./Checar_alteracao.sh` foi iniciado, mas ficou silencioso por tempo
+    excessivo e foi interrompido manualmente sem gerar diagnóstico útil;
+  - validação equivalente executada por comandos separados:
+  - `git diff --check`: aprovado;
+  - `bash scripts/validate-migrations.sh`: aprovado, 57 migrations;
+  - `npm run typecheck`: aprovado para API e web;
+  - `npm run lint`: aprovado para API e web;
+  - `npm test`: aprovado, com API 101 testes aprovados e 5 integrações opt-in
+    puladas; web 50 testes aprovados;
+  - `npm run build`: aprovado para API e web.
 
 ## Critério de conclusão
 

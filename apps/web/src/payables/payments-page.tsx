@@ -410,7 +410,16 @@ export function PaymentsPage(): ReactElement {
   const totalMovement = movementAmount(principalAmount, interestAmount, penaltyAmount, discountAmount, additionalAmount);
   const exceedsOpenBalance = selected ? Number(principalAmount || 0) > Number(selected.openBalance) : false;
   const insufficientBalance = selectedAccount ? Number(selectedAccount.officialBalance) < totalMovement : false;
-  const canSubmit = Boolean(selected && bankAccountId && paymentMethodId && paymentDate && Number(principalAmount) > 0 && totalMovement > 0 && (!exceedsOpenBalance || overpaymentConfirmed));
+  const paymentBlockReason = !selected ? ''
+    : !bankAccountId ? 'Selecione a conta bancária para confirmar a baixa.'
+    : !paymentMethodId ? 'Selecione a forma de pagamento para confirmar a baixa.'
+    : !paymentDate ? 'Informe a data do pagamento para confirmar a baixa.'
+    : Number(principalAmount) <= 0 ? 'Informe um valor principal maior que zero.'
+    : totalMovement <= 0 ? 'O valor que sairá da conta precisa ser maior que zero.'
+    : exceedsOpenBalance && !overpaymentConfirmed ? 'Confirme o pagamento acima do saldo aberto para continuar.'
+    : insufficientBalance ? 'Saldo insuficiente na conta bancária selecionada.'
+    : '';
+  const canSubmit = Boolean(selected && !paymentBlockReason);
   const canCreateCashBalance = Boolean(cashBankAccountId && cashMovementDate && Number(cashAmount) > 0);
   const canCreateCashEntry = Boolean(cashEntryBankAccountId && cashEntryMovementDate && Number(cashEntryAmount) > 0);
 
@@ -643,7 +652,7 @@ export function PaymentsPage(): ReactElement {
       </Card>
 
       {selected ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4" role="presentation">
-        <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="Baixar parcela">
+        <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="Baixar parcela">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black text-slate-950">Baixar parcela</h2>
@@ -680,7 +689,7 @@ export function PaymentsPage(): ReactElement {
             </label>
           </div>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-5">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <MoneyField label="Valor principal" value={principalAmount} onChange={setPrincipalAmount} />
             <MoneyField label="Juros" value={interestAmount} onChange={setInterestAmount} />
             <MoneyField label="Multa" value={penaltyAmount} onChange={setPenaltyAmount} />
@@ -698,7 +707,7 @@ export function PaymentsPage(): ReactElement {
             </div>
             {selectedAccount ? <p className={`mt-2 text-sm font-bold ${insufficientBalance ? 'text-red-700' : 'text-teal-800'}`}>Saldo da conta selecionada: {currency(selectedAccount.officialBalance)}</p> : null}
             {exceedsOpenBalance ? <label className="mt-3 flex items-center gap-2 text-sm font-bold text-amber-800"><input type="checkbox" checked={overpaymentConfirmed} onChange={(event) => setOverpaymentConfirmed(event.target.checked)} /> Confirmo pagamento acima do saldo aberto.</label> : null}
-            {insufficientBalance ? <p role="alert" className="mt-3 text-sm font-bold text-red-700">Saldo insuficiente. A baixa será bloqueada pela API.</p> : null}
+            {paymentBlockReason && !payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-amber-800">{paymentBlockReason}</p> : null}
             {payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-red-700">{payment.error instanceof ApiError ? payment.error.message : 'Não foi possível registrar a baixa.'}</p> : null}
           </div>
 
@@ -898,7 +907,7 @@ function Summary({ label, value, strong = false }: { label: string; value: strin
 }
 
 function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): ReactElement {
-  return <label className="grid gap-1 text-sm font-bold text-slate-700">{label}<CurrencyInput aria-label={label} value={value} allowEmpty onValueChange={(nextValue) => onChange(nextValue === null ? '' : String(nextValue))} className="min-h-12 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" /></label>;
+  return <label className="grid min-w-0 gap-1 text-sm font-bold text-slate-700">{label}<CurrencyInput aria-label={label} value={value} allowEmpty onValueChange={(nextValue) => onChange(nextValue === null ? '' : String(nextValue))} className="min-h-12 w-full min-w-0 rounded-xl border border-slate-300 px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" /></label>;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }): ReactElement {

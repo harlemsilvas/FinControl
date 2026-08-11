@@ -1,4 +1,4 @@
-export interface Summary {totalPayable:string;overdue:string;today?:string;todayCount?:string|number;upcoming:string;paid:string}
+export interface Summary {totalPayable:string;overdue:string;today?:string;todayCount?:string|number;upcoming:string;paid:string;paidCount?:string|number}
 export interface ChartPoint {label:string;amount:string}
 export interface UpcomingItem {id:string;documentNumber:string;supplierName:string;companyName?:string|null;dueDate:string;openBalance:string;highlight:'OVERDUE'|'TODAY'|'UPCOMING'}
 export interface DashboardResponse {summary:Summary;dueSeries:ChartPoint[];categories:ChartPoint[];upcoming:UpcomingItem[]}

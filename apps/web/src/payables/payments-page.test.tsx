@@ -336,7 +336,7 @@ describe('PaymentsPage', () => {
     const row = (await within(card!).findByText('Banco Teste - Conta Matriz')).closest('div');
     expect(row).not.toBeNull();
     const cells = Array.from(row!.children).map((child) => child.textContent ?? '');
-    expect(cells[4]).toBe('EFFECTIVE');
+    expect(cells[4]).toBe('Pago');
     expect(cells[5]).toContain('R$');
   });
 

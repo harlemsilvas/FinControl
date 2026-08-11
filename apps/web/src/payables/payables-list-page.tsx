@@ -261,7 +261,7 @@ export function PayablesListPage(): ReactElement {
               Lista
             </button>
             <Link to="/agenda" className="rounded-lg px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-white hover:text-blue-700">
-              Calendário
+              Agenda
             </Link>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
@@ -53,13 +53,6 @@ function optionLabel(item: LookupItem): string {
   return item.legalName ?? item.name ?? item.code ?? item.id;
 }
 
-function recipientKind(parsed: ParsedNfeXml | undefined, mainCompanyDocument: string): RecipientKind {
-  const recipientDocument = digitsOnly(parsed?.recipient.documentNumber);
-  const mainDocument = digitsOnly(mainCompanyDocument);
-  if (!recipientDocument || !mainDocument) return 'UNKNOWN';
-  return recipientDocument === mainDocument ? 'MAIN' : 'BRANCH';
-}
-
 function defaultDescription(parsed: ParsedNfeXml | undefined): string {
   if (!parsed) return '';
   return `NFe ${parsed.documentNumber ?? parsed.accessKey} - ${parsed.supplier.legalName ?? 'Fornecedor'}`.slice(0, 255);
@@ -76,7 +69,10 @@ function useLookup(path: string, enabled: boolean): UseQueryResult<LookupItem[]>
 
 export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () => void }): ReactElement | null {
   const queryClient = useQueryClient();
-  const [mainCompanyDocument, setMainCompanyDocument] = useState(() => localStorage.getItem('fincontrol.mainCompanyDocument') ?? '');
+  const wasOpenRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [mainCompanyDocument, setMainCompanyDocument] = useState('');
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [fileName, setFileName] = useState('');
   const [fileSize, setFileSize] = useState<number>();
   const [parsed, setParsed] = useState<ParsedNfeXml>();
@@ -91,17 +87,23 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
   const [description, setDescription] = useState('');
   const [duplicatePending, setDuplicatePending] = useState(false);
 
-  useEffect(() => {
-    if (mainCompanyDocument) localStorage.setItem('fincontrol.mainCompanyDocument', digitsOnly(mainCompanyDocument));
-  }, [mainCompanyDocument]);
-
-  useEffect(() => {
-    if (!open) {
-      setImportResult(undefined);
-      setGeneratedPayable(undefined);
-      setDuplicatePending(false);
-    }
-  }, [open]);
+  const clearDialog = useCallback(() => {
+    setMainCompanyDocument('');
+    setFileInputKey((current) => current + 1);
+    setFileName('');
+    setFileSize(undefined);
+    setParsed(undefined);
+    setParseError(undefined);
+    setImportResult(undefined);
+    setGeneratedPayable(undefined);
+    setCategoryId('');
+    setDocumentTypeId('');
+    setPaymentMethodId('');
+    setPaymentTermId('');
+    setCostCenterId('');
+    setDescription('');
+    setDuplicatePending(false);
+  }, []);
 
   useEffect(() => {
     if (parsed && !description) setDescription(defaultDescription(parsed));
@@ -114,7 +116,6 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
   const paymentTerms = useLookup('/payment-terms', lookupsEnabled);
   const costCenters = useLookup('/cost-centers', lookupsEnabled);
 
-  const kind = recipientKind(parsed, mainCompanyDocument);
   const canImport = Boolean(parsed && /^\d{44}$/.test(parsed.accessKey) && !importResult);
   const canGenerate = Boolean(importResult?.id && categoryId && documentTypeId && paymentMethodId && !generatedPayable);
 
@@ -138,7 +139,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
         recipientStateRegistration: parsed.recipient.stateRegistration ?? null,
         recipientCityName: parsed.recipient.cityName ?? null,
         recipientStateCode: parsed.recipient.stateCode ?? null,
-        recipientKind: kind,
+        recipientKind: 'UNKNOWN',
         mainCompanyDocumentNumber: digitsOnly(mainCompanyDocument),
         documentModel: parsed.documentModel ?? null,
         documentNumber: parsed.documentNumber ?? null,
@@ -198,9 +199,30 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
     },
   });
 
+  useEffect(() => {
+    if (!open) {
+      if (wasOpenRef.current) {
+        clearDialog();
+        importMutation.reset();
+        generateMutation.reset();
+      }
+      wasOpenRef.current = false;
+      return;
+    }
+
+    if (!wasOpenRef.current) {
+      clearDialog();
+      importMutation.reset();
+      generateMutation.reset();
+    }
+    wasOpenRef.current = true;
+  }, [clearDialog, generateMutation, importMutation, open]);
+
   const importError = importMutation.error instanceof ApiError
     ? importMutation.error.code === 'XML_IMPORT_DUPLICATE'
       ? 'Este XML já foi importado. A chave NFe é única no sistema.'
+      : importMutation.error.code === 'XML_IMPORT_COMPANY_REQUIRED'
+        ? 'A empresa destinatária do XML não está cadastrada ou ativa em Cadastros > Empresas. Cadastre a empresa pelo CNPJ do destinatário antes de importar.'
       : importMutation.error.message
     : importMutation.error
       ? 'Não foi possível importar o XML.'
@@ -219,6 +241,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
     setGeneratedPayable(undefined);
     setDuplicatePending(false);
     setParsed(undefined);
+    setMainCompanyDocument('');
     setFileName(file?.name ?? '');
     setFileSize(file?.size);
     setCategoryId('');
@@ -231,6 +254,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
     try {
       const nextParsed = parseNfeXml(await file.text());
       setParsed(nextParsed);
+      setMainCompanyDocument(digitsOnly(nextParsed.recipient.documentNumber));
       setDescription(defaultDescription(nextParsed));
     } catch (cause) {
       setParseError(cause instanceof Error ? cause.message : 'Não foi possível ler o XML.');
@@ -244,6 +268,15 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
     ['Outros', parsed?.otherAmount],
     ['Total NF', parsed?.invoiceTotalAmount],
   ] as const, [parsed]);
+  const displayedKind = importResult?.company?.companyType;
+  const displayedKindLabel = displayedKind === 'MAIN' ? 'Matriz' : displayedKind === 'BRANCH' ? 'Filial' : importResult ? 'Não classificada' : 'Validação ao importar';
+  const displayedKindClass = displayedKind === 'MAIN'
+    ? 'bg-emerald-50 text-emerald-700'
+    : displayedKind === 'BRANCH'
+      ? 'bg-amber-50 text-amber-700'
+      : importResult
+        ? 'bg-slate-100 text-slate-600'
+        : 'bg-blue-50 text-blue-700';
 
   if (!open) return null;
 
@@ -258,14 +291,23 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
           <button type="button" className="text-2xl text-slate-400 hover:text-slate-700" onClick={onClose} aria-label="Fechar">×</button>
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_260px]">
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto_260px] lg:items-end">
           <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
             Arquivo XML
-            <input type="file" accept=".xml,text/xml,application/xml" onChange={(event) => void handleFile(event.target.files?.[0])} className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+            <input key={fileInputKey} ref={fileInputRef} type="file" accept=".xml,text/xml,application/xml" onChange={(event) => void handleFile(event.target.files?.[0])} className="hidden" />
+            <input
+              readOnly
+              value={fileName || 'Nenhum arquivo escolhido'}
+              onClick={() => fileInputRef.current?.click()}
+              className="min-h-11 cursor-pointer rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700"
+            />
           </label>
+          <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+            Buscar XML
+          </Button>
           <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
-            CNPJ matriz para conferência visual
-            <input value={mainCompanyDocument} onChange={(event) => setMainCompanyDocument(event.target.value)} placeholder="Opcional" className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm" />
+            CNPJ destinatário do XML
+            <input readOnly value={mainCompanyDocument ? formatDocument(mainCompanyDocument) : ''} placeholder="Lido do XML" className="min-h-11 rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700" />
           </label>
         </div>
 
@@ -300,11 +342,11 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Empresa destinatária</p>
                 <p className="mt-2 font-bold text-slate-950">{parsed.recipient.legalName ?? '—'}</p>
                 <p className="text-sm text-slate-600">{formatDocument(parsed.recipient.documentNumber)}</p>
-                <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${kind === 'MAIN' ? 'bg-emerald-50 text-emerald-700' : kind === 'BRANCH' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{kind === 'MAIN' ? 'Matriz' : kind === 'BRANCH' ? 'Filial' : 'Não classificada'}</span>
+                <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold ${displayedKindClass}`}>{displayedKindLabel}</span>
               </section>
             </div>
 
-            {kind === 'BRANCH' && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">O destinatário não bate com o CNPJ matriz informado. O XML será armazenado como filial para conferência.</p>}
+            {!importResult && <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800">Ao importar, o CNPJ do destinatário será validado contra Cadastros &gt; Empresas. Se a empresa não existir ou estiver inativa, o XML não será gravado.</p>}
 
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
               <section className="rounded-2xl border border-slate-200 p-4">
@@ -351,7 +393,7 @@ export function XmlImportDialog({ open, onClose }: { open: boolean; onClose: () 
 
         <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
           <Button variant="secondary" onClick={onClose}>{generatedPayable || importResult ? 'Fechar' : 'Cancelar'}</Button>
-          {!importResult && <Button disabled={!canImport || importMutation.isPending} onClick={() => importMutation.mutate()}>{importMutation.isPending ? 'Importando…' : 'Importar XML'}</Button>}
+          {!importResult && <Button disabled={!canImport || importMutation.isPending} onClick={() => importMutation.mutate()}>{importMutation.isPending ? 'Importando...' : 'Importar XML'}</Button>}
           {importResult && !generatedPayable && !duplicatePending && <Button disabled={!canGenerate || generateMutation.isPending} onClick={() => generateMutation.mutate(false)}>{generateMutation.isPending ? 'Gerando…' : 'Importar contas'}</Button>}
           {importResult && !generatedPayable && duplicatePending && <Button variant="danger" disabled={generateMutation.isPending} onClick={() => generateMutation.mutate(true)}>{generateMutation.isPending ? 'Gerando…' : 'Confirmar duplicidade e importar'}</Button>}
         </div>

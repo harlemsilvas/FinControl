@@ -382,28 +382,33 @@ describe('PayablesRepository business safeguards',()=>{
   });
 
   it('creates and links a supplier when importing XML from a new issuer document',async()=>{
-    const input:XmlImportInput={accessKey:'12345678901234567890123456789012345678901234',rawXml:'<xml />',supplierLegalName:'Fornecedor XML Ltda',supplierDocumentNumber:'12345678000190',supplierStateCode:'SP'};
+    const input:XmlImportInput={accessKey:'12345678901234567890123456789012345678901234',rawXml:'<xml />',supplierLegalName:'Fornecedor XML Ltda',supplierDocumentNumber:'12345678000190',supplierStateCode:'SP',recipientDocumentNumber:'51309435000153'};
     const query=vi.fn()
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[{id:'company-id',company_type:'MAIN',legal_name:'ABC Center Distribuidora Ltda',trade_name:'ABC Center'}],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:0})
       .mockResolvedValueOnce({rows:[],rowCount:0})
       .mockResolvedValueOnce({rows:[{id:'supplier-id',legal_name:'Fornecedor XML Ltda',document_number:'12345678000190'}],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:1})
-      .mockResolvedValueOnce({rows:[{id:'xml-id',access_key:input.accessKey,supplier_id:'supplier-id'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'xml-id',access_key:input.accessKey,supplier_id:'supplier-id',company_id:'company-id'}],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     const result=await repo.createXmlImport(input,'user-id') as {supplierWasCreated:boolean;supplier:{id:string};supplierId:string};
     expect(result.supplierWasCreated).toBe(true);
     expect(result.supplier.id).toBe('supplier-id');
     expect(result.supplierId).toBe('supplier-id');
-    const xmlInsertValues = query.mock.calls[4]?.[1] as unknown[] | undefined;
-    expect(query.mock.calls[2]?.[0]).toContain('INSERT INTO cadastros.suppliers');
+    const xmlInsertValues = query.mock.calls[6]?.[1] as unknown[] | undefined;
+    expect(query.mock.calls[4]?.[0]).toContain('INSERT INTO cadastros.suppliers');
     expect(xmlInsertValues?.[1]).toBe('supplier-id');
+    expect(xmlInsertValues?.[2]).toBe('company-id');
   });
 
 
   it('generates a payable title from a received XML import',async()=>{
     const query=vi.fn()
-      .mockResolvedValueOnce({rows:[{id:'xml-id',access_key:'12345678901234567890123456789012345678901234',supplier_id:'supplier-id',generated_title_id:null,supplier_legal_name:'Fornecedor XML Ltda',document_number:'123',document_series:'1',issue_date:'2026-07-01',due_date:'2026-07-30',invoice_total_amount:'150.00',payment_amount:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'xml-id',access_key:'12345678901234567890123456789012345678901234',supplier_id:'supplier-id',company_id:'company-id',generated_title_id:null,supplier_legal_name:'Fornecedor XML Ltda',document_number:'123',document_series:'1',issue_date:'2026-07-01',due_date:'2026-07-30',invoice_total_amount:'150.00',payment_amount:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'company-id',company_type:'MAIN',legal_name:'ABC Center Distribuidora Ltda',trade_name:'ABC Center'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
       .mockResolvedValueOnce({rows:[],rowCount:0})
       .mockResolvedValueOnce({rows:[{id:'title-id',document_number:'123',supplier_id:'supplier-id'}],rowCount:1})
       .mockResolvedValueOnce({rows:[{installment_number:1,due_date:'2026-07-30',amount:'150.00'}],rowCount:1})
@@ -413,16 +418,17 @@ describe('PayablesRepository business safeguards',()=>{
       .mockResolvedValueOnce({rows:[],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     const result=await repo.generatePayableFromXml('xml-id',{categoryId:'category-id',documentTypeId:'document-type-id',paymentMethodId:'payment-method-id'},'user-id') as {id:string;installments:{amount:number}[];xmlImportId:string};
-    const titleValues = query.mock.calls[2]?.[1] as unknown[] | undefined;
-    const installmentValues = query.mock.calls[4]?.[1] as unknown[] | undefined;
+    const titleValues = query.mock.calls[4]?.[1] as unknown[] | undefined;
+    const installmentValues = query.mock.calls[6]?.[1] as unknown[] | undefined;
     expect(result.id).toBe('title-id');
     expect(result.xmlImportId).toBe('xml-id');
     expect(result.installments[0]?.amount).toBe(150);
-    expect(query.mock.calls[2]?.[0]).toContain('INSERT INTO financeiro.payable_titles');
+    expect(query.mock.calls[4]?.[0]).toContain('INSERT INTO financeiro.payable_titles');
     expect(titleValues?.[0]).toBe('supplier-id');
+    expect(titleValues?.[1]).toBe('company-id');
     expect(titleValues?.[9]).toBe('2026-07-01');
     expect(titleValues?.[10]).toBe(150);
-    expect(query.mock.calls[4]?.[0]).toContain('INSERT INTO financeiro.payable_installments');
+    expect(query.mock.calls[6]?.[0]).toContain('INSERT INTO financeiro.payable_installments');
     expect(installmentValues?.[5]).toBe('payment-method-id');
   });
 

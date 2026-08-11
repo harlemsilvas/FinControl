@@ -109,7 +109,7 @@ describe('PayablesListPage', () => {
     expect(screen.getAllByText('Boleto').length).toBeGreaterThan(0);
     expect(screen.getByText('19/07/2026')).toBeTruthy();
     expect(screen.getByRole('link', { name: '+ Nova nota ou conta' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Calendário' }).getAttribute('href')).toBe('/agenda');
+    expect(screen.getByRole('link', { name: 'Agenda' }).getAttribute('href')).toBe('/agenda');
     expect(screen.getByLabelText('Filtrar por empresa')).toHaveProperty('value', '');
     expect(screen.getByText('ABC Center • Compra de peças')).toBeTruthy();
     expect(screen.getByLabelText('Filtrar por status')).toHaveProperty('value', 'OPEN');
