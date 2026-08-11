@@ -554,4 +554,5 @@ Após a publicação do pacote atual, reavaliar a próxima frente principal entr
 - sincronização futura de comprovantes com Google Drive;
 - evolução do MVP de recorrências.
 
-Ultimo deploy executado foi Deploy completed: bb8af36ef015
+Ultimo deploy executado foi Deploy VPS Native do commit d107d1d em 11/08/2026,
+run GitHub Actions 31543548787, concluido com sucesso.
