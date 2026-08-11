@@ -147,7 +147,8 @@ Arquivos prováveis:
 ### B4. Segurança
 
 - [x] Definir uso inicial das permissões genéricas `MASTER_DATA_VIEW` e `MASTER_DATA_MANAGE`
-- [ ] Criar seed de permissões específicas, se o escopo evoluir para permissões por empresa
+- [x] Criar seed inicial de permissão administrativa `USER_MANAGE` para o MVP de usuários
+- [ ] Criar permissões específicas por empresa, se o escopo evoluir além do MVP
 
 ### B5 a B12. API, frontend e contexto
 
@@ -157,8 +158,15 @@ Arquivos prováveis:
 - [x] Implementar tela oficial inicial em `/companies`
 - [x] Implementar tela inicial de parâmetros em `/company-parameters`
 - [x] Preparar contexto inicial de sessão por empresa em login/refresh/me
+- [x] Implementar primeira tela administrativa de usuários com perfis e vínculo
+      usuário-empresa em `/users`
 - [x] Documentar que empresa ativa por sessão fica como feature futura, não como regra global atual
-- [ ] Implementar filtros explícitos por empresa ou todas nas telas operacionais e relatórios
+- [x] Exigir vínculo explícito de empresa em títulos manuais/fixos, sem usar
+      fornecedor ou empresa ativa global como inferência
+- [x] Implementar primeira leva de filtros explícitos por empresa ou todas nas
+      telas operacionais: Dashboard, Agenda Financeira e Notas Fiscais e Contas
+- [ ] Expandir filtros explícitos por empresa para relatórios analíticos e
+      demais telas operacionais ainda não cobertas
 - [x] Documentar seleção de empresa/conta bancária no fluxo futuro de baixa e caixa
 - [x] Fechar decisões do MVP de saldo oficial: bloqueio por saldo insuficiente, saldo inicial por movimento e repasses por centro de custo
 - [x] Implementar movimentos de conta bancária e saldo oficial por conta

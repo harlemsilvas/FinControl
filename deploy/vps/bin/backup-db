@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/fincontrol"
+POSTGRES_CONTAINER="fincontrol_postgres"
+BACKUP_DIR="$APP_ROOT/shared/backups"
+DB_NAME="${DB_NAME:-fincontrol}"
+DB_USER="${DB_USER:-fincontrol_app}"
+RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
+
+reason="${1:-manual}"
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "This script must run as root through sudo." >&2
+  exit 1
+fi
+
+if [[ ! "$reason" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Invalid backup reason. Use only letters, numbers, dot, underscore or dash." >&2
+  exit 2
+fi
+
+if [[ ! -f "$APP_ROOT/shared/.env" ]]; then
+  echo "Missing environment file: $APP_ROOT/shared/.env" >&2
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1091
+. "$APP_ROOT/shared/.env"
+set +a
+
+if [[ -z "${DB_PASSWORD:-}" ]]; then
+  echo "DB_PASSWORD is not configured in $APP_ROOT/shared/.env" >&2
+  exit 1
+fi
+
+if ! docker ps --format '{{.Names}}' | grep -qx "$POSTGRES_CONTAINER"; then
+  echo "PostgreSQL container is not running: $POSTGRES_CONTAINER" >&2
+  exit 1
+fi
+
+install -d -o root -g fincontrol -m 750 "$BACKUP_DIR"
+
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+release="$(cat "$APP_ROOT/shared/current-release" 2>/dev/null || echo unknown)"
+backup_file="$BACKUP_DIR/${DB_NAME}_${timestamp}_${release}_${reason}.dump"
+meta_file="$backup_file.json"
+checksum_file="$backup_file.sha256"
+
+echo "Creating PostgreSQL backup: $backup_file"
+docker exec -i -e PGPASSWORD="$DB_PASSWORD" "$POSTGRES_CONTAINER" \
+  pg_dump -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" \
+    --format=custom --compress=9 --no-owner --no-privileges \
+  > "$backup_file"
+
+chmod 640 "$backup_file"
+chown root:fincontrol "$backup_file"
+sha256sum "$backup_file" > "$checksum_file"
+chmod 640 "$checksum_file"
+chown root:fincontrol "$checksum_file"
+
+cat > "$meta_file" <<EOF_META
+{
+  "app": "FinControl",
+  "database": "$DB_NAME",
+  "user": "$DB_USER",
+  "container": "$POSTGRES_CONTAINER",
+  "reason": "$reason",
+  "release": "$release",
+  "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "file": "$(basename "$backup_file")"
+}
+EOF_META
+chmod 640 "$meta_file"
+chown root:fincontrol "$meta_file"
+
+if [[ "$RETENTION_DAYS" =~ ^[0-9]+$ && "$RETENTION_DAYS" -gt 0 ]]; then
+  find "$BACKUP_DIR" -type f -name "${DB_NAME}_*.dump" -mtime +"$RETENTION_DAYS" -print -delete
+  find "$BACKUP_DIR" -type f \( -name "${DB_NAME}_*.dump.sha256" -o -name "${DB_NAME}_*.dump.json" \) -mtime +"$RETENTION_DAYS" -print -delete
+fi
+
+echo "Backup completed: $backup_file"
+echo "Checksum: $(cut -d ' ' -f 1 "$checksum_file")"

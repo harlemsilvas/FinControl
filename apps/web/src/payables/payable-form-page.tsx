@@ -9,8 +9,9 @@ import { Button } from '../components/ui/button';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
-import { currency, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
+import { currency, isTerminalRecurrence, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
 import { payableTabs } from './payable-form-contract';
+import { RecurrenceActionsLauncher } from './recurrence-actions';
 
 interface Lookup {
   id: string;
@@ -23,6 +24,7 @@ type OccurrenceType = 'SINGLE' | 'INSTALLMENT';
 type SaveMode = 'close' | 'new';
 
 interface Values {
+  companyId: string;
   supplierId: string;
   categoryId: string;
   documentTypeId: string;
@@ -155,7 +157,7 @@ function buildInstallments({
     installmentNumber: index + 1,
     installmentCount: count,
     amount,
-    dueDate: dueDateFrom(baseDueDate, index, dueDay),
+    dueDate: count === 1 ? baseDueDate : dueDateFrom(baseDueDate, index, dueDay),
     paymentMethodId
   }));
 }
@@ -187,6 +189,7 @@ function defaultValues(): Values {
 
   return {
     supplierId: '',
+    companyId: '',
     categoryId: '',
     documentTypeId: '',
     paymentTermId: '',
@@ -211,7 +214,8 @@ function defaultValues(): Values {
         installmentCount: 1,
         amount: 0,
         dueDate: currentDate,
-        paymentMethodId: ''
+        paymentMethodId: '',
+        notes: ''
       }
     ]
   };
@@ -225,8 +229,10 @@ export function PayableFormPage(): ReactElement {
   const [tab, setTab] = useState<Tab>('Dados da Conta');
   const [duplicatePayload, setDuplicatePayload] = useState<Values>();
   const [saveMode, setSaveMode] = useState<SaveMode>('close');
+  const [feedback, setFeedback] = useState('');
 
   const suppliers = useLookup('/suppliers');
+  const companies = useLookup('/companies');
   const categories = useLookup('/financial-categories');
   const documentTypes = useLookup('/document-types');
   const methods = useLookup('/payment-methods');
@@ -247,6 +253,7 @@ export function PayableFormPage(): ReactElement {
     control,
     handleSubmit,
     reset,
+    setValue,
     watch,
     formState: { errors }
   } = useForm<Values>({
@@ -267,6 +274,7 @@ export function PayableFormPage(): ReactElement {
     const firstDueDate = firstInstallment?.dueDate || today();
 
     reset({
+      companyId: detail.data.companyId ?? '',
       supplierId: detail.data.supplierId,
       categoryId: detail.data.categoryId,
       documentTypeId: detail.data.documentTypeId,
@@ -294,6 +302,9 @@ export function PayableFormPage(): ReactElement {
   const discount = watch('discountAmount') || 0;
   const additional = watch('additionalAmount') || 0;
   const total = useMemo(() => Number(original) - Number(discount) + Number(additional), [original, discount, additional]);
+  const companyId = watch('companyId');
+  const supplierId = watch('supplierId');
+  const documentTypeId = watch('documentTypeId');
   const baseDueDate = watch('baseDueDate');
   const defaultPaymentMethodId = watch('defaultPaymentMethodId');
   const occurrenceType = watch('occurrenceType');
@@ -301,10 +312,23 @@ export function PayableFormPage(): ReactElement {
   const occurrenceInstallmentCount = occurrenceType === 'INSTALLMENT' ? normalizeCount(watch('installmentCount')) : 1;
   const installmentValues = watch('installments');
   const installmentTotal = installmentValues.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const displayedTotal = editing ? installmentTotal : total;
   const badge = dueBadge(baseDueDate);
+  const boletoDocumentType = useMemo(() => documentTypes.data?.find(item => item.code === 'BOLETO' || optionLabel(item).toUpperCase() === 'BOLETO'), [documentTypes.data]);
+  const boletoPaymentMethod = useMemo(() => methods.data?.find(item => item.code === 'BOLETO' || optionLabel(item).toUpperCase() === 'BOLETO'), [methods.data]);
+  const selectedCompanyName = optionLabel(companies.data?.find(item => item.id === companyId) ?? { id: '' });
+  const selectedSupplierName = optionLabel(suppliers.data?.find(item => item.id === supplierId) ?? { id: '' });
+  const showAdditionalDetails = editing && detail.data?.originCode === 'XML';
 
   useEffect(() => {
     if (editing) return;
+    if (!documentTypeId && boletoDocumentType?.id) setValue('documentTypeId', boletoDocumentType.id, { shouldValidate: true });
+    if (!defaultPaymentMethodId && boletoPaymentMethod?.id) setValue('defaultPaymentMethodId', boletoPaymentMethod.id, { shouldValidate: true });
+  }, [boletoDocumentType?.id, boletoPaymentMethod?.id, defaultPaymentMethodId, documentTypeId, editing, setValue]);
+
+  useEffect(() => {
+    if (editing) return;
+    if (installmentValues.length > 1) return;
 
     const nextInstallments = buildInstallments({
       total,
@@ -323,8 +347,12 @@ export function PayableFormPage(): ReactElement {
   const mutation = useMutation({
     mutationFn: async ({ values, confirmed = false }: { values: Values; confirmed?: boolean }) => {
       if (editing) {
+        const nextInstallmentTotal = values.installments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        const nextOriginalAmount = Math.max(0, nextInstallmentTotal + Number(values.discountAmount || 0) - Number(values.additionalAmount || 0));
+
         await httpClient.patch(`/api/v1/payables/${id}`, {
           supplierId: values.supplierId,
+          companyId: values.companyId,
           categoryId: values.categoryId,
           documentTypeId: values.documentTypeId,
           paymentTermId: values.paymentTermId || null,
@@ -333,7 +361,7 @@ export function PayableFormPage(): ReactElement {
           documentSeries: values.documentSeries || null,
           description: values.description,
           issueDate: values.issueDate,
-          originalAmount: values.originalAmount,
+          originalAmount: nextOriginalAmount,
           discountAmount: values.discountAmount,
           additionalAmount: values.additionalAmount,
           notes: values.notes || null
@@ -344,7 +372,8 @@ export function PayableFormPage(): ReactElement {
             await httpClient.patch(`/api/v1/payable-installments/${item.id}`, {
               amount: item.amount,
               dueDate: item.dueDate,
-              paymentMethodId: item.paymentMethodId
+              paymentMethodId: item.paymentMethodId,
+              notes: item.notes || null
             });
           }
         }
@@ -353,6 +382,7 @@ export function PayableFormPage(): ReactElement {
       }
 
       const response = await httpClient.post<{ id: string }>('/api/v1/payables', {
+        companyId: values.companyId,
         supplierId: values.supplierId,
         categoryId: values.categoryId,
         documentTypeId: values.documentTypeId,
@@ -392,12 +422,24 @@ export function PayableFormPage(): ReactElement {
   });
 
   const submit = handleSubmit(async values => {
-    if (Math.round(installmentTotal * 100) !== Math.round(total * 100)) {
+    const normalizedValues: Values = {
+      ...values,
+      documentTypeId: values.documentTypeId || boletoDocumentType?.id || '',
+      defaultPaymentMethodId: values.defaultPaymentMethodId || boletoPaymentMethod?.id || '',
+      description: values.description.trim() || `${selectedCompanyName} - ${selectedSupplierName} - ${values.documentNumber} - ${formatDatePtBr(values.baseDueDate)}`,
+      installments: values.installments.map(item => ({
+        ...item,
+        paymentMethodId: item.paymentMethodId || values.defaultPaymentMethodId || boletoPaymentMethod?.id || ''
+      }))
+    };
+    const normalizedInstallmentTotal = normalizedValues.installments.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    if (!editing && Math.round(normalizedInstallmentTotal * 100) !== Math.round(total * 100)) {
       setTab('Parcelas');
       return;
     }
 
-    await mutation.mutateAsync({ values }).catch(() => undefined);
+    await mutation.mutateAsync({ values: normalizedValues }).catch(() => undefined);
   });
 
   const cancelTitle = async (): Promise<void> => {
@@ -409,6 +451,28 @@ export function PayableFormPage(): ReactElement {
     await httpClient.post(`/api/v1/payables/${id}/cancel`, { reason });
     await queryClient.invalidateQueries({ queryKey: ['payables'] });
     await navigate('/payables');
+  };
+
+  const replaceInstallments = (items: Installment[]): void => {
+    const count = items.length || 1;
+    installments.replace(items.map((item, index) => ({ ...item, installmentNumber: index + 1, installmentCount: count })));
+  };
+
+  const addInstallment = (): void => {
+    replaceInstallments([
+      ...installmentValues,
+      {
+        installmentNumber: installmentValues.length + 1,
+        installmentCount: installmentValues.length + 1,
+        amount: 0,
+        dueDate: '',
+        paymentMethodId: defaultPaymentMethodId || boletoPaymentMethod?.id || ''
+      }
+    ]);
+  };
+
+  const removeInstallment = (index: number): void => {
+    replaceInstallments(installmentValues.filter((_, currentIndex) => currentIndex !== index));
   };
 
   if (editing && detail.isLoading) {
@@ -434,6 +498,7 @@ export function PayableFormPage(): ReactElement {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {editing && detail.data?.recurrenceId && !isTerminalRecurrence(detail.data.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={detail.data} onFeedback={setFeedback} /> : null}
           {editing && detail.data?.statusCode !== 'CANCELLED' && (
             <Button type="button" variant="danger" onClick={() => void cancelTitle()}>
               Cancelar título
@@ -450,6 +515,8 @@ export function PayableFormPage(): ReactElement {
           </Button>
         </div>
       </header>
+
+      {feedback ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</div> : null}
 
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
         {tabs.map(item => (
@@ -473,20 +540,23 @@ export function PayableFormPage(): ReactElement {
               <div>
                 <h2 className="text-lg font-bold text-slate-950">Dados da Conta</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Informe os dados principais. Parcelas e vencimentos serão preparados automaticamente para a conta.
+                  {editing
+                    ? 'Dados principais do título. Para alterar vencimento ou valor de cobrança, use a aba Parcelas.'
+                    : 'Informe os dados principais. Parcelas e vencimentos serão preparados automaticamente para a conta.'}
                 </p>
               </div>
 
               <div className="grid gap-5 lg:grid-cols-2">
-                <Select
-                  label="Forma de Pagamento"
-                  required
-                  items={methods.data}
-                  registration={register('defaultPaymentMethodId', { required: true })}
-                />
-                <Select label="Fornecedor" required items={suppliers.data} registration={register('supplierId', { required: true })} />
+                <Select label="Empresa" required items={companies.data} registration={register('companyId', { required: true })} className="lg:col-span-2" />
+                <Select label="Fornecedor" required items={suppliers.data} registration={register('supplierId', { required: true })} className="lg:col-span-2" />
                 <Field label="Vencimento" required>
-                  <input type="date" className={inputClass} {...register('baseDueDate', { required: true })} />
+                  <input
+                    type="date"
+                    disabled={editing}
+                    title={editing ? 'Altere o vencimento pela aba Parcelas.' : undefined}
+                    className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                    {...register('baseDueDate', { required: true })}
+                  />
                 </Field>
                 <Field label="Valor" required>
                   <Controller
@@ -494,61 +564,37 @@ export function PayableFormPage(): ReactElement {
                     name="originalAmount"
                     rules={{ required: true, min: 0.01 }}
                     render={({ field }) => (
-                      <CurrencyInput className={inputClass} value={field.value} onValueChange={value => field.onChange(value ?? 0)} onBlur={field.onBlur} />
+                      <CurrencyInput
+                        disabled={editing}
+                        title={editing ? 'Altere o valor pela aba Parcelas.' : undefined}
+                        className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                        value={field.value}
+                        onValueChange={value => field.onChange(value ?? 0)}
+                        onBlur={field.onBlur}
+                      />
                     )}
                   />
                 </Field>
+                {editing && (
+                  <div className="lg:col-span-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
+                    Vencimento e valor exibidos aqui são referência atual do título. Em edição, ajuste esses dados diretamente na aba Parcelas; ao salvar,
+                    o total do título será sincronizado com a soma das parcelas.
+                  </div>
+                )}
                 <Field label="Data de Emissão" required>
                   <input type="date" className={inputClass} {...register('issueDate', { required: true })} />
                 </Field>
                 <Field label="Nº do Documento" required>
                   <input className={inputClass} {...register('documentNumber', { required: true })} />
                 </Field>
-                <Field label="Histórico / Descrição" required className="lg:col-span-2">
-                  <textarea rows={3} className={textareaClass} {...register('description', { required: true })} />
+                <Field label="Histórico / Descrição" className="lg:col-span-2">
+                  <textarea rows={3} className={textareaClass} placeholder="Opcional. Se ficar vazio, o sistema gera pelo contexto da conta." {...register('description')} />
                 </Field>
                 <Select label="Categoria" required items={categories.data} registration={register('categoryId', { required: true })} />
-                <Select label="Tipo de Documento" required items={documentTypes.data} registration={register('documentTypeId', { required: true })} />
+                <Select label="Tipo de Documento" items={documentTypes.data} registration={register('documentTypeId')} />
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <h3 className="text-base font-bold text-slate-950">Ocorrência</h3>
-                <div className="mt-4 grid gap-5 lg:grid-cols-3">
-                  <Field label="Tipo de Ocorrência" required>
-                    <select className={inputClass} {...register('occurrenceType', { required: true })}>
-                      <option value="SINGLE">Única</option>
-                      <option value="INSTALLMENT">Parcelada</option>
-                      <option value="RECURRENT" disabled>
-                        Recorrente — em modelagem
-                      </option>
-                    </select>
-                  </Field>
-                  <Field label="Dia do Vencimento">
-                    <input type="number" min="1" max="31" className={inputClass} {...register('dueDay', { valueAsNumber: true, min: 1, max: 31 })} />
-                  </Field>
-                  <Field label="Número de Parcelas">
-                    <input
-                      type="number"
-                      min="1"
-                      max="120"
-                      disabled={occurrenceType !== 'INSTALLMENT'}
-                      className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500`}
-                      {...register('installmentCount', { valueAsNumber: true, min: 1, max: 120 })}
-                    />
-                  </Field>
-                </div>
-                <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                  <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm font-medium text-slate-500">
-                    <input type="checkbox" disabled className="size-4" />
-                    Alterar conta recorrente
-                  </label>
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-                    <span className="font-semibold text-slate-700">Marcadores:</span> seleção será conectada na próxima onda.
-                  </div>
-                </div>
-              </div>
-
-              <details className="rounded-2xl border border-slate-200 p-5">
+              {showAdditionalDetails && <details className="rounded-2xl border border-slate-200 p-5">
                 <summary className="cursor-pointer text-sm font-bold text-slate-800">Detalhes adicionais preservados</summary>
                 <div className="mt-5 grid gap-5 lg:grid-cols-2">
                   <Field label="Série">
@@ -576,7 +622,7 @@ export function PayableFormPage(): ReactElement {
                     />
                   </Field>
                 </div>
-              </details>
+              </details>}
 
               {Object.keys(errors).length > 0 && <p className="text-sm text-red-700">Revise os campos obrigatórios.</p>}
             </section>
@@ -590,8 +636,8 @@ export function PayableFormPage(): ReactElement {
                 <p className="mt-1 text-sm text-slate-500">Prévia calculada antes de salvar.</p>
               </div>
               <SummaryItem label="Vencimento" value={formatDatePtBr(baseDueDate)} />
-              <SummaryItem label="Valor" value={currency(total)} />
-              <SummaryItem label="Ocorrência" value={occurrenceInstallmentCount === 1 ? 'Única' : `${occurrenceInstallmentCount} parcelas`} />
+              <SummaryItem label="Valor" value={currency(displayedTotal)} />
+              <SummaryItem label="Parcelas" value={installmentValues.length === 1 ? 'Única' : `${installmentValues.length} parcelas`} />
               <SummaryItem label="Total das parcelas" value={currency(installmentTotal)} />
               <Link to="/agenda" className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-center text-sm font-bold text-teal-800 hover:bg-teal-100">
                 Ver Agenda Financeira
@@ -607,21 +653,15 @@ export function PayableFormPage(): ReactElement {
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold">Parcelas</h2>
-              <p className="text-sm text-slate-600">A soma deve ser igual a {currency(total)}.</p>
+              <p className="text-sm text-slate-600">
+                {editing ? 'Em edição, o total do título será ajustado para a soma das parcelas.' : `A soma deve ser igual a ${currency(total)}.`}
+              </p>
             </div>
             {!editing && (
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() =>
-                  installments.append({
-                    installmentNumber: installments.fields.length + 1,
-                    installmentCount: installments.fields.length + 1,
-                    amount: 0,
-                    dueDate: '',
-                    paymentMethodId: defaultPaymentMethodId
-                  })
-                }
+                onClick={addInstallment}
               >
                 Adicionar parcela
               </Button>
@@ -629,21 +669,21 @@ export function PayableFormPage(): ReactElement {
           </div>
           <div className="grid gap-4">
             {installments.fields.map((field, index) => (
-              <div key={field.id} className="grid gap-3 rounded-xl border border-slate-200 p-4 md:grid-cols-[100px_130px_1fr_1fr_auto]">
+              <div key={field.id} className="grid min-w-0 gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-[96px_120px_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end">
                 <Field label="Parcela" small>
-                  <input readOnly className={inputClass} {...register(`installments.${index}.installmentNumber`, { valueAsNumber: true })} />
+                  <input readOnly className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.installmentNumber`, { valueAsNumber: true })} />
                 </Field>
                 <Field label="Total" small>
-                  <input className={inputClass} {...register(`installments.${index}.installmentCount`, { valueAsNumber: true, min: 1 })} />
+                  <input className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.installmentCount`, { valueAsNumber: true, min: 1 })} />
                 </Field>
-                <Field label="Valor" small>
+                <Field label="Valor" small className="sm:col-span-2 xl:col-span-1">
                   <Controller
                     control={control}
                     name={`installments.${index}.amount`}
                     rules={{ required: true, min: 0.01 }}
                     render={({ field: amountField }) => (
                       <CurrencyInput
-                        className={inputClass}
+                        className={`${inputClass} w-full min-w-0`}
                         value={amountField.value}
                         onValueChange={value => amountField.onChange(value ?? 0)}
                         onBlur={amountField.onBlur}
@@ -651,14 +691,18 @@ export function PayableFormPage(): ReactElement {
                     )}
                   />
                 </Field>
-                <Field label="Vencimento" small>
-                  <input type="date" className={inputClass} {...register(`installments.${index}.dueDate`, { required: true })} />
+                <Field label="Vencimento" small className="sm:col-span-2 xl:col-span-1">
+                  <input type="date" className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.dueDate`, { required: true })} />
                 </Field>
-                <div className="md:col-span-2">
-                  <Select label="Forma de Pagamento" required items={methods.data} registration={register(`installments.${index}.paymentMethodId`, { required: true })} />
-                </div>
+                <Field label="Descrição da parcela" small className="sm:col-span-2 xl:col-span-full">
+                  <input
+                    className={`${inputClass} w-full min-w-0`}
+                    placeholder="Ex.: parcela antiga 03/12, referência do boleto ou observação interna"
+                    {...register(`installments.${index}.notes`)}
+                  />
+                </Field>
                 {!editing && installments.fields.length > 1 && (
-                  <button type="button" className="self-end text-sm font-semibold text-red-700" onClick={() => installments.remove(index)}>
+                  <button type="button" className="self-end justify-self-start rounded-lg px-2 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 xl:justify-self-end" onClick={() => removeInstallment(index)}>
                     Remover
                   </button>
                 )}
@@ -667,34 +711,12 @@ export function PayableFormPage(): ReactElement {
           </div>
           <div
             className={`mt-5 rounded-lg p-3 text-sm font-semibold ${
-              Math.round(installmentTotal * 100) === Math.round(total * 100) ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'
+              editing || Math.round(installmentTotal * 100) === Math.round(total * 100) ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'
             }`}
           >
             Total das parcelas: {currency(installmentTotal)}{' '}
-            {Math.round(installmentTotal * 100) !== Math.round(total * 100) && '— ajuste necessário'}
+            {editing ? '— total do título será sincronizado ao salvar' : Math.round(installmentTotal * 100) !== Math.round(total * 100) && '— ajuste necessário'}
           </div>
-        </Card>
-      )}
-
-      {tab === 'Impostos' && (
-        <Card>
-          <Empty title="Impostos" text="As regras de impostos e retenções permanecem pendentes de decisão funcional. Nenhum valor fiscal será presumido nesta etapa." />
-        </Card>
-      )}
-
-      {tab === 'Aprova\u00e7\u00f5es' && (
-        <Card>
-          {detail.data?.approvals.length ? (
-            <div className="grid gap-3">
-              {detail.data.approvals.map((item, index) => (
-                <div key={index} className="rounded-lg border border-slate-200 p-4 text-sm">
-                  Nível {String(item.approvalLevel ?? '—')} • {statusLabel(String(item.statusCode ?? 'PENDING'))}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty title="Aprovações" text={editing ? 'Nenhuma aprovação registrada para este título.' : 'Salve o título antes de iniciar o fluxo de aprovação.'} />
-          )}
         </Card>
       )}
 
@@ -783,15 +805,17 @@ function Select({
   label,
   items,
   registration,
-  required = false
+  required = false,
+  className = ''
 }: {
   label: string;
   items: Lookup[] | undefined;
   registration: UseFormRegisterReturn;
   required?: boolean;
+  className?: string;
 }): ReactElement {
   return (
-    <Field label={label} required={required}>
+    <Field label={label} required={required} className={className}>
       <select className={inputClass} aria-required={required} {...registration}>
         <option value="">Selecione</option>
         {items?.map(item => (

@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "check:alteracao": "bash Checar_alteracao.sh",
     "dev": "npm run dev --workspace @fincontrol/api",
     "dev:api": "npm run dev --workspace @fincontrol/api",
     "dev:web": "npm run dev --workspace @fincontrol/web",

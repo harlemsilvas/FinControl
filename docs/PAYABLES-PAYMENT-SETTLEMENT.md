@@ -49,7 +49,8 @@ Nesta fase, a empresa não deve ser escolhida por um seletor global no topo do s
 A empresa deve ser definida conforme a origem da operação:
 
 - XML: pelo CNPJ do destinatário no documento fiscal;
-- título manual: pela empresa informada no cadastro do título quando esse campo estiver exposto;
+- título manual, fixo ou parcelado: pela empresa obrigatoriamente informada no
+  cadastro do título;
 - baixa: pela empresa do título/parcela e pela conta bancária escolhida;
 - relatórios: por filtro explícito `Empresa` ou `Todas`.
 
@@ -233,6 +234,25 @@ Marketplaces não precisam nascer como cadastro próprio neste ciclo. A origem o
 do repasse será representada por centros de custo específicos, permitindo várias contas
 de centro de custo para separar marketplaces, canais ou grupos de repasse.
 
+### Decisão provisória até Conciliação Bancária
+
+Enquanto a rotina de Conciliação Bancária não estiver implementada, a tela de
+pagamentos pode expor uma ação operacional `Entrada de caixa`.
+
+Essa ação registra um movimento de entrada do tipo `MANUAL_ADJUSTMENT`, com
+descrição operacional, para alimentar o saldo oficial da conta bancária e
+permitir baixas de pagamento no MVP.
+
+Restrições da decisão:
+
+- `Saldo de Caixa` continua sendo lançamento inicial único por conta bancária;
+- novas entradas de dinheiro após o saldo inicial devem usar `Entrada de caixa`;
+- o lançamento é auditado e deve conter referência/observação operacional sempre
+  que possível;
+- ao implementar Conciliação Bancária, essa ação deve ser reavaliada,
+  restringida ou desabilitada para evitar lançamentos manuais paralelos ao
+  extrato conciliado.
+
 ## 11. API atual versus lacunas
 
 Já existe:
@@ -353,3 +373,24 @@ posteriores, porque exigem decisões adicionais de tesouraria.
 - Exceção auditada entre CNPJs fica para ciclo futuro.
 - Ajuste manual de saldo pode existir no MVP, somente para admin e sempre auditado.
 - Saldo inicial da conta será lançado como primeiro movimento de entrada do tipo `Saldo de Caixa`.
+
+## 16. Refinamento operacional em 31/07/2026
+
+- A classificação de parcela atrasada na fila de baixa passa a ser calculada
+  dinamicamente pela data de vencimento quando ainda há saldo aberto, evitando
+  depender apenas do status persistido no momento da criação ou último recálculo.
+- O card `Pagamentos parciais` foi substituído por `Pagamentos efetuados`,
+  alinhado ao uso operacional inicial de boleto com baixa integral. Esse card
+  exibe o valor monetário total dos pagamentos filtrados, e não a quantidade de
+  pagamentos.
+- O filtro principal da tela passa a expor `Abertos`, `Atrasados`, `Pagos` e
+  `Todos`; `Parcialmente pago` continua tratado internamente pelo domínio, mas
+  não é opção principal da experiência de baixa.
+- O filtro de fornecedor passa a ser busca com sugestões, evitando select longo
+  conforme o cadastro cresce.
+- A seção `Pagamentos realizados` permanece necessária nesta etapa porque
+  concentra detalhe do pagamento, comprovantes e estorno auditado. A evolução
+  recomendada é reorganizar `Parcelas elegíveis` e `Pagamentos realizados` em
+  abas no mesmo quadro, sem remover o histórico.
+- No histórico de pagamentos, a tag de status fica em coluna própria antes do
+  valor pago, para não sobrepor nem competir visualmente com o montante.

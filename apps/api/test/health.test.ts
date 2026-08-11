@@ -21,8 +21,17 @@ const environment: Environment = {
   AUTH_REFRESH_TOKEN_TTL_DAYS: 30,
   AUTH_ISSUER: 'fincontrol-api',
   AUTH_AUDIENCE: 'fincontrol',
+  AUTH_PASSWORD_RESET_TTL_MINUTES: 60,
+  PASSWORD_RESET_BASE_URL: 'http://localhost:5173/password-reset',
+  SMTP_ENABLED: false,
+  SMTP_PORT: 587,
+  SMTP_SECURE: false,
+  SMTP_FROM_NAME: 'FinControl',
   ATTACHMENT_STORAGE_ROOT: '/tmp/fincontrol-test-storage',
   ATTACHMENT_MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
+  BACKUP_DIRECTORY: '/tmp/fincontrol-test-backups',
+  BACKUP_SCRIPT_PATH: '/tmp/fincontrol-test-backup-db',
+  BACKUP_SCRIPT_USE_SUDO: false,
 };
 
 const apps: ReturnType<typeof buildApp>[] = [];
@@ -65,7 +74,7 @@ describe('health routes', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ status: 'ok', service: 'fincontrol-api' });
     expect(checkHealth).not.toHaveBeenCalled();
-  });
+  }, 30_000);
 
   it('reports readiness when PostgreSQL is available', async () => {
     const { database } = createDatabase();

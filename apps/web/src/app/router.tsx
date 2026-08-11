@@ -4,6 +4,7 @@ import { DashboardPage } from '../pages/dashboard-page';
 import { NotFoundPage } from '../pages/not-found-page';
 import { ProtectedRoute } from '../auth/protected-route';
 import { LoginPage } from '../pages/login-page';
+import { PasswordResetPage } from '../pages/password-reset-page';
 import { MasterDataPage } from '../master-data/master-data-page';
 import { SuppliersPage } from '../master-data/suppliers-page';
 import { resources } from '../master-data/resources';
@@ -11,14 +12,18 @@ import { PayablesListPage } from '../payables/payables-list-page';
 import { PayableFormPage } from '../payables/payable-form-page';
 import { PaymentsPage } from '../payables/payments-page';
 import { XmlImportsListPage } from '../payables/xml-imports-list-page';
+import { RecurrencesPage } from '../payables/recurrences-page';
 import { AgendaPage } from '../intelligence/agenda-page';
 import { PlannedFeaturePage } from '../pages/planned-feature-page';
 import { plannedFeatures } from '../pages/planned-features';
 import { environment } from '../config/environment';
+import { UsersPage } from '../administration/users-page';
+import { BackupsPage } from '../administration/backups-page';
 
 export const router = createBrowserRouter(
   [
     { path: '/login', element: <LoginPage /> },
+    { path: '/password-reset', element: <PasswordResetPage /> },
     {
       element: <ProtectedRoute />,
       children: [
@@ -32,13 +37,16 @@ export const router = createBrowserRouter(
             { path: 'payables', element: <PayablesListPage /> },
             { path: 'payments', element: <PaymentsPage /> },
             { path: 'xml-imports', element: <XmlImportsListPage /> },
+            { path: 'recurrences', element: <RecurrencesPage /> },
+            { path: 'users', element: <UsersPage /> },
+            { path: 'backups', element: <BackupsPage /> },
             { path: 'payables/new', element: <PayableFormPage /> },
             { path: 'payables/:id', element: <PayableFormPage /> },
             { path: 'suppliers', element: <SuppliersPage /> },
             ...Object.entries(resources)
               .filter(([path]) => path !== 'suppliers')
               .map(([path, config]) => ({ path, element: <MasterDataPage config={config} /> })),
-            ...plannedFeatures.map((feature) => ({
+            ...plannedFeatures.filter((feature) => !['recurrences', 'users'].includes(feature.path)).map((feature) => ({
               path: feature.path,
               element: <PlannedFeaturePage feature={feature} />,
             })),

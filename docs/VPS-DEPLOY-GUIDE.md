@@ -52,6 +52,49 @@ readlink -f /var/www/hrmmotos.com.br/fincontrol/current
 
 ## Fazer deploy
 
+### Caminho preferencial: GitHub Actions
+
+Depois que o codigo estiver commitado e enviado ao GitHub:
+
+1. Acessar `Actions` no GitHub.
+2. Abrir o workflow `Deploy Production`.
+3. Clicar em `Run workflow`.
+4. Selecionar a branch `main` no campo `Use workflow from`.
+5. Aprovar o environment `production`, se houver revisores configurados.
+
+O workflow sempre publica o commit atual de `main`. Ele resolve `main` para um
+commit imutavel e chama na VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
+```
+
+### Deploy de branch ou commit especifico
+
+Para homologar uma branch/commit fora de `main`, usar o workflow `Deploy VPS
+Native`:
+
+1. Selecionar a branch que contem o workflow no campo `Use workflow from`.
+2. Informar `deploy_ref` com uma branch, tag, SHA completo ou SHA curto, ou
+   deixar vazio para o commit da branch selecionada.
+3. Manter `run_checks=true`, salvo emergencia operacional.
+4. Digitar `DEPLOY` em `confirmation`.
+5. Aprovar o environment `production`, se houver revisores configurados.
+
+Esse workflow tambem resolve o alvo para um commit imutavel e chama na VPS:
+
+```bash
+sudo -n /opt/fincontrol/bin/deploy COMMIT_SHA
+```
+
+O script remoto continua sendo o unico responsavel por instalar dependencias,
+validar, aplicar migrations pendentes, publicar symlinks, recarregar PM2 e
+validar health checks.
+Ele deve usar o Node.js 22 isolado do usuario `fincontrol` em
+`/opt/fincontrol/.local/bin`, sem depender do Node global do root.
+
+### Fallback: deploy por SSH
+
 Deploy da branch atual de trabalho:
 
 ```bash

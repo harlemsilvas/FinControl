@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/fincontrol"
+POSTGRES_CONTAINER="fincontrol_postgres"
+BACKUP_DIR="$APP_ROOT/shared/backups"
+LOCAL_BIN="$APP_ROOT/.local/bin"
+PM2_BIN="${PM2_BIN:-/usr/bin/pm2}"
+PM2_HOME_DIR="$APP_ROOT/.pm2"
+DB_NAME="${DB_NAME:-fincontrol}"
+DB_USER="${DB_USER:-fincontrol_app}"
+
+backup_file="${1:-}"
+confirmation="${2:-}"
+
+usage() {
+  echo "Usage: restore-db <backup-file.dump> RESTORE" >&2
+  echo "Available backups:" >&2
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -printf '  %f\n' 2>/dev/null | sort >&2 || true
+}
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "This script must run as root through sudo." >&2
+  exit 1
+fi
+
+if [[ -z "$backup_file" || "$confirmation" != "RESTORE" ]]; then
+  usage
+  exit 2
+fi
+
+if [[ ! -f "$APP_ROOT/shared/.env" ]]; then
+  echo "Missing environment file: $APP_ROOT/shared/.env" >&2
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1091
+. "$APP_ROOT/shared/.env"
+set +a
+
+if [[ -z "${DB_PASSWORD:-}" ]]; then
+  echo "DB_PASSWORD is not configured in $APP_ROOT/shared/.env" >&2
+  exit 1
+fi
+
+case "$backup_file" in
+  /*) resolved_backup="$backup_file" ;;
+  *) resolved_backup="$BACKUP_DIR/$backup_file" ;;
+esac
+
+if [[ ! -f "$resolved_backup" ]]; then
+  echo "Backup file not found: $resolved_backup" >&2
+  exit 1
+fi
+
+if [[ "$resolved_backup" != "$BACKUP_DIR"/*.dump ]]; then
+  echo "Refusing to restore a file outside $BACKUP_DIR" >&2
+  exit 1
+fi
+
+if [[ -f "$resolved_backup.sha256" ]]; then
+  echo "Validating backup checksum"
+  sha256sum -c "$resolved_backup.sha256"
+else
+  echo "Warning: checksum file not found for $resolved_backup" >&2
+fi
+
+if ! docker ps --format '{{.Names}}' | grep -qx "$POSTGRES_CONTAINER"; then
+  echo "PostgreSQL container is not running: $POSTGRES_CONTAINER" >&2
+  exit 1
+fi
+
+if [[ ! -x "$PM2_BIN" ]]; then
+  echo "PM2 binary not found or not executable: $PM2_BIN" >&2
+  exit 1
+fi
+
+echo "Creating safety backup before restore"
+"$APP_ROOT/bin/backup-db" "pre-restore"
+
+echo "Stopping API before restore"
+sudo -u fincontrol -H env PATH="$LOCAL_BIN:$PATH" PM2_HOME="$PM2_HOME_DIR" \
+  "$PM2_BIN" stop "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api || true
+
+echo "Restoring PostgreSQL backup: $resolved_backup"
+docker exec -i -e PGPASSWORD="$DB_PASSWORD" "$POSTGRES_CONTAINER" \
+  pg_restore -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" \
+    --clean --if-exists --no-owner --no-privileges \
+  < "$resolved_backup"
+
+echo "Starting API after restore"
+sudo -u fincontrol -H env PATH="$LOCAL_BIN:$PATH" PM2_HOME="$PM2_HOME_DIR" \
+  "$PM2_BIN" start "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api || \
+sudo -u fincontrol -H env PATH="$LOCAL_BIN:$PATH" PM2_HOME="$PM2_HOME_DIR" \
+  "$PM2_BIN" reload "$APP_ROOT/shared/ecosystem.config.cjs" --only fincontrol-api --update-env
+sudo -u fincontrol -H env PATH="$LOCAL_BIN:$PATH" PM2_HOME="$PM2_HOME_DIR" \
+  "$PM2_BIN" save
+
+echo "Restore completed from: $resolved_backup"

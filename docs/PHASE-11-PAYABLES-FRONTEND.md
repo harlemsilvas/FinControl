@@ -31,6 +31,11 @@ Contém fornecedor, categoria, descrição, número e tipo de documento, série,
 condição de pagamento, valor original, desconto, acréscimo e total calculado somente
 para leitura.
 
+Na edição de um título existente, os campos visuais de `Vencimento` e `Valor`
+da aba `Dados da Conta` ficam bloqueados. A alteração efetiva de vencimento,
+valor e forma de pagamento deve ser feita pela aba `Parcelas`, onde estão os
+registros persistidos de cobrança.
+
 Projeto, Conta Bancária e Centro de Custo não aparecem nesta aba. Centro de Custo foi
 mantido exclusivamente em Observações, conforme RN-CP-024 a RN-CP-027.
 

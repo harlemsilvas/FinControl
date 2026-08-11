@@ -4,6 +4,7 @@ import { registerErrorHandler } from '../../common/http/error-handler.js';
 import type { Environment } from '../../config/environment.js';
 import { healthRoutes } from '../../domains/health/health-routes.js';
 import type { Database } from '../../infrastructure/database/database.js';
+import { createEmailSender } from '../../infrastructure/email/email-sender.js';
 import { AuthRepository } from '../../domains/auth/auth-repository.js';
 import { AuthService } from '../../domains/auth/auth-service.js';
 import { TokenService } from '../../domains/auth/token-service.js';
@@ -16,6 +17,10 @@ import { TreasuryRepository } from '../../domains/treasury/treasury-repository.j
 import { treasuryRoutes } from '../../domains/treasury/treasury-routes.js';
 import { IntelligenceRepository } from '../../domains/intelligence/intelligence-repository.js';
 import { intelligenceRoutes } from '../../domains/intelligence/intelligence-routes.js';
+import { UsersRepository } from '../../domains/administration/users-repository.js';
+import { usersRoutes } from '../../domains/administration/users-routes.js';
+import { BackupsService } from '../../domains/administration/backups-service.js';
+import { backupsRoutes } from '../../domains/administration/backups-routes.js';
 import { registerOpenApi } from './openapi.js';
 
 export interface BuildAppOptions {
@@ -72,7 +77,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(healthRoutes, { prefix: '/health', database: options.database });
   const authRepository = new AuthRepository(options.database);
   const tokenService = new TokenService(options.environment);
-  const authService = new AuthService(authRepository, tokenService);
+  const authService = new AuthService(authRepository, tokenService, createEmailSender(options.environment));
   void app.register(authRoutes, {
     prefix: '/auth', repository: authRepository, service: authService, tokens: tokenService,
   });
@@ -92,6 +97,19 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(intelligenceRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
     repository: new IntelligenceRepository(options.database),
+  });
+  void app.register(usersRoutes, {
+    prefix: '/api/v1', authRepository, authService, tokenService,
+    repository: new UsersRepository(options.database),
+  });
+  void app.register(backupsRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    service: new BackupsService(
+      options.database,
+      options.environment.BACKUP_DIRECTORY,
+      options.environment.BACKUP_SCRIPT_PATH,
+      options.environment.BACKUP_SCRIPT_USE_SUDO,
+    ),
   });
 
   app.addHook('onClose', async () => {

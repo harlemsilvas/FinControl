@@ -85,6 +85,17 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
+    path: 'toast-notifications',
+    domain: 'Experiência do Usuário',
+    title: 'Notificações Toast',
+    description: 'Sistema próprio e personalizável de mensagens visíveis para erros, alertas, confirmações e ações concluídas.',
+    suggestedNextSteps: [
+      'Definir padrão visual para erro, sucesso, alerta e informação.',
+      'Criar componente global de toast com fila, tempo de exibição e ação opcional.',
+      'Substituir mensagens discretas atuais por notificações consistentes nas telas operacionais.',
+    ],
+  },
+  {
     path: 'users',
     domain: 'Configurações',
     title: 'Usuários',

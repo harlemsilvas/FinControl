@@ -93,6 +93,7 @@ interface SupplierFormValues {
   streetNumber: string;
   addressComplement: string;
   neighborhood: string;
+  cityName: string;
   cityId: string;
   stateId: string;
   countryCode: string;
@@ -234,6 +235,7 @@ function defaultFormValues(): SupplierFormValues {
     streetNumber: '',
     addressComplement: '',
     neighborhood: '',
+    cityName: '',
     cityId: '',
     stateId: '',
     countryCode: 'BR',
@@ -323,7 +325,7 @@ export function SuppliersPage(): ReactElement {
   });
   const citiesQuery = useQuery({
     queryKey: ['cities'],
-    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/cities', { params: { pageSize: 500, active: true } })).data.data,
+    queryFn: async () => (await httpClient.get<ListResponse<LookupItem>>('/api/v1/cities', { params: { pageSize: 100, active: true } })).data.data,
     staleTime: 60000,
   });
   const paymentMethodsQuery = useQuery({
@@ -354,13 +356,14 @@ export function SuppliersPage(): ReactElement {
 
   const filteredCities = useMemo(() => {
     const cities = citiesQuery.data ?? [];
-    if (!stateId) return cities;
+    if (!stateId) return [];
     return cities.filter((item) => item.stateId === stateId);
   }, [citiesQuery.data, stateId]);
 
   const openNewForm = (): void => {
     const defaultStatus = statusesQuery.data?.find((item) => item.code === 'ACTIVE')?.id ?? '';
-    reset({ ...defaultFormValues(), statusId: defaultStatus });
+    const defaultCategory = categoriesQuery.data?.find((item) => item.code === 'SUPPLIER')?.id ?? '';
+    reset({ ...defaultFormValues(), statusId: defaultStatus, supplierCategoryId: defaultCategory });
     setActiveTab('Dados Gerais');
     setEditing(null);
     setFormOpen(true);
@@ -381,6 +384,7 @@ export function SuppliersPage(): ReactElement {
       streetNumber: supplier.streetNumber ?? '',
       addressComplement: supplier.addressComplement ?? '',
       neighborhood: supplier.neighborhood ?? '',
+      cityName: '',
       cityId: supplier.cityId ?? '',
       stateId: supplier.stateId ?? '',
       countryCode: supplier.countryCode ?? 'BR',
@@ -418,6 +422,8 @@ export function SuppliersPage(): ReactElement {
     mutationFn: async (values: SupplierFormValues) => {
       const selectedStatus = statusById.get(values.statusId);
       const statusCode = (selectedStatus?.code ?? 'ACTIVE') as SupplierStatusCode;
+      const defaultCategoryId = categoriesQuery.data?.find((item) => item.code === 'SUPPLIER')?.id ?? '';
+      const cityName = values.cityId ? undefined : normalizeOptional(values.cityName);
       const payload = {
         supplierType: values.supplierType,
         legalName: values.legalName.trim(),
@@ -426,13 +432,14 @@ export function SuppliersPage(): ReactElement {
         documentNumber: normalizeOptional(formatDocument(values.documentNumber, values.supplierType)),
         stateRegistration: normalizeOptional(values.stateRegistration),
         municipalRegistration: normalizeOptional(values.municipalRegistration),
-        supplierCategoryId: values.supplierCategoryId || undefined,
+        supplierCategoryId: values.supplierCategoryId || defaultCategoryId || undefined,
         postalCode: normalizeOptional(formatPostalCode(values.postalCode)),
         street: normalizeOptional(values.street),
         streetNumber: normalizeOptional(values.streetNumber),
         addressComplement: normalizeOptional(values.addressComplement),
         neighborhood: normalizeOptional(values.neighborhood),
         cityId: values.cityId || undefined,
+        cityName,
         stateId: values.stateId || undefined,
         countryCode: normalizeOptional(values.countryCode)?.toUpperCase(),
         phone: normalizeOptional(formatPhone(values.phone)),
@@ -468,7 +475,10 @@ export function SuppliersPage(): ReactElement {
     onSuccess: async () => {
       setFormOpen(false);
       setEditing(null);
-      await queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+        queryClient.invalidateQueries({ queryKey: ['cities'] }),
+      ]);
     },
   });
 
@@ -600,7 +610,7 @@ export function SuppliersPage(): ReactElement {
                 })} /></SupplierField>
                 <SupplierField label="Inscrição Estadual"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('stateRegistration')} /></SupplierField>
                 <SupplierField label="Inscrição Municipal"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('municipalRegistration')} /></SupplierField>
-                <SupplierField label="Categoria"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('supplierCategoryId')}><option value="">Selecione</option>{(categoriesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Categoria" required error={errors.supplierCategoryId?.message}><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('supplierCategoryId', { required: 'Campo obrigatório.' })}><option value="">Selecione</option>{(categoriesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
                 <SupplierField label="Status" required><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('statusId', { required: 'Campo obrigatório.' })}><option value="">Selecione</option>{(statusesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
               </div>
             </section>
@@ -613,8 +623,9 @@ export function SuppliersPage(): ReactElement {
                 <SupplierField label="Número"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('streetNumber')} /></SupplierField>
                 <SupplierField label="Complemento"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('addressComplement')} /></SupplierField>
                 <SupplierField label="Bairro"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('neighborhood')} /></SupplierField>
-                <SupplierField label="Cidade"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('cityId')}><option value="">Selecione</option>{filteredCities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
-                <SupplierField label="Estado"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('stateId')}><option value="">Selecione</option>{(statesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Estado"><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('stateId', { onChange: () => { setValue('cityId', ''); setValue('cityName', ''); } })}><option value="">Selecione</option>{(statesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Cidade cadastrada" helperText={stateId ? 'Selecione uma cidade existente ou informe uma nova abaixo.' : 'Selecione o Estado para carregar as cidades.'}><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" disabled={!stateId} {...register('cityId', { onChange: () => setValue('cityName', '') })}><option value="">Selecione</option>{filteredCities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>
+                <SupplierField label="Nova cidade" error={errors.cityName?.message} helperText="Use este campo quando a cidade não existir na lista."><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('cityName', { validate: (value) => !value || !!stateId || 'Selecione o Estado antes de informar a cidade.' })} /></SupplierField>
                 <SupplierField label="País"><input className="min-h-11 rounded-xl border border-slate-300 px-3 uppercase outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('countryCode')} /></SupplierField>
               </div>
             </section>
