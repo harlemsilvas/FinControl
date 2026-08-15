@@ -58,7 +58,7 @@ const textareaClass =
 function payableFormErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Não foi possível salvar o título.';
   if (error.code === 'PAID_TITLE_IMMUTABLE') {
-    return 'Este título já possui pagamento efetivo. Para alterar valor original, fornecedor, documento ou empresa, estorne o pagamento primeiro. Você ainda pode ajustar parcelas sem pagamento efetivo quando o total do título não mudar.';
+    return 'Este título já possui pagamento efetivo. Para alterar empresa, fornecedor, documento ou série, estorne o pagamento primeiro. Parcelas sem pagamento efetivo podem ser prorrogadas ou ajustadas pela aba Parcelas.';
   }
   if (error.code === 'PAID_INSTALLMENT_IMMUTABLE') {
     return 'Esta parcela já possui pagamento efetivo. Estorne o pagamento antes de alterar vencimento, valor ou forma de pagamento.';
@@ -102,6 +102,13 @@ function normalizeDay(value: number | undefined, fallbackDate: string): number {
   const day = Number(value || fallback);
   if (!Number.isFinite(day)) return fallback;
   return Math.min(Math.max(Math.trunc(day), 1), 31);
+}
+
+function isInstallmentLocked(item: Installment | undefined): boolean {
+  if (!item?.id) return false;
+  if (item.statusCode === 'PAID' || item.statusCode === 'PARTIALLY_PAID') return true;
+  if (item.openBalance === null || item.openBalance === undefined) return false;
+  return Math.round(Number(item.openBalance) * 100) <= 0;
 }
 
 function dueDateFrom(baseDate: string, monthOffset: number, dueDay: number): string {
@@ -379,6 +386,7 @@ export function PayableFormPage(): ReactElement {
         });
 
         for (const item of values.installments) {
+          if (isInstallmentLocked(item)) continue;
           if (item.id) {
             await httpClient.patch(`/api/v1/payable-installments/${item.id}`, {
               amount: item.amount,
@@ -680,12 +688,26 @@ export function PayableFormPage(): ReactElement {
           </div>
           <div className="grid gap-4">
             {installments.fields.map((field, index) => (
-              <div key={field.id} className="grid min-w-0 gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-[96px_120px_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end">
+              <div
+                key={field.id}
+                className={`grid min-w-0 gap-3 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-[96px_120px_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end ${
+                  isInstallmentLocked(installmentValues[index])
+                    ? 'border-emerald-200 bg-emerald-50/60'
+                    : 'border-slate-200'
+                }`}
+              >
+                {isInstallmentLocked(installmentValues[index]) && (
+                  <div className="sm:col-span-2 xl:col-span-full">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                      Parcela paga - edição bloqueada
+                    </span>
+                  </div>
+                )}
                 <Field label="Parcela" small>
-                  <input readOnly className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.installmentNumber`, { valueAsNumber: true })} />
+                  <input readOnly className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500`} {...register(`installments.${index}.installmentNumber`, { valueAsNumber: true })} />
                 </Field>
                 <Field label="Total" small>
-                  <input className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.installmentCount`, { valueAsNumber: true, min: 1 })} />
+                  <input readOnly={isInstallmentLocked(installmentValues[index])} className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`} {...register(`installments.${index}.installmentCount`, { valueAsNumber: true, min: 1 })} />
                 </Field>
                 <Field label="Valor" small className="sm:col-span-2 xl:col-span-1">
                   <Controller
@@ -694,7 +716,8 @@ export function PayableFormPage(): ReactElement {
                     rules={{ required: true, min: 0.01 }}
                     render={({ field: amountField }) => (
                       <CurrencyInput
-                        className={`${inputClass} w-full min-w-0`}
+                        readOnly={isInstallmentLocked(installmentValues[index])}
+                        className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`}
                         value={amountField.value}
                         onValueChange={value => amountField.onChange(value ?? 0)}
                         onBlur={amountField.onBlur}
@@ -703,11 +726,12 @@ export function PayableFormPage(): ReactElement {
                   />
                 </Field>
                 <Field label="Vencimento" small className="sm:col-span-2 xl:col-span-1">
-                  <input type="date" className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.dueDate`, { required: true })} />
+                  <input type="date" readOnly={isInstallmentLocked(installmentValues[index])} className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`} {...register(`installments.${index}.dueDate`, { required: true })} />
                 </Field>
                 <Field label="Descrição da parcela" small className="sm:col-span-2 xl:col-span-full">
                   <input
-                    className={`${inputClass} w-full min-w-0`}
+                    readOnly={isInstallmentLocked(installmentValues[index])}
+                    className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`}
                     placeholder="Ex.: parcela antiga 03/12, referência do boleto ou observação interna"
                     {...register(`installments.${index}.notes`)}
                   />

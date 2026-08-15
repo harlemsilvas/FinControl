@@ -41,7 +41,10 @@ const mocks = vi.hoisted(() => ({
           recurrenceSequenceNumber: 2,
           recurrenceStatusCode: 'ACTIVE',
           notes: '',
-          installments: [{ id: 'inst-1', installmentNumber: 1, installmentCount: 1, amount: '2500.00', dueDate: '2026-08-05', paymentMethodId: 'payment-method-1' }],
+          installments: [
+            { id: 'inst-1', installmentNumber: 1, installmentCount: 2, amount: '1000.00', openBalance: '0.00', dueDate: '2026-08-05', paymentMethodId: 'payment-method-1', statusCode: 'PAID' },
+            { id: 'inst-2', installmentNumber: 2, installmentCount: 2, amount: '1500.00', openBalance: '1500.00', dueDate: '2026-09-05', paymentMethodId: 'payment-method-1', statusCode: 'OPEN' },
+          ],
           approvals: [],
           attachments: [],
           tags: [],
@@ -193,5 +196,31 @@ describe('PayableFormPage new title', () => {
 
     expect(await screen.findByText(/Este título já possui pagamento efetivo/i)).toBeTruthy();
     expect(screen.getByText(/estorne o pagamento primeiro/i)).toBeTruthy();
+  });
+
+  it('locks paid installments visually and skips their update request', async () => {
+    mocks.patch.mockResolvedValue({ data: { id: 'updated' } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/payables/payable-1']}>
+          <Routes>
+            <Route path="/payables/:id" element={<PayableFormPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Editar Conta a Pagar' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Parcelas' }));
+    expect(await screen.findByText('Parcela paga - edição bloqueada')).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue('1.500,00'), { target: { value: '150300' } });
+    fireEvent.change(screen.getByDisplayValue('2026-09-05'), { target: { value: '2026-09-15' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalledWith('/api/v1/payables/payable-1', expect.objectContaining({ originalAmount: 2503 })));
+    expect(mocks.patch).not.toHaveBeenCalledWith('/api/v1/payable-installments/inst-1', expect.anything());
+    expect(mocks.patch).toHaveBeenCalledWith('/api/v1/payable-installments/inst-2', expect.objectContaining({ amount: 1503, dueDate: '2026-09-15' }));
   });
 });

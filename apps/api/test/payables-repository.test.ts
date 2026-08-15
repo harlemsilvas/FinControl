@@ -148,14 +148,26 @@ describe('PayablesRepository business safeguards',()=>{
       });
   });
 
-  it('blocks paid title financial changes only when protected values actually change', async()=>{
+  it('blocks paid title identity changes when protected values actually change', async()=>{
     const query=vi.fn()
       .mockResolvedValueOnce({rows:[{id:'title-id',company_id:'company-id',supplier_id:'supplier-id',document_number:'NF-1',document_series:null,original_amount:'2249.56',discount_amount:'0.00',additional_amount:'0.00'}],rowCount:1})
       .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1});
     const repo=new PayablesRepository(database({query}));
 
-    await expect(repo.updateTitle('title-id',{originalAmount:2582.70,notes:'Ajuste solicitado'},'user-id'))
+    await expect(repo.updateTitle('title-id',{documentNumber:'NF-2',notes:'Ajuste solicitado'},'user-id'))
       .rejects.toMatchObject({code:'PAID_TITLE_IMMUTABLE',statusCode:409});
+  });
+
+  it('allows paid title monetary sync so open installments can be renegotiated', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id',company_id:'company-id',supplier_id:'supplier-id',category_id:'old-category',document_number:'NF-1',document_series:null,description:'Conta',issue_date:'2026-08-01',original_amount:'2249.56',discount_amount:'0.00',additional_amount:'0.00',notes:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'title-id',original_amount:'2252.56',notes:'Prorrogação aceita pelo fornecedor'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'audit-id'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    await expect(repo.updateTitle('title-id',{originalAmount:2252.56,notes:'Prorrogação aceita pelo fornecedor'},'user-id'))
+      .resolves.toMatchObject({id:'title-id',originalAmount:'2252.56'});
   });
 
   it('allows paid title update when protected financial values are resent unchanged', async()=>{

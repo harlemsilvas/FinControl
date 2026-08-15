@@ -236,6 +236,25 @@ mudança pequena.
     `npm test --workspace @fincontrol/web -- payments-page.test.tsx`,
     `npm run typecheck --workspace @fincontrol/api` e
     `npm run typecheck --workspace @fincontrol/web`, todos aprovados.
+- correção local em 15/08/2026 para renegociação de parcelas em títulos com
+  pagamentos:
+  - títulos com pagamentos efetivos continuam bloqueando alteração de
+    identidade financeira (`Empresa`, `Fornecedor`, `Documento` e `Série`);
+  - ajustes monetários do título passam a ser permitidos quando necessários
+    para sincronizar a soma de parcelas abertas renegociadas;
+  - parcelas com pagamento efetivo ficam destacadas e bloqueadas visualmente na
+    aba `Parcelas`;
+  - o frontend deixa de enviar atualização para parcelas pagas, evitando erro
+    indevido ao salvar alterações em parcelas ainda abertas;
+  - cenário coberto: boleto prorrogado em parcela aberta com acréscimo de taxa;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/api -- payables-repository.test.ts`,
+    `npm test --workspace @fincontrol/web -- payable-form-page.test.tsx`,
+    `npm run typecheck --workspace @fincontrol/api`,
+    `npm run typecheck --workspace @fincontrol/web`,
+    `timeout --foreground 300s npm run lint --workspace @fincontrol/api` e
+    `timeout --foreground 300s npm run lint --workspace @fincontrol/web`,
+    todos aprovados.
 - correção local aplicada para saldo inicial:
   - campo `Valor inicial` usando máscara de moeda;
   - mensagem amigável quando a conta já possui saldo inicial ativo;

@@ -752,9 +752,9 @@ export class PayablesRepository {
     return this.database.transaction(async(tx)=>{const currentResult=await tx.query(`SELECT * FROM financeiro.payable_titles WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`,[id]);
       const current=currentResult.rows[0];if(!current)throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Title not found',statusCode:404});
       const paid=await tx.query(`SELECT 1 FROM financeiro.payments p JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id LEFT JOIN financeiro.payment_reversals r ON r.payment_id=p.id WHERE i.payable_title_id=$1 AND r.id IS NULL`,[id]);
-      const protectedColumns=['company_id','supplier_id','document_number','document_series','original_amount','discount_amount','additional_amount'];
-      const changedProtected=entries.some(([column,value])=>protectedColumns.includes(column)&&!sameStoredValue(column,current[column],value));
-      if(paid.rowCount&&changedProtected)throw new ApplicationError({code:'PAID_TITLE_IMMUTABLE',message:'Campos financeiros do título não podem ser alterados enquanto existirem pagamentos efetivos. Estorne os pagamentos antes de alterar valor, fornecedor, documento ou empresa.',statusCode:409});
+      const lockedColumns=['company_id','supplier_id','document_number','document_series'];
+      const changedLocked=entries.some(([column,value])=>lockedColumns.includes(column)&&!sameStoredValue(column,current[column],value));
+      if(paid.rowCount&&changedLocked)throw new ApplicationError({code:'PAID_TITLE_IMMUTABLE',message:'Este título já possui pagamento efetivo. Estorne o pagamento antes de alterar empresa, fornecedor, documento ou série.',statusCode:409});
       if(data.companyId){const company=await tx.query(`SELECT 1 FROM cadastros.companies WHERE id=$1 AND is_active AND deleted_at IS NULL`,[data.companyId]);if(!company.rowCount)throw new ApplicationError({code:'INVALID_REFERENCE',message:'Company must be active to update a payable title',statusCode:400,details:{field:'companyId'}});}
       const values=entries.map((entry)=>entry[1]);values.push(userId,id);const result=await tx.query(`UPDATE financeiro.payable_titles SET ${entries.map((entry,index)=>`${entry[0]}=$${index+1}`).join(',')},updated_by=$${values.length-1} WHERE id=$${values.length} AND deleted_at IS NULL RETURNING *`,values);
       const row=result.rows[0];if(!row)throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Title not found',statusCode:404});await this.audit(tx,'PAYABLE_TITLE',id,'UPDATED',userId,null,api(row));return api(row);});
