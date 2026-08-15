@@ -55,6 +55,17 @@ const inputClass =
 const textareaClass =
   'rounded-lg border border-slate-300 bg-white p-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100';
 
+function payableFormErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return 'Não foi possível salvar o título.';
+  if (error.code === 'PAID_TITLE_IMMUTABLE') {
+    return 'Este título já possui pagamento efetivo. Para alterar valor original, fornecedor, documento ou empresa, estorne o pagamento primeiro. Você ainda pode ajustar parcelas sem pagamento efetivo quando o total do título não mudar.';
+  }
+  if (error.code === 'PAID_INSTALLMENT_IMMUTABLE') {
+    return 'Esta parcela já possui pagamento efetivo. Estorne o pagamento antes de alterar vencimento, valor ou forma de pagamento.';
+  }
+  return error.message || 'Não foi possível salvar o título.';
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -753,7 +764,7 @@ export function PayableFormPage(): ReactElement {
 
       {mutation.error && !(mutation.error instanceof ApiError && mutation.error.code === 'POSSIBLE_DUPLICATE') && (
         <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
-          {mutation.error instanceof ApiError ? mutation.error.message : 'Não foi possível salvar o título.'}
+          {payableFormErrorMessage(mutation.error)}
         </p>
       )}
 

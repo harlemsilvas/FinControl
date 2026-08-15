@@ -238,14 +238,14 @@ export function PaymentsPage(): ReactElement {
   const paymentMethods = useLookup('/payment-methods');
 
   const bankBalances = useQuery({
-    queryKey: ['payment-bank-balances', selected?.companyId],
+    queryKey: ['payment-bank-balances', selected?.companyId, paymentDate],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<BankBalance>>('/api/v1/bank-account-balances', {
-        params: { pageSize: 100, companyId: selected?.companyId },
+        params: { pageSize: 100, companyId: selected?.companyId, asOfDate: paymentDate || undefined },
       });
       return response.data.data;
     },
-    enabled: Boolean(selected?.companyId),
+    enabled: Boolean(selected?.companyId && paymentDate),
   });
 
   const allBankBalances = useQuery({
@@ -417,7 +417,7 @@ export function PaymentsPage(): ReactElement {
     : Number(principalAmount) <= 0 ? 'Informe um valor principal maior que zero.'
     : totalMovement <= 0 ? 'O valor que sairá da conta precisa ser maior que zero.'
     : exceedsOpenBalance && !overpaymentConfirmed ? 'Confirme o pagamento acima do saldo aberto para continuar.'
-    : insufficientBalance ? 'Saldo insuficiente na conta bancária selecionada.'
+    : insufficientBalance ? `Saldo insuficiente na conta bancária em ${datePtBr(paymentDate)}. Lance uma entrada com data igual ou anterior ao pagamento, ou ajuste a data real da baixa.`
     : '';
   const canSubmit = Boolean(selected && !paymentBlockReason);
   const canCreateCashBalance = Boolean(cashBankAccountId && cashMovementDate && Number(cashAmount) > 0);
@@ -672,7 +672,7 @@ export function PaymentsPage(): ReactElement {
             <label className="grid gap-1 text-sm font-bold text-slate-700">Conta bancária
               <select aria-label="Conta bancária" value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
                 <option value="">Selecione</option>
-                {bankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.bankName} - {item.accountName} - saldo {currency(item.officialBalance)}</option>)}
+                {bankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.bankName} - {item.accountName} - saldo em {datePtBr(paymentDate)} {currency(item.officialBalance)}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-sm font-bold text-slate-700">Forma de pagamento
@@ -705,7 +705,7 @@ export function PaymentsPage(): ReactElement {
               </div>
               <p className="text-2xl font-black text-teal-900">{currency(totalMovement)}</p>
             </div>
-            {selectedAccount ? <p className={`mt-2 text-sm font-bold ${insufficientBalance ? 'text-red-700' : 'text-teal-800'}`}>Saldo da conta selecionada: {currency(selectedAccount.officialBalance)}</p> : null}
+            {selectedAccount ? <p className={`mt-2 text-sm font-bold ${insufficientBalance ? 'text-red-700' : 'text-teal-800'}`}>Saldo da conta selecionada em {datePtBr(paymentDate)}: {currency(selectedAccount.officialBalance)}</p> : null}
             {exceedsOpenBalance ? <label className="mt-3 flex items-center gap-2 text-sm font-bold text-amber-800"><input type="checkbox" checked={overpaymentConfirmed} onChange={(event) => setOverpaymentConfirmed(event.target.checked)} /> Confirmo pagamento acima do saldo aberto.</label> : null}
             {paymentBlockReason && !payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-amber-800">{paymentBlockReason}</p> : null}
             {payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-red-700">{payment.error instanceof ApiError ? payment.error.message : 'Não foi possível registrar a baixa.'}</p> : null}

@@ -1,16 +1,56 @@
 # FinControl — Next Task
 
-**Última atualização:** 01/08/2026
-**Status:** pacote de versionamento/cache implementado localmente e em validação focada
+**Última atualização:** 11/08/2026
+**Status:** pacote operacional validado, publicado, deployado na VPS e branches
+remotas principais sincronizadas
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Retomar o desenvolvimento atacando primeiro o versionamento visível do sistema
-e a estratégia anti-cache do frontend/deploy, para evitar página antiga após
-publicação na VPS. Depois disso, seguir com novas correções funcionais a partir
-dos documentos numerados em `docs/`.
+Retomar o desenvolvimento a partir do deploy funcional `d107d1d`, validando
+primeiro qualquer ajuste residual observado em produção e, em seguida, montar o
+próximo pacote de correções operacionais sem rodar validação completa a cada
+mudança pequena.
+
+## Ponto de retomada imediato
+
+- Branch de trabalho: `feature/matriz-filial-xml`.
+- Último commit da branch: `85a131a docs: update project readme`.
+- Último deploy funcional na VPS: `d107d1d fix(payables): refine operational
+  payment and xml flows`.
+- Workflow de deploy: `Deploy VPS Native`, run `31543548787`, concluído com
+  sucesso.
+- Branches remotas sincronizadas em 11/08/2026:
+  - `main`: `cc7c295`;
+  - `agent/phases-5-11`: `005808c`;
+  - `feature/matriz-filial-xml`: `85a131a`.
+- CI das branches sincronizadas concluído com sucesso:
+  - `31544491973 main`: sucesso;
+  - `31544627105 agent/phases-5-11`: sucesso;
+  - `31544100605 feature/matriz-filial-xml`: sucesso.
+- Arquivos locais não versionados permanecem fora do pacote e devem ser
+  avaliados separadamente antes de qualquer commit:
+  - `diagrams/`;
+  - `docs/Erros_Correcoes/`;
+  - `docs/architecture-decisions/00.1-Decisoes-de-Arquitetura.md`;
+  - `docs/history/PROJECT_HISTORY.md`;
+  - `docs/tabelas_fin_control.xlsx`;
+  - `docs/wireframes/Tela-Agenda.jpg`.
+
+## Próxima tarefa executável
+
+1. Abrir o sistema local ou VPS e confirmar se existe algum erro residual do
+   pacote `d107d1d`.
+2. Se houver erro funcional, tratar primeiro o menor ajuste reproduzível.
+3. Se não houver erro bloqueante, escolher o próximo pacote pequeno de melhoria
+   entre:
+   - padronização de mensagens/toasts próprios do FinControl;
+   - revisão de cache/versionamento visível pós-deploy em uso real;
+   - refinamentos restantes em Baixa de Pagamentos e Agenda;
+   - próxima frente funcional planejada após o pacote operacional.
+4. Rodar `./Checar_alteracao.sh` apenas quando o pacote estiver completo ou
+   quando explicitamente solicitado.
 
 ## Escopo desta tarefa
 
@@ -143,6 +183,59 @@ dos documentos numerados em `docs/`.
     `Agenda`, mantendo o link para `/agenda`;
   - validação completa do pacote ficou combinada para depois da sequência de
     correções pontuais.
+- correção local em 15/08/2026 para datas de recorrência:
+  - campos de data da criação de recorrência passam a rejeitar valores ISO com
+    ano acima de 4 dígitos, preservando o valor anterior quando o navegador
+    emitir algo como `666666-08-17`;
+  - a mesma proteção foi aplicada à data final da recorrência, à data `Gerar
+    até` e ao modal de revisão futura (`Vigência a partir de` e `Data final`);
+  - campos receberam limites `1900-01-01` a `9999-12-31`;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/web -- date-input-utils.test.ts recurrences-page.test.tsx payables-list-page.test.tsx`
+    e `npm run typecheck --workspace @fincontrol/web`, ambos aprovados.
+- correção local em 15/08/2026 para geração por quantidade em recorrências:
+  - quando o usuário informa quantidade maior que a janela operacional permite
+    gerar, a API passa a retornar `limitedByGenerationWindow=true` também para
+    solicitações por quantidade, não apenas por data;
+  - a tela passa a avisar explicitamente que a quantidade solicitada foi
+    reduzida pela janela atual de geração, orientando nova geração mais adiante
+    para continuar a série;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/api -- payables-repository.test.ts`,
+    `npm test --workspace @fincontrol/web -- recurrences-page.test.tsx date-input-utils.test.ts`,
+    `npm run typecheck --workspace @fincontrol/api` e
+    `npm run typecheck --workspace @fincontrol/web`, todos aprovados.
+- correção local em 15/08/2026 para edição de títulos com pagamentos:
+  - títulos com pagamentos efetivos continuam bloqueando alteração real de
+    valor original, fornecedor, documento, série ou empresa; para mudar esses
+    campos é necessário estornar o pagamento antes, preservando rastreabilidade
+    financeira;
+  - o backend deixou de bloquear quando o frontend reenvia campos financeiros
+    com o mesmo valor já gravado, permitindo salvar ajustes não financeiros e
+    alterações em parcelas sem pagamento efetivo;
+  - mensagens `PAID_TITLE_IMMUTABLE` e `PAID_INSTALLMENT_IMMUTABLE` passam a
+    orientar em português o caminho seguro de estorno antes da alteração;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/api -- payables-repository.test.ts`,
+    `npm test --workspace @fincontrol/web -- payable-form-page.test.tsx`,
+    `npm run typecheck --workspace @fincontrol/api` e
+    `npm run typecheck --workspace @fincontrol/web`, todos aprovados.
+- correção local em 15/08/2026 para saldo bancário por data:
+  - baixa de pagamento deixou de validar contra saldo oficial acumulado atual e
+    passou a validar contra o saldo da conta até `paymentDate`;
+  - uma entrada lançada em data posterior não financia mais pagamento
+    retroativo;
+  - rota `/api/v1/bank-account-balances` aceita `asOfDate` opcional para
+    retornar o saldo da conta em uma data específica;
+  - tela `Baixa de Pagamentos` recarrega o saldo ao alterar `Data do pagamento`
+    e exibe `Saldo da conta selecionada em DD/MM/AAAA`;
+  - transferências bancárias também passam a validar saldo disponível até a
+    data do movimento;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/api -- treasury-repository.test.ts payables-repository.test.ts`,
+    `npm test --workspace @fincontrol/web -- payments-page.test.tsx`,
+    `npm run typecheck --workspace @fincontrol/api` e
+    `npm run typecheck --workspace @fincontrol/web`, todos aprovados.
 - correção local aplicada para saldo inicial:
   - campo `Valor inicial` usando máscara de moeda;
   - mensagem amigável quando a conta já possui saldo inicial ativo;
@@ -508,6 +601,15 @@ dos documentos numerados em `docs/`.
   - `npm run typecheck --workspace @fincontrol/web`: aprovado;
   - `npm run lint --workspace @fincontrol/api`: aprovado;
   - `npm run lint --workspace @fincontrol/web`: aprovado.
+- melhoria local do script de validação em 15/08/2026:
+  - `Checar_alteracao.sh` passou a exibir progresso no terminal por etapa com
+    `RUN`, `OK`/`FAIL`, duração e caminho do log;
+  - validações demoradas foram divididas em blocos menores por workspace e por
+    domínio web, reduzindo períodos sem status visível;
+  - etapas npm passaram a usar timeout configurável por
+    `CHECK_STEP_TIMEOUT`, com padrão de `300s`;
+  - `./Checar_alteracao.sh`: `STATUS: OK`, log gerado em
+    `logs/alteracoes/checar_alteracao_20260815_161149.log`.
 - Validação focada da correção de recorrências em 10/08/2026:
   - `npm test --workspace @fincontrol/api -- payables-repository.test.ts`:
     aprovado, 42 testes;
@@ -535,6 +637,30 @@ dos documentos numerados em `docs/`.
   - `npm test`: aprovado, com API 101 testes aprovados e 5 integrações opt-in
     puladas; web 50 testes aprovados;
   - `npm run build`: aprovado para API e web.
+- Validação focada das correções operacionais em 15/08/2026:
+  - datas de recorrência agora limitam ano a quatro dígitos e validam antes de
+    salvar/previsualizar;
+  - geração por quantidade em recorrências avisa quando o limite operacional da
+    janela reduz a quantidade solicitada;
+  - edição de título com pagamento efetivo passou a bloquear somente alterações
+    financeiras reais, permitindo salvar dados não financeiros quando os valores
+    protegidos forem reenviados sem mudança;
+  - baixa de pagamento e transferência agora validam saldo bancário pela data do
+    movimento, não pelo saldo atual da conta;
+  - `GET /api/v1/bank-account-balances` aceita `asOfDate` para consulta
+    temporal do saldo;
+  - tela de pagamentos exibe e recarrega o saldo da conta na data informada na
+    baixa;
+  - `npm test --workspace @fincontrol/api -- treasury-repository.test.ts payables-repository.test.ts`:
+    aprovado, 52 testes;
+  - `npm test --workspace @fincontrol/web -- payments-page.test.tsx`:
+    aprovado, 12 testes;
+  - `npm test --workspace @fincontrol/api -- payables-repository.test.ts`:
+    aprovado, 45 testes apos ajuste de lint;
+  - `npm run typecheck --workspace @fincontrol/api`: aprovado;
+  - `npm run typecheck --workspace @fincontrol/web`: aprovado;
+  - `npm run lint --workspace @fincontrol/api`: aprovado;
+  - `npm run lint --workspace @fincontrol/web`: aprovado.
 
 ## Critério de conclusão
 
@@ -543,6 +669,9 @@ dos documentos numerados em `docs/`.
 - documentação de continuidade atualizada;
 - pronto para deploy controlado sem depender de alterações locais não
   publicadas.
+
+Em 11/08/2026, esse critério foi atendido para o pacote operacional publicado
+em `d107d1d` e para a documentação publicada em `85a131a`.
 
 ## Depois disso
 
@@ -554,5 +683,5 @@ Após a publicação do pacote atual, reavaliar a próxima frente principal entr
 - sincronização futura de comprovantes com Google Drive;
 - evolução do MVP de recorrências.
 
-Ultimo deploy executado foi Deploy VPS Native do commit d107d1d em 11/08/2026,
-run GitHub Actions 31543548787, concluido com sucesso.
+Último deploy executado foi `Deploy VPS Native` do commit `d107d1d` em
+11/08/2026, run GitHub Actions `31543548787`, concluído com sucesso.

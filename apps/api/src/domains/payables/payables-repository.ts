@@ -30,6 +30,18 @@ function api(row: Record<string, unknown>): Record<string, unknown> { return Obj
 function cents(value: number): number { return Math.round(value * 100); }
 function moneyAmount(input: PaymentInput): number { return input.principalAmount + (input.interestAmount ?? 0) + (input.penaltyAmount ?? 0) + (input.additionalAmount ?? 0) - (input.discountAmount ?? 0); }
 function dateString(value: string | Date | null | undefined): string | null { return value instanceof Date ? value.toISOString().slice(0, 10) : value ?? null; }
+function storedPrimitive(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return dateString(value) ?? '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+}
+function sameStoredValue(column: string, current: unknown, next: unknown): boolean {
+  if (['original_amount', 'discount_amount', 'additional_amount'].includes(column)) return cents(Number(current ?? 0)) === cents(Number(next ?? 0));
+  if (column.endsWith('_date')) return dateString(current as string | Date | null | undefined) === dateString(next as string | Date | null | undefined);
+  return storedPrimitive(current) === storedPrimitive(next);
+}
 function parseDate(value: string): Date { const [year = 0, month = 1, day = 1] = value.split('-').map(Number); return new Date(Date.UTC(year, month - 1, day)); }
 function formatDate(value: Date): string { return value.toISOString().slice(0, 10); }
 function daysInMonth(year: number, month: number): number { return new Date(Date.UTC(year, month + 1, 0)).getUTCDate(); }
@@ -402,7 +414,7 @@ export class PayablesRepository {
       firstPendingOccurrence = this.nextOccurrenceAfter(recurrence, firstPendingOccurrence);
     }
     const maxWindowDate = addDays(addMonths(firstPendingOccurrence, Math.min(Number(recurrence.generation_window_months || 6), 6)), -1);
-    const limitedByGenerationWindow = Boolean(input.untilDate && input.untilDate > maxWindowDate);
+    let limitedByGenerationWindow = Boolean(input.untilDate && input.untilDate > maxWindowDate);
     const stopDate = minDate(input.untilDate ?? maxWindowDate, maxWindowDate, dateString(recurrence.end_date));
     const generatedCount = Number(recurrence.generated_count || 0);
     const remainingAllowed = recurrence.max_occurrences == null ? Number.POSITIVE_INFINITY : Math.max(0, recurrence.max_occurrences - generatedCount);
@@ -418,6 +430,9 @@ export class PayablesRepository {
         sequence += 1;
       }
       occurrence = this.nextOccurrenceAfter(recurrence, occurrence);
+    }
+    if (!input.untilDate && input.occurrenceCount != null && result.length < input.occurrenceCount && occurrence > maxWindowDate && (!dateString(recurrence.end_date) || maxWindowDate <= dateString(recurrence.end_date)!)) {
+      limitedByGenerationWindow = true;
     }
     return { occurrences: result, maxGenerationDate: maxWindowDate, limitedByGenerationWindow, requestedUntilDate: input.untilDate ?? null };
   }
@@ -734,8 +749,12 @@ export class PayablesRepository {
     const mapping:Record<string,string>={companyId:'company_id',supplierId:'supplier_id',categoryId:'category_id',documentTypeId:'document_type_id',paymentTermId:'payment_term_id',costCenterId:'cost_center_id',documentNumber:'document_number',documentSeries:'document_series',description:'description',issueDate:'issue_date',originalAmount:'original_amount',discountAmount:'discount_amount',additionalAmount:'additional_amount',notes:'notes'};
     const entries=Object.entries(data).filter((entry)=>entry[1]!==undefined&&mapping[entry[0]]).map(([key,value])=>[mapping[key]!,value] as const);
     if(!entries.length) throw new ApplicationError({code:'VALIDATION_ERROR',message:'At least one field is required',statusCode:400});
-    return this.database.transaction(async(tx)=>{const paid=await tx.query(`SELECT 1 FROM financeiro.payments p JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id LEFT JOIN financeiro.payment_reversals r ON r.payment_id=p.id WHERE i.payable_title_id=$1 AND r.id IS NULL`,[id]);
-      if(paid.rowCount&&entries.some(([column])=>['company_id','supplier_id','document_number','document_series','original_amount','discount_amount','additional_amount'].includes(column)))throw new ApplicationError({code:'PAID_TITLE_IMMUTABLE',message:'Financial fields cannot change while effective payments exist',statusCode:409});
+    return this.database.transaction(async(tx)=>{const currentResult=await tx.query(`SELECT * FROM financeiro.payable_titles WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`,[id]);
+      const current=currentResult.rows[0];if(!current)throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Title not found',statusCode:404});
+      const paid=await tx.query(`SELECT 1 FROM financeiro.payments p JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id LEFT JOIN financeiro.payment_reversals r ON r.payment_id=p.id WHERE i.payable_title_id=$1 AND r.id IS NULL`,[id]);
+      const protectedColumns=['company_id','supplier_id','document_number','document_series','original_amount','discount_amount','additional_amount'];
+      const changedProtected=entries.some(([column,value])=>protectedColumns.includes(column)&&!sameStoredValue(column,current[column],value));
+      if(paid.rowCount&&changedProtected)throw new ApplicationError({code:'PAID_TITLE_IMMUTABLE',message:'Campos financeiros do título não podem ser alterados enquanto existirem pagamentos efetivos. Estorne os pagamentos antes de alterar valor, fornecedor, documento ou empresa.',statusCode:409});
       if(data.companyId){const company=await tx.query(`SELECT 1 FROM cadastros.companies WHERE id=$1 AND is_active AND deleted_at IS NULL`,[data.companyId]);if(!company.rowCount)throw new ApplicationError({code:'INVALID_REFERENCE',message:'Company must be active to update a payable title',statusCode:400,details:{field:'companyId'}});}
       const values=entries.map((entry)=>entry[1]);values.push(userId,id);const result=await tx.query(`UPDATE financeiro.payable_titles SET ${entries.map((entry,index)=>`${entry[0]}=$${index+1}`).join(',')},updated_by=$${values.length-1} WHERE id=$${values.length} AND deleted_at IS NULL RETURNING *`,values);
       const row=result.rows[0];if(!row)throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Title not found',statusCode:404});await this.audit(tx,'PAYABLE_TITLE',id,'UPDATED',userId,null,api(row));return api(row);});
@@ -744,7 +763,7 @@ export class PayablesRepository {
   async updateInstallment(id: string, amount: number, dueDate: string, paymentMethodId: string, notes: string | null, userId: string): Promise<object> {
     return this.database.transaction(async (tx) => {
       const paid = await tx.query(`SELECT 1 FROM financeiro.payments p LEFT JOIN financeiro.payment_reversals r ON r.payment_id=p.id WHERE p.payable_installment_id=$1 AND r.id IS NULL`, [id]);
-      if (paid.rowCount) throw new ApplicationError({ code:'PAID_INSTALLMENT_IMMUTABLE',message:'A paid installment cannot be changed before reversal',statusCode:409 });
+      if (paid.rowCount) throw new ApplicationError({ code:'PAID_INSTALLMENT_IMMUTABLE',message:'Esta parcela já possui pagamento efetivo. Estorne o pagamento antes de alterar vencimento, valor ou forma de pagamento.',statusCode:409 });
       const result = await tx.query(`UPDATE financeiro.payable_installments SET amount=$2,open_balance=$2,due_date=$3,payment_method_id=$4,notes=$5,updated_by=$6 WHERE id=$1 AND deleted_at IS NULL RETURNING *`, [id,amount,dueDate,paymentMethodId,notes,userId]);
       const row=result.rows[0]; if(!row) throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Installment not found',statusCode:404});
       const valid=await tx.query<{ is_valid:boolean } & Record<string,unknown>>(`SELECT is_valid FROM financeiro.validate_title_installments($1)`,[row.payable_title_id]);
@@ -781,8 +800,8 @@ export class PayablesRepository {
     if(bankAccount.company_id!==current.company_id) throw new ApplicationError({code:'PAYMENT_BANK_ACCOUNT_COMPANY_MISMATCH',message:'Bank account must belong to the same company as the payable title',statusCode:409});
     const movementAmount=moneyAmount(data);
     if(movementAmount<=0) throw new ApplicationError({code:'VALIDATION_ERROR',message:'Payment movement amount must be greater than zero',statusCode:400});
-    const balance=await tx.query<{official_balance:string}&Record<string,unknown>>(`SELECT official_balance::text FROM tesouraria.v_bank_account_balances WHERE bank_account_id=$1`,[data.bankAccountId]);
-    if(Number(balance.rows[0]?.official_balance ?? 0)<movementAmount) throw new ApplicationError({code:'INSUFFICIENT_BANK_BALANCE',message:'Bank account has insufficient official balance',statusCode:409});
+    const balance=await tx.query<{official_balance:string}&Record<string,unknown>>(`SELECT COALESCE(SUM(CASE direction WHEN 'IN' THEN amount WHEN 'OUT' THEN -amount ELSE 0 END),0)::numeric(18,2)::text official_balance FROM tesouraria.bank_account_movements WHERE bank_account_id=$1 AND movement_date <= $2::date`,[data.bankAccountId,data.paymentDate]);
+    if(Number(balance.rows[0]?.official_balance ?? 0)<movementAmount) throw new ApplicationError({code:'INSUFFICIENT_BANK_BALANCE',message:`Saldo insuficiente na conta bancária em ${data.paymentDate}. Lance uma entrada com data igual ou anterior ao pagamento, ou ajuste a data real da baixa.`,statusCode:409});
     const result=await tx.query(`INSERT INTO financeiro.payments (payable_installment_id,payment_batch_id,bank_account_id,payment_method_id,payment_date,principal_amount,interest_amount,penalty_amount,discount_amount,additional_amount,transaction_number,overpayment_confirmed,overpayment_confirmed_by,overpayment_confirmed_at,status_id,created_by,updated_by)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $12 THEN $13::uuid END,CASE WHEN $12 THEN CURRENT_TIMESTAMP END,(SELECT id FROM financeiro.payment_statuses WHERE code='EFFECTIVE'),$13,$13) RETURNING *`,
     [data.installmentId,data.batchId??null,data.bankAccountId,data.paymentMethodId,data.paymentDate,data.principalAmount,data.interestAmount??0,data.penaltyAmount??0,data.discountAmount??0,data.additionalAmount??0,data.transactionNumber??null,data.overpaymentConfirmed??false,userId]);

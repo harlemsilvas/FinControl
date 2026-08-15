@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/http-client';
 import { PayableFormPage } from './payable-form-page';
 
 const mocks = vi.hoisted(() => ({
@@ -66,7 +67,10 @@ afterEach(() => {
 
 vi.mock('../api/http-client', () => ({
   ApiError: class ApiError extends Error {
-    code?: string;
+    constructor(readonly status: number, readonly code: string, message: string) {
+      super(message);
+      this.name = 'ApiError';
+    }
   },
   httpClient: {
     get: mocks.get,
@@ -168,5 +172,26 @@ describe('PayableFormPage new title', () => {
     expect(screen.getByTitle('Altere o vencimento pela aba Parcelas.')).toBeDisabled();
     expect(screen.getByTitle('Altere o valor pela aba Parcelas.')).toBeDisabled();
     expect(screen.getByText(/ajuste esses dados diretamente na aba Parcelas/i)).toBeTruthy();
+  });
+
+  it('translates paid title immutable errors while explaining the safe path', async () => {
+    mocks.patch.mockRejectedValueOnce(new ApiError(409, 'PAID_TITLE_IMMUTABLE', 'Financial fields cannot change while effective payments exist'));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/payables/payable-1']}>
+          <Routes>
+            <Route path="/payables/:id" element={<PayableFormPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Editar Conta a Pagar' })).toBeTruthy();
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+
+    expect(await screen.findByText(/Este título já possui pagamento efetivo/i)).toBeTruthy();
+    expect(screen.getByText(/estorne o pagamento primeiro/i)).toBeTruthy();
   });
 });

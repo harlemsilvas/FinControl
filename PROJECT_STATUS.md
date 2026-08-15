@@ -2,10 +2,10 @@
 
 **Código:** DOC-11  
 **Versão:** 0.4  
-**Data:** 30/07/2026
-**Status atual:** sistema além da Fase 16, com pacote pós-Fase 16 validado no
-CI e evolução multiempresa em andamento por filtros explícitos nas telas
-operacionais
+**Data:** 11/08/2026
+**Status atual:** sistema além da Fase 16, com deploy VPS validado em
+`d107d1d`, README atualizado e branches remotas principais sincronizadas com a
+linha funcional `feature/matriz-filial-xml`
 
 ## 1. Objetivo deste arquivo
 
@@ -75,6 +75,34 @@ Este documento registra o estado consolidado do projeto sem substituir:
   - criação e exportação de backup são registradas em auditoria.
 
 ## 3. Avanços além da Fase 16
+
+### Encerramento operacional em 11/08/2026
+
+Estado consolidado ao final da sessão:
+
+- pacote funcional de correções operacionais publicado em
+  `d107d1d fix(payables): refine operational payment and xml flows`;
+- deploy `Deploy VPS Native` do commit `d107d1d` executado com sucesso na VPS;
+- documentação complementar publicada em:
+  - `ebe63c1 docs: record deploy d107d1d`;
+  - `85a131a docs: update project readme`;
+- CI do commit `85a131a` concluído com sucesso;
+- branches remotas sincronizadas por merge não destrutivo:
+  - `main` em `cc7c295`;
+  - `agent/phases-5-11` em `005808c`;
+  - `feature/matriz-filial-xml` preservada em `85a131a`;
+- workflows das branches `main` e `agent/phases-5-11` concluídos com sucesso;
+- branches locais de backup e arquivos locais não versionados foram preservados.
+
+Pontos relevantes para retomada:
+
+- não foi feito `force-push`;
+- o histórico das branches foi preservado por merge commits;
+- a VPS estava atualizada com o deploy funcional `d107d1d`;
+- o README foi atualizado para apresentar o FinControl como ERP financeiro em
+  desenvolvimento ativo, sem declarar módulos futuros como implementados;
+- permanece em pauta futura a limpeza controlada do histórico Git para segredo
+  antigo e a revisão de arquivos locais ainda não versionados.
 
 ### 21/07/2026 a 23/07/2026 — trilha pós-Fase 16
 
@@ -543,8 +571,10 @@ apagados nem confundidos com a tarefa ativa.
 
 ## 7. Próximo marco de projeto
 
-O próximo marco estratégico é publicar o pacote pós-Fase 16 já validado
-localmente, mantendo a documentação de continuidade junto do pacote, para então:
+O próximo marco estratégico é retomar a sequência de correções operacionais a
+partir do uso real do sistema, priorizando:
 
-- executar deploy controlado com SHA imutável;
-- ou publicar pela rotina `Deploy Production`, se `main` estiver pronta.
+- validar em produção o pacote já publicado em `d107d1d`;
+- tratar eventuais ajustes residuais observados na VPS após o deploy;
+- definir o próximo pacote funcional antes de rodar nova validação completa;
+- manter `NEXT_TASK.md` como ponteiro único da próxima tarefa executável.

@@ -146,6 +146,11 @@ function paymentHistoryParams(): Record<string, unknown> | undefined {
   return [...calls].reverse().find(([url]) => url === '/api/v1/payments')?.[1]?.params;
 }
 
+function bankBalanceParams(): Record<string, unknown> | undefined {
+  const calls = mocks.get.mock.calls as Array<[string, { params?: Record<string, unknown> }?]>;
+  return [...calls].reverse().find(([url]) => url === '/api/v1/bank-account-balances')?.[1]?.params;
+}
+
 vi.mock('../api/http-client', () => ({
   ApiError: class ApiError extends Error {
     constructor(readonly status: number, readonly code: string, message: string) { super(message); }
@@ -191,6 +196,9 @@ describe('PaymentsPage', () => {
 
     await waitFor(() => expect(within(dialog).getByLabelText('Conta bancária')).toHaveTextContent('Conta Matriz'));
     fireEvent.change(within(dialog).getByLabelText('Conta bancária'), { target: { value: 'bank-account-id' } });
+    fireEvent.change(within(dialog).getByLabelText('Data do pagamento'), { target: { value: '2026-07-22' } });
+    await waitFor(() => expect(bankBalanceParams()).toMatchObject({ companyId: 'company-id', asOfDate: '2026-07-22' }));
+    expect(await within(dialog).findByText(/Saldo da conta selecionada em 22\/07\/2026/i)).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Forma de pagamento')).toHaveValue('payment-method-id');
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar baixa' }));

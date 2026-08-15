@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactElement } from 'react';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
+import { MAX_ISO_DATE, MIN_ISO_DATE, coerceIsoDateInput } from './date-input-utils';
 import { currency, isTerminalRecurrence, type PayableListItem } from './payables-types';
 
 interface RecurrenceDetail {
@@ -369,9 +370,9 @@ export function RecurrenceActionsLauncher({
                 <p className="mt-1">A configuração atual será encerrada na véspera da data escolhida e uma nova recorrência será criada a partir dela. O histórico anterior permanece preservado.</p>
               </div>
               {!revisionForm || recurrenceDetail.isLoading ? <p className="text-sm text-slate-500">Carregando dados da recorrência...</p> : <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Vigência a partir de</span><input type="date" value={revisionForm.effectiveDate} min={nextBusinessActionDate()} onChange={(event) => setRevisionForm((current) => {
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Vigência a partir de</span><input type="date" value={revisionForm.effectiveDate} min={nextBusinessActionDate()} max={MAX_ISO_DATE} onChange={(event) => setRevisionForm((current) => {
                   if (!current) return current;
-                  const nextEffectiveDate = event.target.value;
+                  const nextEffectiveDate = coerceIsoDateInput(current.effectiveDate, event.target.value, { allowEmpty: true });
                   const previousDefaultEndDate = defaultRevisionEndDate(current.effectiveDate);
                   const shouldRefreshEndDate = !current.isOpenEnded && !current.maxOccurrences && (!current.endDate || current.endDate === previousDefaultEndDate);
                   return {
@@ -383,7 +384,7 @@ export function RecurrenceActionsLauncher({
                 <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Valor base</span><input type="number" min="0.01" step="0.01" value={revisionForm.baseAmount} onChange={(event) => setRevisionForm((current) => current ? { ...current, baseAmount: event.target.value } : current)} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
                 <label className="grid gap-1.5 text-sm font-semibold text-slate-700 md:col-span-2"><span>Descrição</span><input value={revisionForm.description} onChange={(event) => setRevisionForm((current) => current ? { ...current, description: event.target.value } : current)} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
                 <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Dia de vencimento</span><input type="number" min="1" max="31" value={revisionForm.dueDay} onChange={(event) => setRevisionForm((current) => current ? { ...current, dueDay: event.target.value } : current)} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
-                <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data final</span><input type="date" value={revisionForm.endDate} disabled={revisionForm.isOpenEnded} onChange={(event) => setRevisionForm((current) => current ? { ...current, endDate: event.target.value } : current)} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data final</span><input type="date" min={MIN_ISO_DATE} max={MAX_ISO_DATE} value={revisionForm.endDate} disabled={revisionForm.isOpenEnded} onChange={(event) => setRevisionForm((current) => current ? { ...current, endDate: coerceIsoDateInput(current.endDate, event.target.value, { allowEmpty: true }) } : current)} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
                 <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Máx. ocorrências</span><input type="number" min="1" value={revisionForm.maxOccurrences} disabled={revisionForm.isOpenEnded} onChange={(event) => setRevisionForm((current) => current ? { ...current, maxOccurrences: event.target.value } : current)} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
                 <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 md:col-span-2"><input type="checkbox" checked={revisionForm.isOpenEnded} onChange={(event) => setRevisionForm((current) => {
                   if (!current) return current;

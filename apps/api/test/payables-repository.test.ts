@@ -115,8 +115,10 @@ describe('PayablesRepository business safeguards',()=>{
     const repo=new PayablesRepository(database({query}));
     const result=await repo.addPayment({installmentId:'installment',bankAccountId:'bank',paymentMethodId:'method',paymentDate:'2026-07-22',principalAmount:150},'user-id') as {id:string;bankMovement:{id:string}};
     const movementValues=query.mock.calls[4]?.[1] as unknown[] | undefined;
+    const balanceValues=query.mock.calls[2]?.[1] as unknown[] | undefined;
     expect(result.id).toBe('payment-id');
     expect(result.bankMovement.id).toBe('movement-id');
+    expect(balanceValues).toEqual(['bank', '2026-07-22']);
     expect(movementValues?.[1]).toBe('company-id');
     expect(movementValues?.[2]).toBe('cost-center-id');
     expect(movementValues?.[3]).toBe('payment-id');
@@ -139,7 +141,33 @@ describe('PayablesRepository business safeguards',()=>{
       .mockResolvedValueOnce({rows:[{official_balance:'50.00'}],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     await expect(repo.addPayment({installmentId:'installment',bankAccountId:'bank',paymentMethodId:'method',paymentDate:'2026-07-22',principalAmount:100},'user-id'))
-      .rejects.toMatchObject({code:'INSUFFICIENT_BANK_BALANCE',statusCode:409});
+      .rejects.toMatchObject({
+        code:'INSUFFICIENT_BANK_BALANCE',
+        statusCode:409,
+        message:'Saldo insuficiente na conta bancária em 2026-07-22. Lance uma entrada com data igual ou anterior ao pagamento, ou ajuste a data real da baixa.',
+      });
+  });
+
+  it('blocks paid title financial changes only when protected values actually change', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id',company_id:'company-id',supplier_id:'supplier-id',document_number:'NF-1',document_series:null,original_amount:'2249.56',discount_amount:'0.00',additional_amount:'0.00'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    await expect(repo.updateTitle('title-id',{originalAmount:2582.70,notes:'Ajuste solicitado'},'user-id'))
+      .rejects.toMatchObject({code:'PAID_TITLE_IMMUTABLE',statusCode:409});
+  });
+
+  it('allows paid title update when protected financial values are resent unchanged', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id',company_id:'company-id',supplier_id:'supplier-id',category_id:'old-category',document_number:'NF-1',document_series:null,description:'Conta',issue_date:'2026-08-01',original_amount:'2249.56',discount_amount:'0.00',additional_amount:'0.00',notes:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'title-id',original_amount:'2249.56',notes:'Ajuste operacional'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'audit-id'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    await expect(repo.updateTitle('title-id',{originalAmount:2249.56,notes:'Ajuste operacional'},'user-id'))
+      .resolves.toMatchObject({id:'title-id',originalAmount:'2249.56'});
   });
 
   it('cancels a recurrence without touching already generated titles when the option is disabled', async () => {
@@ -637,6 +665,21 @@ describe('PayablesRepository business safeguards',()=>{
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('flags recurrence preview limited by generation window when requested count is higher than the window', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',start_date:'2026-08-17',end_date:'2027-08-17',base_amount:'2582.70',base_document_number:'REC',frequency_code:'MONTHLY',due_day:17,status_code:'ACTIVE',generated_count:'0',max_occurrences:null,generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    const result=await repo.previewRecurrenceGeneration('recurrence-id',{occurrenceCount:10},'user-id') as {total:number;limitedByGenerationWindow:boolean;maxGenerationDate:string;occurrences:{occurrenceDate:string}[]};
+
+    expect(result.total).toBe(6);
+    expect(result.limitedByGenerationWindow).toBe(true);
+    expect(result.maxGenerationDate).toBe('2027-02-16');
+    expect(result.occurrences.at(-1)?.occurrenceDate).toBe('2027-01-17');
   });
 
   it('uses the first pending recurrence date as the six-month generation window base', async()=>{

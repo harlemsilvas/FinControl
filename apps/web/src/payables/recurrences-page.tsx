@@ -4,6 +4,7 @@ import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { MAX_ISO_DATE, MIN_ISO_DATE, coerceIsoDateInput, isFourDigitIsoDate } from './date-input-utils';
 import { currency, type ListResponse } from './payables-types';
 
 type FrequencyCode = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL';
@@ -215,8 +216,11 @@ export function RecurrencesPage(): ReactElement {
     },
     onSuccess: (result) => {
       setPreview(result);
+      const requestedCount = !untilDate && occurrenceCount ? Number(occurrenceCount) : null;
       const limitMessage = result.limitedByGenerationWindow && result.maxGenerationDate
-        ? ` A data solicitada passa da janela permitida; o preview foi limitado até ${datePtBr(result.maxGenerationDate)}.`
+        ? requestedCount && result.total < requestedCount
+          ? ` Você solicitou ${requestedCount} ocorrência${requestedCount === 1 ? '' : 's'}, mas esta operação só pode pré-visualizar ${result.total} dentro da janela atual, limitada até ${datePtBr(result.maxGenerationDate)}. Gere novamente mais adiante para continuar a série.`
+          : ` A data solicitada passa da janela permitida; o preview foi limitado até ${datePtBr(result.maxGenerationDate)}.`
         : '';
       setStatusMessage(result.total > 0 ? `${result.total} ocorrência${result.total === 1 ? '' : 's'} pronta${result.total === 1 ? '' : 's'} para revisão antes da geração.${limitMessage}` : `Não há novas ocorrências dentro dos limites informados.${limitMessage}`);
     },
@@ -229,8 +233,11 @@ export function RecurrencesPage(): ReactElement {
       return response.data;
     },
     onSuccess: async (result) => {
+      const requestedCount = !untilDate && occurrenceCount ? Number(occurrenceCount) : null;
       const limitMessage = result.limitedByGenerationWindow && result.maxGenerationDate
-        ? ` A geração foi limitada até ${datePtBr(result.maxGenerationDate)}; execute nova geração mais adiante para continuar a série.`
+        ? requestedCount && result.total < requestedCount
+          ? ` Você solicitou ${requestedCount}, mas a geração ficou em ${result.total} pela janela atual, limitada até ${datePtBr(result.maxGenerationDate)}. Execute nova geração mais adiante para continuar a série.`
+          : ` A geração foi limitada até ${datePtBr(result.maxGenerationDate)}; execute nova geração mais adiante para continuar a série.`
         : '';
       setMessage(`${result.total} título${result.total === 1 ? '' : 's'} gerado${result.total === 1 ? '' : 's'} com sucesso.${limitMessage}`);
       setStatusMessage('');
@@ -339,6 +346,14 @@ export function RecurrencesPage(): ReactElement {
 
   function submit(event: FormEvent): void {
     event.preventDefault();
+    if (!isFourDigitIsoDate(form.startDate)) {
+      setCreateError('Informe a data inicial com dia, mês e ano de 4 dígitos.');
+      return;
+    }
+    if (form.endDate && !isFourDigitIsoDate(form.endDate)) {
+      setCreateError('Informe a data final com dia, mês e ano de 4 dígitos.');
+      return;
+    }
     create.mutate();
   }
 
@@ -450,8 +465,8 @@ export function RecurrencesPage(): ReactElement {
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Documento base</span><input value={form.baseDocumentNumber} onChange={(event) => setForm((current) => ({ ...current, baseDocumentNumber: event.target.value }))} placeholder="Ex.: ALUGUEL-SBC" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Valor base</span><input required type="number" min="0.01" step="0.01" value={form.baseAmount} onChange={(event) => setForm((current) => ({ ...current, baseAmount: event.target.value }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <SelectField label="Periodicidade" required value={form.frequencyCode} onChange={(value) => setForm((current) => ({ ...current, frequencyCode: value as FrequencyCode }))}>{frequencies.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</SelectField>
-            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data inicial</span><input required type="date" value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: event.target.value }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
-            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data final</span><input type="date" value={form.endDate} onChange={(event) => setForm((current) => ({ ...current, endDate: event.target.value }))} disabled={form.isOpenEnded} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
+            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data inicial</span><input required type="date" min={MIN_ISO_DATE} max={MAX_ISO_DATE} value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: coerceIsoDateInput(current.startDate, event.target.value, { allowEmpty: true }) }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data final</span><input type="date" min={MIN_ISO_DATE} max={MAX_ISO_DATE} value={form.endDate} onChange={(event) => setForm((current) => ({ ...current, endDate: coerceIsoDateInput(current.endDate, event.target.value, { allowEmpty: true }) }))} disabled={form.isOpenEnded} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Máx. ocorrências</span><input type="number" min="1" value={form.maxOccurrences} onChange={(event) => setForm((current) => ({ ...current, maxOccurrences: event.target.value }))} disabled={form.isOpenEnded} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Dia de vencimento</span><input type="number" min="1" max="31" value={form.dueDay} onChange={(event) => setForm((current) => ({ ...current, dueDay: event.target.value }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"><input type="checkbox" checked={form.isOpenEnded} onChange={(event) => setForm((current) => ({ ...current, isOpenEnded: event.target.checked, endDate: event.target.checked ? '' : current.endDate, maxOccurrences: event.target.checked ? '' : current.maxOccurrences }))} /> Sem prazo final</label>
@@ -473,7 +488,7 @@ export function RecurrencesPage(): ReactElement {
             <button type="button" className="text-2xl text-slate-400 hover:text-slate-700" onClick={() => setGenerateFor(null)}>×</button>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Gerar até</span><input type="date" value={untilDate} onChange={(event) => { setUntilDate(event.target.value); setOccurrenceCount(''); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Gerar até</span><input type="date" min={MIN_ISO_DATE} max={MAX_ISO_DATE} value={untilDate} onChange={(event) => { setUntilDate((current) => coerceIsoDateInput(current, event.target.value, { allowEmpty: true })); setOccurrenceCount(''); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Ou quantidade de ocorrências</span><input type="number" min="1" max="366" value={occurrenceCount} onChange={(event) => { setOccurrenceCount(event.target.value); setUntilDate(''); setPreview(null); }} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
           </div>
           <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900">
