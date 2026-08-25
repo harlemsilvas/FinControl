@@ -1,30 +1,42 @@
 # FinControl — Next Task
 
-**Última atualização:** 11/08/2026
-**Status:** pacote operacional validado, publicado, deployado na VPS e branches
-remotas principais sincronizadas
+**Última atualização:** 25/08/2026
+**Status:** pacote operacional de pagamentos/parcelas validado localmente,
+publicado na branch `feature/matriz-filial-xml` e com hotfixes de CI aplicados;
+deploy VPS Native deve ser retomado pelo commit `c50b1bb`
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
 ## Objetivo
 
-Retomar o desenvolvimento a partir do deploy funcional `d107d1d`, validando
-primeiro qualquer ajuste residual observado em produção e, em seguida, montar o
-próximo pacote de correções operacionais sem rodar validação completa a cada
-mudança pequena.
+Retomar o desenvolvimento a partir do pacote publicado em `c50b1bb`, validando
+primeiro o deploy controlado na VPS e, em seguida, continuar os ajustes
+operacionais observados no uso real sem rodar validação completa a cada mudança
+pequena.
 
 ## Ponto de retomada imediato
 
 - Branch de trabalho: `feature/matriz-filial-xml`.
-- Último commit da branch: `85a131a docs: update project readme`.
-- Último deploy funcional na VPS: `d107d1d fix(payables): refine operational
-  payment and xml flows`.
-- Workflow de deploy: `Deploy VPS Native`, run `31543548787`, concluído com
-  sucesso.
+- Último commit da branch: `c50b1bb test(web): wait for bank account select
+  values`.
+- Último pacote funcional do dia: `e0bbb38 fix(payables): refine payment
+  reversals and installment editing`.
+- Hotfixes de CI aplicados após o pacote funcional:
+  - `b96ffbe test(api): type payment list assertions`;
+  - `c811f36 fix(web): type occurrence change handler`;
+  - `c50b1bb test(web): wait for bank account select values`.
+- Deploy VPS Native iniciado, mas o preflight encontrou falhas de lint/testes
+  já corrigidas nos hotfixes acima.
+- Próxima ação operacional: repetir o workflow `Deploy VPS Native` usando:
+  - `deploy_ref`: `c50b1bb`;
+  - `run_checks`: `true`;
+  - `confirmation`: `DEPLOY`.
+- Último deploy funcional conhecido na VPS antes deste pacote: `d107d1d
+  fix(payables): refine operational payment and xml flows`.
 - Branches remotas sincronizadas em 11/08/2026:
   - `main`: `cc7c295`;
   - `agent/phases-5-11`: `005808c`;
-  - `feature/matriz-filial-xml`: `85a131a`.
+  - `feature/matriz-filial-xml`: atualizada depois para `c50b1bb`.
 - CI das branches sincronizadas concluído com sucesso:
   - `31544491973 main`: sucesso;
   - `31544627105 agent/phases-5-11`: sucesso;
@@ -40,16 +52,23 @@ mudança pequena.
 
 ## Próxima tarefa executável
 
-1. Abrir o sistema local ou VPS e confirmar se existe algum erro residual do
-   pacote `d107d1d`.
-2. Se houver erro funcional, tratar primeiro o menor ajuste reproduzível.
-3. Se não houver erro bloqueante, escolher o próximo pacote pequeno de melhoria
+1. Reexecutar o workflow `Deploy VPS Native` com `deploy_ref=c50b1bb`.
+2. Se o preflight passar, validar na VPS os fluxos alterados:
+   - estornar pagamento e confirmar que a parcela volta para a agenda/baixa;
+   - confirmar que pagamentos estornados não aparecem no histórico padrão de
+     `Pagamentos realizados`, salvo filtro explícito;
+   - editar uma nota importada com parcela única e dividi-la em duas ou mais
+     parcelas quando ainda não houver pagamento efetivo;
+   - baixar pagamento usando saldo histórico da data correta;
+   - criar recorrência digitando datas manualmente.
+3. Se houver erro funcional, tratar primeiro o menor ajuste reproduzível.
+4. Se não houver erro bloqueante, escolher o próximo pacote pequeno de melhoria
    entre:
    - padronização de mensagens/toasts próprios do FinControl;
    - revisão de cache/versionamento visível pós-deploy em uso real;
    - refinamentos restantes em Baixa de Pagamentos e Agenda;
    - próxima frente funcional planejada após o pacote operacional.
-4. Rodar `./Checar_alteracao.sh` apenas quando o pacote estiver completo ou
+5. Rodar `./Checar_alteracao.sh` apenas quando o pacote estiver completo ou
    quando explicitamente solicitado.
 
 ## Escopo desta tarefa

@@ -2,10 +2,11 @@
 
 **Código:** DOC-11  
 **Versão:** 0.4  
-**Data:** 11/08/2026
-**Status atual:** sistema além da Fase 16, com deploy VPS validado em
-`d107d1d`, README atualizado e branches remotas principais sincronizadas com a
-linha funcional `feature/matriz-filial-xml`
+**Data:** 25/08/2026
+**Status atual:** sistema além da Fase 16, com deploy VPS validado anteriormente
+em `d107d1d` e novo pacote operacional publicado em
+`c50b1bb` na branch `feature/matriz-filial-xml`, aguardando repetição do
+`Deploy VPS Native`
 
 ## 1. Objetivo deste arquivo
 
@@ -75,6 +76,56 @@ Este documento registra o estado consolidado do projeto sem substituir:
   - criação e exportação de backup são registradas em auditoria.
 
 ## 3. Avanços além da Fase 16
+
+### Encerramento operacional em 25/08/2026
+
+Estado consolidado ao final da sessão:
+
+- pacote funcional publicado em
+  `e0bbb38 fix(payables): refine payment reversals and installment editing`;
+- hotfixes de CI publicados na mesma branch:
+  - `b96ffbe test(api): type payment list assertions`;
+  - `c811f36 fix(web): type occurrence change handler`;
+  - `c50b1bb test(web): wait for bank account select values`;
+- branch `feature/matriz-filial-xml` enviada ao GitHub apontando para
+  `c50b1bb`;
+- arquivos locais não versionados foram preservados fora dos commits:
+  `diagrams/`, `docs/Erros_Correcoes/`,
+  `docs/architecture-decisions/00.1-Decisoes-de-Arquitetura.md`,
+  `docs/history/PROJECT_HISTORY.md`, `docs/tabelas_fin_control.xlsx` e
+  `docs/wireframes/Tela-Agenda.jpg`;
+- próxima ação recomendada: repetir o workflow `Deploy VPS Native` com
+  `deploy_ref=c50b1bb`, `run_checks=true` e `confirmation=DEPLOY`.
+
+Correções funcionais consolidadas neste pacote:
+
+- estorno de pagamento passa a recalcular saldo da parcela e status do título,
+  permitindo que a parcela volte corretamente para a agenda/baixa;
+- histórico `Pagamentos realizados` passa a listar por padrão apenas pagamentos
+  efetivos, com filtro explícito para `Estornados` ou `Todos`;
+- datas de recorrência usam entrada mascarada `dd/mm/aaaa`, evitando falhas do
+  `input type=date` ao digitar manualmente;
+- criação manual de conta volta a permitir informar tipo de cobrança, número de
+  parcelas e dia de vencimento;
+- baixa de pagamento ganhou atalho para lançar `Entrada de caixa` já preenchida
+  na data do pagamento quando faltar saldo histórico;
+- edição de parcelas ganhou sincronização atômica no backend, permitindo
+  dividir uma nota/parcela importada em múltiplas parcelas quando não há
+  pagamento efetivo bloqueante;
+- parcelas com pagamento efetivo continuam protegidas para preservar auditoria
+  financeira.
+
+Validações focadas executadas e aprovadas durante o fechamento:
+
+- `npm test --workspace @fincontrol/api -- payables-repository.test.ts`;
+- `npm test --workspace @fincontrol/web -- payable-form-page.test.tsx`;
+- `npm test --workspace @fincontrol/web -- payments-page.test.tsx`;
+- `npm test --workspace @fincontrol/web -- master-data-page.test.tsx`;
+- `npm run typecheck --workspace @fincontrol/api`;
+- `npm run typecheck --workspace @fincontrol/web`;
+- `npm run lint --workspace @fincontrol/api -- test/payables-repository.test.ts`;
+- `npm run lint --workspace @fincontrol/web`;
+- `git diff --check`.
 
 ### Encerramento operacional em 11/08/2026
 
