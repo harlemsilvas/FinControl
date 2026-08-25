@@ -379,7 +379,8 @@ describe('PayablesRepository business safeguards',()=>{
     const repo=new PayablesRepository(database({query:defaultQuery}));
     await repo.listPayments(1,20,{});
     expect(defaultQuery.mock.calls[0]?.[0]).toContain('ps.code=$1');
-    expect(defaultQuery.mock.calls[0]?.[1]?.[0]).toBe('EFFECTIVE');
+    const defaultParams = defaultQuery.mock.calls[0]?.[1] as unknown[] | undefined;
+    expect(defaultParams?.[0]).toBe('EFFECTIVE');
 
     const allQuery=vi.fn()
       .mockResolvedValueOnce({rows:[{total:'0',total_movement_amount:'0'}],rowCount:1})
@@ -387,7 +388,8 @@ describe('PayablesRepository business safeguards',()=>{
     const allRepo=new PayablesRepository(database({query:allQuery}));
     await allRepo.listPayments(1,20,{status:'ALL'});
     expect(allQuery.mock.calls[0]?.[0]).not.toContain('ps.code=$1');
-    expect(allQuery.mock.calls[0]?.[1]?.[0]).toBe(20);
+    const allParams = allQuery.mock.calls[0]?.[1] as unknown[] | undefined;
+    expect(allParams?.[0]).toBe(20);
   });
 
   it('hides terminal recurrence titles by default and exposes them through an explicit filter', async()=>{
