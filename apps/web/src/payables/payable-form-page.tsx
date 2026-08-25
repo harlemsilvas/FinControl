@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-base-to-string */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactElement } from 'react';
 import { Controller, useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
@@ -599,7 +599,7 @@ export function PayableFormPage(): ReactElement {
                       <select
                         className={inputClass}
                         {...register('occurrenceType', {
-                          onChange: (event) => {
+                          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
                             if (event.target.value === 'SINGLE') setValue('installmentCount', 1, { shouldValidate: true });
                           },
                         })}
