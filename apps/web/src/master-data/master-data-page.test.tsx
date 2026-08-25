@@ -92,7 +92,7 @@ describe('MasterDataPage navigation state', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Editar Conta bancária' });
     await waitFor(() => expect(wasRequested('/api/v1/bank-accounts/bank-account-id')).toBe(true));
-    expect(within(dialog).getByLabelText('Empresa')).toHaveValue('company-id');
-    expect(within(dialog).getByLabelText('Banco')).toHaveValue('bank-id');
+    await waitFor(() => expect(within(dialog).getByLabelText('Empresa')).toHaveValue('company-id'));
+    await waitFor(() => expect(within(dialog).getByLabelText('Banco')).toHaveValue('bank-id'));
   });
 });
