@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
       });
     }
     if (url === '/api/v1/bank-account-balances') {
+      const balance = config?.params?.asOfDate === '2026-07-10' ? '0.00' : '1000.00';
       return Promise.resolve({
         data: {
           data: [{
@@ -47,7 +48,7 @@ const mocks = vi.hoisted(() => ({
             bankName: 'Banco Teste',
             companyId: 'company-id',
             companyName: 'ABC Center',
-            officialBalance: '1000.00',
+            officialBalance: balance,
           }],
           page: 1,
           pageSize: 100,
@@ -189,7 +190,7 @@ describe('PaymentsPage', () => {
     await waitFor(() => expect(screen.getAllByText(/R\$\s*403,06/).length).toBeGreaterThan(1));
     expect((await screen.findAllByText('CIA BRASILEIRA DIST AUTO S.A')).length).toBeGreaterThan(0);
     await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
-    await waitFor(() => expect(paymentHistoryParams()).toMatchObject({ page: 1, pageSize: 20 }));
+    await waitFor(() => expect(paymentHistoryParams()).toMatchObject({ page: 1, pageSize: 20, status: 'EFFECTIVE' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Baixar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Baixar parcela' });
@@ -231,12 +232,12 @@ describe('PaymentsPage', () => {
     renderPage();
 
     await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
+    await waitFor(() => expect(paymentHistoryParams()?.status).toBe('EFFECTIVE'));
     mocks.get.mockClear();
 
     fireEvent.change(screen.getByLabelText('Filtrar por status'), { target: { value: 'PAID' } });
 
     expect(await screen.findByText('Pagamentos já efetuados aparecem no histórico abaixo, com detalhe, comprovante e estorno.')).toBeInTheDocument();
-    await waitFor(() => expect(paymentHistoryParams()?.status).toBe('EFFECTIVE'));
     expect(mocks.get.mock.calls.some(([url]) => url === '/api/v1/payable-installments/eligible-for-payment')).toBe(false);
   });
 
@@ -323,6 +324,26 @@ describe('PaymentsPage', () => {
     })));
   });
 
+  it('opens a cash entry prefilled for the payment date when historical balance is insufficient', async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Baixar' }));
+    const paymentDialog = await screen.findByRole('dialog', { name: 'Baixar parcela' });
+
+    await waitFor(() => expect(within(paymentDialog).getByLabelText('Conta bancária')).toHaveTextContent('Conta Matriz'));
+    fireEvent.change(within(paymentDialog).getByLabelText('Conta bancária'), { target: { value: 'bank-account-id' } });
+    fireEvent.change(within(paymentDialog).getByLabelText('Data do pagamento'), { target: { value: '2026-07-10' } });
+
+    expect(await within(paymentDialog).findByText(/Saldo insuficiente na conta bancária em 10\/07\/2026/i)).toBeInTheDocument();
+    fireEvent.click(within(paymentDialog).getByRole('button', { name: 'Lançar entrada nessa data' }));
+
+    const cashDialog = await screen.findByRole('dialog', { name: 'Entrada de caixa' });
+    expect(within(cashDialog).getByLabelText('Conta para entrada de caixa')).toHaveValue('bank-account-id');
+    expect(within(cashDialog).getByLabelText('Data da entrada de caixa')).toHaveValue('2026-07-10');
+    expect(within(cashDialog).getByLabelText('Referência da entrada de caixa')).toHaveValue('Entrada para baixa em 10/07/2026');
+    expect(within(cashDialog).getByLabelText('Observações da entrada de caixa')).toHaveValue('Entrada operacional lançada na data da baixa para recompor o saldo histórico da conta.');
+  });
+
   it('opens payment history reversal dialog and posts the reason', async () => {
     renderPage();
 
@@ -333,6 +354,22 @@ describe('PaymentsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar estorno' }));
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/payments/payment-id/reverse', { reason: 'Pagamento lançado em duplicidade' }));
+  });
+
+  it('keeps reversed payments available only through the explicit history filter', async () => {
+    renderPage();
+
+    expect(await screen.findByText('Pagamentos realizados')).toBeInTheDocument();
+    expect(screen.getByLabelText('Status do histórico de pagamentos')).toHaveValue('EFFECTIVE');
+    await waitFor(() => expect(paymentHistoryParams()?.status).toBe('EFFECTIVE'));
+
+    fireEvent.change(screen.getByLabelText('Status do histórico de pagamentos'), { target: { value: 'REVERSED' } });
+
+    await waitFor(() => expect(paymentHistoryParams()?.status).toBe('REVERSED'));
+
+    fireEvent.change(screen.getByLabelText('Status do histórico de pagamentos'), { target: { value: 'ALL' } });
+
+    await waitFor(() => expect(paymentHistoryParams()?.status).toBe('ALL'));
   });
 
   it('keeps payment status separated from the paid amount in history rows', async () => {

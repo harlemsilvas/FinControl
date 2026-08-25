@@ -3,13 +3,14 @@ import type { Database, QueryExecutor } from '../../infrastructure/database/data
 import type { StoredAttachment } from '../../infrastructure/storage/attachment-storage.js';
 
 export interface InstallmentInput { installmentNumber: number; installmentCount: number; amount: number; dueDate: string; paymentMethodId: string; notes?: string | null }
+export interface InstallmentSyncInput extends InstallmentInput { id?: string | null }
 export interface TitleInput { companyId: string; supplierId: string; categoryId: string; documentTypeId: string; paymentTermId?: string | null; costCenterId?: string | null;
   documentNumber: string; documentSeries?: string | null; description: string; originCode?: string; issueDate: string; originalAmount: number;
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string; companyId?: string; recurrenceStatus?: 'OPERATIONAL' | 'TERMINAL' | 'ALL' }
 export interface XmlImportListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
 export interface PaymentEligibleInstallmentFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; companyId?: string; payableTitleId?: string; installmentId?: string }
-export interface PaymentListFilters { search?: string; status?: string; paidFrom?: string; paidTo?: string; supplierId?: string; companyId?: string }
+export interface PaymentListFilters { search?: string; status?: 'EFFECTIVE' | 'REVERSED' | 'ALL'; paidFrom?: string; paidTo?: string; supplierId?: string; companyId?: string }
 export interface PaymentInput { installmentId: string; batchId?: string | null; bankAccountId: string; paymentMethodId: string; paymentDate: string; principalAmount: number; interestAmount?: number; penaltyAmount?: number; discountAmount?: number; additionalAmount?: number; transactionNumber?: string | null; overpaymentConfirmed?: boolean }
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
 export interface XmlImportGenerateInput { categoryId?: string | null; documentTypeId?: string | null; paymentMethodId?: string | null; paymentTermId?: string | null; costCenterId?: string | null; description?: string | null; duplicateConfirmed?: boolean }
@@ -601,7 +602,8 @@ export class PayablesRepository {
       values.push(`%${filters.search}%`);
       conditions.push(`(t.document_number ILIKE $${values.length} OR t.description ILIKE $${values.length} OR s.legal_name ILIKE $${values.length} OR p.transaction_number ILIKE $${values.length})`);
     }
-    if (filters.status) { values.push(filters.status); conditions.push(`ps.code=$${values.length}`); }
+    const status = filters.status ?? 'EFFECTIVE';
+    if (status !== 'ALL') { values.push(status); conditions.push(`ps.code=$${values.length}`); }
     if (filters.paidFrom) { values.push(filters.paidFrom); conditions.push(`p.payment_date >= $${values.length}::date`); }
     if (filters.paidTo) { values.push(filters.paidTo); conditions.push(`p.payment_date <= $${values.length}::date`); }
     if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
@@ -772,6 +774,51 @@ export class PayablesRepository {
     });
   }
 
+  async syncInstallments(titleId: string, items: InstallmentSyncInput[], userId: string): Promise<object> {
+    return this.database.transaction(async (tx) => {
+      const title = await tx.query(`SELECT id FROM financeiro.payable_titles WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, [titleId]);
+      if (!title.rowCount) throw new ApplicationError({ code:'RESOURCE_NOT_FOUND',message:'Title not found',statusCode:404 });
+      const existing = await tx.query<{id:string;installment_number:number;amount:string;due_date:string|Date;payment_method_id:string;has_effective_payment:boolean}&Record<string,unknown>>(`SELECT i.*,EXISTS(
+          SELECT 1 FROM financeiro.payments p LEFT JOIN financeiro.payment_reversals r ON r.payment_id=p.id
+          WHERE p.payable_installment_id=i.id AND r.id IS NULL
+        ) has_effective_payment
+        FROM financeiro.payable_installments i
+        WHERE i.payable_title_id=$1 AND i.deleted_at IS NULL
+        ORDER BY i.installment_number FOR UPDATE`, [titleId]);
+      const byId = new Map(existing.rows.map((row) => [row.id, row]));
+      const touched = new Set<string>();
+      const rows: Record<string, unknown>[] = [];
+      for (const item of items) {
+        const current = item.id ? byId.get(item.id) : undefined;
+        if (current?.has_effective_payment) {
+          const changed = cents(Number(current.amount)) !== cents(item.amount) || dateString(current.due_date) !== item.dueDate || current.payment_method_id !== item.paymentMethodId;
+          if (changed) throw new ApplicationError({ code:'PAID_INSTALLMENT_IMMUTABLE',message:'Esta parcela já possui pagamento efetivo. Estorne o pagamento antes de alterar vencimento, valor ou forma de pagamento.',statusCode:409 });
+          const updated = await tx.query(`UPDATE financeiro.payable_installments SET installment_number=$2,installment_count=$3,updated_by=$4 WHERE id=$1 RETURNING *`, [current.id,item.installmentNumber,item.installmentCount,userId]);
+          touched.add(current.id); rows.push(api(updated.rows[0]!)); continue;
+        }
+        if (current) {
+          const updated = await tx.query(`UPDATE financeiro.payable_installments SET installment_number=$2,installment_count=$3,amount=$4,open_balance=$4,due_date=$5,payment_method_id=$6,notes=$7,status_id=(SELECT id FROM financeiro.payable_installment_statuses WHERE code=CASE WHEN $5::date<CURRENT_DATE THEN 'OVERDUE' ELSE 'OPEN' END),updated_by=$8 WHERE id=$1 RETURNING *`,
+            [current.id,item.installmentNumber,item.installmentCount,item.amount,item.dueDate,item.paymentMethodId,item.notes ?? null,userId]);
+          touched.add(current.id); rows.push(api(updated.rows[0]!)); continue;
+        }
+        const inserted = await tx.query(`INSERT INTO financeiro.payable_installments
+          (payable_title_id,installment_number,installment_count,amount,due_date,payment_method_id,open_balance,status_id,notes,created_by,updated_by)
+          VALUES ($1,$2,$3,$4,$5,$6,$4,(SELECT id FROM financeiro.payable_installment_statuses WHERE code=CASE WHEN $5::date<CURRENT_DATE THEN 'OVERDUE' ELSE 'OPEN' END),$7,$8,$8)
+          RETURNING *`, [titleId,item.installmentNumber,item.installmentCount,item.amount,item.dueDate,item.paymentMethodId,item.notes ?? null,userId]);
+        touched.add(inserted.rows[0]!.id as string); rows.push(api(inserted.rows[0]!));
+      }
+      for (const current of existing.rows) {
+        if (touched.has(current.id)) continue;
+        if (current.has_effective_payment) throw new ApplicationError({ code:'PAID_INSTALLMENT_IMMUTABLE',message:'Esta parcela já possui pagamento efetivo e não pode ser removida.',statusCode:409 });
+        await tx.query(`UPDATE financeiro.payable_installments SET deleted_at=CURRENT_TIMESTAMP,deleted_by=$2,updated_by=$2 WHERE id=$1`, [current.id,userId]);
+      }
+      const valid=await tx.query<{ is_valid:boolean } & Record<string,unknown>>(`SELECT is_valid FROM financeiro.validate_title_installments($1)`,[titleId]);
+      if(!valid.rows[0]?.is_valid) throw new ApplicationError({code:'INSTALLMENT_TOTAL_MISMATCH',message:'Installments must equal the title total',statusCode:400});
+      await tx.query(`SELECT financeiro.recalculate_title_status($1::uuid)`,[titleId]);
+      await this.audit(tx,'PAYABLE_TITLE',titleId,'INSTALLMENTS_SYNCED',userId,null,{installments:rows}); return { installments: rows };
+    });
+  }
+
   async cancelTitle(id:string,reason:string,userId:string):Promise<void>{ await this.database.transaction(async(tx)=>this.cancelTitleInTransaction(tx,id,reason,userId)); }
 
   private async cancelTitleInTransaction(tx: QueryExecutor, id: string, reason: string, userId: string): Promise<void> {
@@ -812,12 +859,18 @@ export class PayablesRepository {
     await this.audit(tx,'PAYMENT',row.id as string,'CREATED',userId,null,next); return next;});}
 
   async reversePayment(id:string,reason:string,userId:string):Promise<object>{return this.database.transaction(async(tx)=>{
-    const payment=await tx.query<{id:string;status_code:string}&Record<string,unknown>>(`SELECT p.*,ps.code status_code FROM financeiro.payments p JOIN financeiro.payment_statuses ps ON ps.id=p.status_id WHERE p.id=$1 FOR UPDATE`,[id]);
+    const payment=await tx.query<{id:string;payable_installment_id:string;payable_title_id:string;status_code:string}&Record<string,unknown>>(`SELECT p.*,ps.code status_code,i.payable_title_id
+      FROM financeiro.payments p
+      JOIN financeiro.payment_statuses ps ON ps.id=p.status_id
+      JOIN financeiro.payable_installments i ON i.id=p.payable_installment_id
+      WHERE p.id=$1 FOR UPDATE`,[id]);
     const current=payment.rows[0]; if(!current) throw new ApplicationError({code:'RESOURCE_NOT_FOUND',message:'Payment not found',statusCode:404});
     const already=await tx.query(`SELECT 1 FROM financeiro.payment_reversals WHERE payment_id=$1 LIMIT 1`,[id]);
     if(already.rowCount) throw new ApplicationError({code:'PAYMENT_ALREADY_REVERSED',message:'Payment was already reversed',statusCode:409});
     const result=await tx.query(`INSERT INTO financeiro.payment_reversals(payment_id,reason,reversed_by) VALUES($1,$2,$3) RETURNING *`,[id,reason,userId]);
     await tx.query(`UPDATE financeiro.payments SET status_id=(SELECT id FROM financeiro.payment_statuses WHERE code='REVERSED'),updated_by=$2 WHERE id=$1`,[id,userId]);
+    await tx.query(`SELECT financeiro.recalculate_installment_balance($1::uuid)`,[current.payable_installment_id]);
+    await tx.query(`SELECT financeiro.recalculate_title_status($1::uuid)`,[current.payable_title_id]);
     const reversedMovements=await this.reversePaymentBankMovements(tx,id,reason,userId);
     const row=result.rows[0]!; await this.audit(tx,'PAYMENT',id,'REVERSED',userId,api(current),{reason,reversedMovements}); return {...api(row),reversedMovements};});}
 

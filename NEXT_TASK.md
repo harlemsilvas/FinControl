@@ -680,6 +680,72 @@ mudança pequena.
   - `npm run typecheck --workspace @fincontrol/web`: aprovado;
   - `npm run lint --workspace @fincontrol/api`: aprovado;
   - `npm run lint --workspace @fincontrol/web`: aprovado.
+- Correção local em 25/08/2026 para estorno de pagamentos:
+  - estorno de pagamento passa a reforçar explicitamente o recálculo de saldo e
+    status da parcela e do título após marcar o pagamento como `REVERSED`;
+  - a parcela estornada deve voltar para a fila de `Baixa de Pagamentos` quando
+    ainda houver saldo aberto;
+  - o histórico `Pagamentos realizados` passa a consultar `Pagamentos efetivos`
+    por padrão, mantendo `Estornados` e `Todos` como filtros explícitos para
+    auditoria;
+  - refinamento posterior: a API de `GET /api/v1/payments` também assume
+    `EFFECTIVE` por padrão quando `status` não é informado, evitando que
+    frontend/cache/chamadas antigas misturem estornados na visão operacional;
+    a opção `Todos` passa a enviar `status=ALL` explicitamente;
+  - testes focados foram atualizados para cobrir recálculo no estorno e filtro
+    explícito de histórico;
+  - `node_modules` local foi restaurado com `npm ci`, corrigindo links
+    quebrados de `vitest` e `tsc`;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/api -- payables-repository.test.ts`
+    aprovado, 47 testes;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/web -- payments-page.test.tsx`
+    aprovado, 13 testes;
+  - validação focada anterior:
+    `npm test --workspace @fincontrol/web -- payments-page.test.tsx recurrences-page.test.tsx payable-form-page.test.tsx`
+    aprovado, 25 testes;
+  - `npm run typecheck --workspace @fincontrol/api` e
+    `npm run typecheck --workspace @fincontrol/web` aprovados.
+- Correções locais em 25/08/2026 para formulários financeiros:
+  - campos `Data inicial` e `Data final` da criação de recorrência deixaram de
+    usar `type="date"` controlado, que apagava a digitação em alguns
+    navegadores, e passaram a usar máscara `dd/mm/aaaa` com conversão interna
+    para ISO somente quando a data está completa e válida;
+  - tela `Nova Conta a Pagar` recuperou o controle de parcelamento na aba
+    `Dados da Conta`, com `Tipo de cobrança`, `Nº de parcelas` e
+    `Dia de vencimento`;
+  - geração automática de parcelas na criação manual volta a responder à
+    alteração da quantidade mesmo quando já existe mais de uma parcela
+    preparada.
+- Refinamento local em 25/08/2026 para saldo histórico na baixa:
+  - mantida a regra de saldo temporal: pagamento com data retroativa só pode
+    usar saldo existente naquela data ou antes;
+  - quando a baixa encontra saldo insuficiente na data informada, a tela passa
+    a oferecer o atalho `Lançar entrada nessa data`, abrindo `Entrada de caixa`
+    já com conta bancária, data do pagamento, referência e observação
+    preenchidas;
+  - selects de `Entrada de caixa` e `Saldo inicial` passam a exibir
+    `saldo atual`, diferenciando esse saldo do saldo histórico usado na baixa;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/web -- payments-page.test.tsx`
+    aprovado, 14 testes.
+- Correção local em 25/08/2026 para edição de quantidade de parcelas:
+  - títulos já salvos, inclusive gerados de XML sem boletos detalhados, passam
+    a permitir adicionar parcelas na aba `Parcelas`;
+  - a persistência das parcelas em edição passou a usar sincronização atômica no
+    backend, evitando erro intermediário de soma quando uma parcela original é
+    dividida em duas ou mais;
+  - parcelas com pagamento efetivo continuam protegidas contra alteração de
+    valor, vencimento e forma de pagamento;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/api -- payables-repository.test.ts`
+    aprovado, 48 testes;
+  - validação focada executada:
+    `npm test --workspace @fincontrol/web -- payable-form-page.test.tsx`
+    aprovado, 6 testes;
+  - `npm run typecheck --workspace @fincontrol/api` e
+    `npm run typecheck --workspace @fincontrol/web` aprovados.
 
 ## Critério de conclusão
 

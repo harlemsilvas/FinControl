@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useMemo, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
@@ -106,6 +106,24 @@ function datePtBr(value?: string | null): string {
   return year && month && day ? `${day}/${month}/${year}` : '-';
 }
 
+function isoFromPtBrDate(value: string): string | null {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+  if (!match) return null;
+  const day = match[1] ?? '';
+  const month = match[2] ?? '';
+  const year = match[3] ?? '';
+  const iso = `${year}-${month}-${day}`;
+  return isFourDigitIsoDate(iso) ? iso : null;
+}
+
+function maskPtBrDate(value: string): string {
+  const iso = isFourDigitIsoDate(value) ? datePtBr(value) : value;
+  const digits = iso.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 function frequencyLabel(value: FrequencyCode): string {
   return frequencies.find((item) => item.value === value)?.label ?? value;
 }
@@ -119,6 +137,50 @@ function errorMessage(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
+}
+
+function PtBrDateInput({
+  value,
+  onChange,
+  required = false,
+  disabled = false,
+  className = '',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  disabled?: boolean;
+  className?: string;
+}): ReactElement {
+  const [text, setText] = useState(value ? datePtBr(value) : '');
+
+  useEffect(() => {
+    setText(value ? datePtBr(value) : '');
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder="dd/mm/aaaa"
+      maxLength={10}
+      required={required}
+      disabled={disabled}
+      value={text}
+      onChange={(event) => {
+        const nextText = maskPtBrDate(event.target.value);
+        setText(nextText);
+        if (!nextText) onChange('');
+        const iso = isoFromPtBrDate(nextText);
+        if (iso) onChange(iso);
+      }}
+      onBlur={() => {
+        if (!text || isoFromPtBrDate(text)) return;
+        setText(value ? datePtBr(value) : '');
+      }}
+      className={className}
+    />
+  );
 }
 
 function useLookup(path: string, enabled = true): UseQueryResult<LookupItem[]> {
@@ -465,8 +527,8 @@ export function RecurrencesPage(): ReactElement {
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Documento base</span><input value={form.baseDocumentNumber} onChange={(event) => setForm((current) => ({ ...current, baseDocumentNumber: event.target.value }))} placeholder="Ex.: ALUGUEL-SBC" className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Valor base</span><input required type="number" min="0.01" step="0.01" value={form.baseAmount} onChange={(event) => setForm((current) => ({ ...current, baseAmount: event.target.value }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <SelectField label="Periodicidade" required value={form.frequencyCode} onChange={(value) => setForm((current) => ({ ...current, frequencyCode: value as FrequencyCode }))}>{frequencies.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</SelectField>
-            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data inicial</span><input required type="date" min={MIN_ISO_DATE} max={MAX_ISO_DATE} value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: coerceIsoDateInput(current.startDate, event.target.value, { allowEmpty: true }) }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
-            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data final</span><input type="date" min={MIN_ISO_DATE} max={MAX_ISO_DATE} value={form.endDate} onChange={(event) => setForm((current) => ({ ...current, endDate: coerceIsoDateInput(current.endDate, event.target.value, { allowEmpty: true }) }))} disabled={form.isOpenEnded} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
+            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data inicial</span><PtBrDateInput required value={form.startDate} onChange={(value) => setForm((current) => ({ ...current, startDate: value }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
+            <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Data final</span><PtBrDateInput value={form.endDate} onChange={(value) => setForm((current) => ({ ...current, endDate: value }))} disabled={form.isOpenEnded} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Máx. ocorrências</span><input type="number" min="1" value={form.maxOccurrences} onChange={(event) => setForm((current) => ({ ...current, maxOccurrences: event.target.value }))} disabled={form.isOpenEnded} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100" /></label>
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700"><span>Dia de vencimento</span><input type="number" min="1" max="31" value={form.dueDay} onChange={(event) => setForm((current) => ({ ...current, dueDay: event.target.value }))} className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
             <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700"><input type="checkbox" checked={form.isOpenEnded} onChange={(event) => setForm((current) => ({ ...current, isOpenEnded: event.target.checked, endDate: event.target.checked ? '' : current.endDate, maxOccurrences: event.target.checked ? '' : current.maxOccurrences }))} /> Sem prazo final</label>

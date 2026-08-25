@@ -310,11 +310,13 @@ describe('PayablesRepository business safeguards',()=>{
     expect(query.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes("UPDATE financeiro.payable_recurrences SET status_id=(SELECT id FROM financeiro.payable_recurrence_statuses WHERE code='CANCELLED')"))).toBe(true);
   });
 
-  it('reverses payment and creates a compensating bank movement',async()=>{
+  it('reverses payment, recalculates the payable and creates a compensating bank movement',async()=>{
     const query=vi.fn()
-      .mockResolvedValueOnce({rows:[{id:'payment-id',status_code:'EFFECTIVE'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'payment-id',payable_installment_id:'installment-id',payable_title_id:'title-id',status_code:'EFFECTIVE'}],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:0})
       .mockResolvedValueOnce({rows:[{id:'reversal-id',payment_id:'payment-id'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:1})
       .mockResolvedValueOnce({rows:[{id:'movement-id',bank_account_id:'bank',company_id:'company-id',cost_center_id:null,direction:'OUT',amount:'150.00',movement_date:'2026-07-22',description:'Pagamento',reference_number:null}],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:0})
@@ -323,9 +325,13 @@ describe('PayablesRepository business safeguards',()=>{
       .mockResolvedValueOnce({rows:[],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     const result=await repo.reversePayment('payment-id','Pagamento duplicado','user-id') as {id:string;reversedMovements:{id:string}[]};
-    const reversalValues=query.mock.calls[6]?.[1] as unknown[] | undefined;
+    const reversalValues=query.mock.calls[8]?.[1] as unknown[] | undefined;
     expect(result.id).toBe('reversal-id');
     expect(result.reversedMovements[0]?.id).toBe('movement-reversal-id');
+    expect(query.mock.calls[4]?.[0]).toContain('financeiro.recalculate_installment_balance');
+    expect(query.mock.calls[4]?.[1]).toEqual(['installment-id']);
+    expect(query.mock.calls[5]?.[0]).toContain('financeiro.recalculate_title_status');
+    expect(query.mock.calls[5]?.[1]).toEqual(['title-id']);
     expect(reversalValues?.[5]).toBe('IN');
     expect(reversalValues?.[6]).toBe(150);
   });
@@ -344,6 +350,44 @@ describe('PayablesRepository business safeguards',()=>{
     expect(result.data[0]?.movementAmount).toBe('403.06');
     expect(query.mock.calls[0]?.[0]).toContain('COALESCE(SUM(p.movement_amount),0)::text total_movement_amount');
     expect(query.mock.calls[1]?.[0]).toContain('LEFT JOIN financeiro.payment_reversals');
+  });
+
+  it('syncs open installments atomically so a saved title can be split into more parcels', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'inst-1',installment_number:1,amount:'213.20',due_date:'2026-08-18',payment_method_id:'payment-method-id',has_effective_payment:false}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'inst-1',installment_number:1,installment_count:2,amount:'106.60'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'inst-2',installment_number:2,installment_count:2,amount:'106.60'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{is_valid:true}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.syncInstallments('title-id',[
+      {id:'inst-1',installmentNumber:1,installmentCount:2,amount:106.60,dueDate:'2026-08-18',paymentMethodId:'payment-method-id'},
+      {installmentNumber:2,installmentCount:2,amount:106.60,dueDate:'2026-09-18',paymentMethodId:'payment-method-id'},
+    ],'user-id') as {installments:{id:string}[]};
+    expect(result.installments.map(item=>item.id)).toEqual(['inst-1','inst-2']);
+    expect(query.mock.calls[2]?.[0]).toContain('UPDATE financeiro.payable_installments');
+    expect(query.mock.calls[3]?.[0]).toContain('INSERT INTO financeiro.payable_installments');
+    expect(query.mock.calls[4]?.[0]).toContain('validate_title_installments');
+  });
+
+  it('lists only effective payments by default and requires ALL for full audit history', async()=>{
+    const defaultQuery=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'0',total_movement_amount:'0'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query:defaultQuery}));
+    await repo.listPayments(1,20,{});
+    expect(defaultQuery.mock.calls[0]?.[0]).toContain('ps.code=$1');
+    expect(defaultQuery.mock.calls[0]?.[1]?.[0]).toBe('EFFECTIVE');
+
+    const allQuery=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'0',total_movement_amount:'0'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0});
+    const allRepo=new PayablesRepository(database({query:allQuery}));
+    await allRepo.listPayments(1,20,{status:'ALL'});
+    expect(allQuery.mock.calls[0]?.[0]).not.toContain('ps.code=$1');
+    expect(allQuery.mock.calls[0]?.[1]?.[0]).toBe(20);
   });
 
   it('hides terminal recurrence titles by default and exposes them through an explicit filter', async()=>{

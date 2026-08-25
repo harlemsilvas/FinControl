@@ -346,7 +346,6 @@ export function PayableFormPage(): ReactElement {
 
   useEffect(() => {
     if (editing) return;
-    if (installmentValues.length > 1) return;
 
     const nextInstallments = buildInstallments({
       total,
@@ -385,17 +384,17 @@ export function PayableFormPage(): ReactElement {
           notes: values.notes || null
         });
 
-        for (const item of values.installments) {
-          if (isInstallmentLocked(item)) continue;
-          if (item.id) {
-            await httpClient.patch(`/api/v1/payable-installments/${item.id}`, {
-              amount: item.amount,
-              dueDate: item.dueDate,
-              paymentMethodId: item.paymentMethodId,
-              notes: item.notes || null
-            });
-          }
-        }
+        await httpClient.patch(`/api/v1/payables/${id}/installments`, {
+          installments: values.installments.map(item => ({
+            id: item.id ?? null,
+            installmentNumber: item.installmentNumber,
+            installmentCount: item.installmentCount,
+            amount: item.amount,
+            dueDate: item.dueDate,
+            paymentMethodId: item.paymentMethodId,
+            notes: item.notes || null
+          }))
+        });
 
         return id;
       }
@@ -594,6 +593,46 @@ export function PayableFormPage(): ReactElement {
                     )}
                   />
                 </Field>
+                {!editing && (
+                  <div className="grid gap-4 rounded-2xl border border-teal-100 bg-teal-50/50 p-4 lg:col-span-2 lg:grid-cols-[1fr_160px_160px]">
+                    <Field label="Tipo de cobrança">
+                      <select
+                        className={inputClass}
+                        {...register('occurrenceType', {
+                          onChange: (event) => {
+                            if (event.target.value === 'SINGLE') setValue('installmentCount', 1, { shouldValidate: true });
+                          },
+                        })}
+                      >
+                        <option value="SINGLE">Única</option>
+                        <option value="INSTALLMENT">Parcelada</option>
+                      </select>
+                    </Field>
+                    <Field label="Nº de parcelas">
+                      <input
+                        type="number"
+                        min="1"
+                        max="120"
+                        disabled={occurrenceType !== 'INSTALLMENT'}
+                        className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                        {...register('installmentCount', { valueAsNumber: true, min: 1, max: 120 })}
+                      />
+                    </Field>
+                    <Field label="Dia de vencimento">
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        disabled={occurrenceType !== 'INSTALLMENT'}
+                        className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                        {...register('dueDay', { valueAsNumber: true, min: 1, max: 31 })}
+                      />
+                    </Field>
+                    <p className="text-xs font-medium text-teal-900 lg:col-span-3">
+                      Use Parcelada para o sistema dividir o valor e preparar os vencimentos automaticamente. Se precisar ajustar alguma parcela, revise a aba Parcelas antes de salvar.
+                    </p>
+                  </div>
+                )}
                 {editing && (
                   <div className="lg:col-span-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
                     Vencimento e valor exibidos aqui são referência atual do título. Em edição, ajuste esses dados diretamente na aba Parcelas; ao salvar,
@@ -676,15 +715,13 @@ export function PayableFormPage(): ReactElement {
                 {editing ? 'Em edição, o total do título será ajustado para a soma das parcelas.' : `A soma deve ser igual a ${currency(total)}.`}
               </p>
             </div>
-            {!editing && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={addInstallment}
-              >
-                Adicionar parcela
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={addInstallment}
+            >
+              Adicionar parcela
+            </Button>
           </div>
           <div className="grid gap-4">
             {installments.fields.map((field, index) => (
@@ -736,7 +773,7 @@ export function PayableFormPage(): ReactElement {
                     {...register(`installments.${index}.notes`)}
                   />
                 </Field>
-                {!editing && installments.fields.length > 1 && (
+                {installments.fields.length > 1 && !isInstallmentLocked(installmentValues[index]) && (
                   <button type="button" className="self-end justify-self-start rounded-lg px-2 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 xl:justify-self-end" onClick={() => removeInstallment(index)}>
                     Remover
                   </button>

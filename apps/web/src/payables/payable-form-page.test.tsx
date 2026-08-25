@@ -220,7 +220,11 @@ describe('PayableFormPage new title', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
 
     await waitFor(() => expect(mocks.patch).toHaveBeenCalledWith('/api/v1/payables/payable-1', expect.objectContaining({ originalAmount: 2503 })));
-    expect(mocks.patch).not.toHaveBeenCalledWith('/api/v1/payable-installments/inst-1', expect.anything());
-    expect(mocks.patch).toHaveBeenCalledWith('/api/v1/payable-installments/inst-2', expect.objectContaining({ amount: 1503, dueDate: '2026-09-15' }));
+    expect(mocks.patch).toHaveBeenCalledWith('/api/v1/payables/payable-1/installments', {
+      installments: [
+        expect.objectContaining({ id: 'inst-1', amount: 1000, dueDate: '2026-08-05' }),
+        expect.objectContaining({ id: 'inst-2', amount: 1503, dueDate: '2026-09-15' }),
+      ],
+    });
   });
 });
