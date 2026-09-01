@@ -11,7 +11,7 @@ import { RecurrenceActionsLauncher } from './recurrence-actions';
 import { XmlImportDialog } from './xml-import-dialog';
 
 const statuses = ['OPEN', 'OVERDUE', 'IN_APPROVAL', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'] as const;
-type PeriodPreset = 'day' | 'week' | 'month' | 'year' | 'custom';
+type PeriodPreset = 'day' | 'week' | 'month' | 'year' | 'all' | 'custom';
 type RecurrenceListFilter = 'OPERATIONAL' | 'TERMINAL' | 'ALL';
 
 const statusStyle: Record<string, string> = {
@@ -38,6 +38,7 @@ function addDays(date: Date, days: number): Date {
 }
 
 function rangeForPreset(preset: PeriodPreset, reference = new Date()): { from: string; to: string } {
+  if (preset === 'all') return { from: '', to: '' };
   if (preset === 'day') return { from: iso(reference), to: iso(reference) };
   if (preset === 'week') {
     const day = reference.getDay();
@@ -181,6 +182,19 @@ export function PayablesListPage(): ReactElement {
     setPageSize(20);
   }
 
+  function applySearch(value: string): void {
+    const nextSearch = value;
+    const isStartingBroadSearch = search.trim() === '' && nextSearch.trim() !== '';
+    setSearch(nextSearch);
+    setPage(1);
+    if (!isStartingBroadSearch) return;
+    setStatus('');
+    setRecurrenceStatus('ALL');
+    setPeriod('all');
+    setDueFrom('');
+    setDueTo('');
+  }
+
   const metricCards = [
     { label: 'Total em aberto', value: summary.openTotal, helper: `${summary.openCount} título${summary.openCount === 1 ? '' : 's'}`, icon: '▣', accent: 'border-blue-100 bg-blue-50 text-blue-700' },
     { label: 'Vence hoje', value: summary.todayTotal, helper: `${summary.todayCount} título${summary.todayCount === 1 ? '' : 's'}`, icon: '◷', accent: 'border-amber-100 bg-amber-50 text-amber-700' },
@@ -273,7 +287,7 @@ export function PayablesListPage(): ReactElement {
             <input
               aria-label="Pesquisar notas fiscais e contas"
               value={search}
-              onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+              onChange={(event) => applySearch(event.target.value)}
               placeholder="Buscar fornecedor, documento ou descrição…"
               className="min-h-11 w-full rounded-xl border border-slate-300 px-9 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
@@ -283,10 +297,11 @@ export function PayablesListPage(): ReactElement {
             <option value="week">Semana atual</option>
             <option value="month">Mês atual</option>
             <option value="year">Ano atual</option>
+            <option value="all">Todos os períodos</option>
             <option value="custom">Período personalizado</option>
           </select>
-          <input aria-label="Vencimento inicial" type="date" value={dueFrom} onChange={(event) => { setDueFrom(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-          <input aria-label="Vencimento final" type="date" value={dueTo} onChange={(event) => { setDueTo(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <input aria-label="Vencimento inicial" type="date" value={dueFrom} disabled={period === 'all'} onChange={(event) => { setDueFrom(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed" />
+          <input aria-label="Vencimento final" type="date" value={dueTo} disabled={period === 'all'} onChange={(event) => { setDueTo(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed" />
         </div>
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[220px_220px_220px_180px_190px_150px_auto]">
@@ -320,6 +335,11 @@ export function PayablesListPage(): ReactElement {
           </select>
           <Button variant="secondary" disabled={!hasFilters} onClick={clearFilters}>Limpar filtros</Button>
         </div>
+        {search.trim() ? (
+          <p className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
+            Busca ampla ativa: pesquisando em todos os status, todas as recorrências e sem limitar ao mês atual.
+          </p>
+        ) : null}
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
           {query.isLoading ? <p className="py-12 text-center text-slate-500">Carregando…</p> : query.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar as notas fiscais e contas.</p> : <>

@@ -1,9 +1,9 @@
 # FinControl — Next Task
 
-**Última atualização:** 25/08/2026
-**Status:** pacote operacional de pagamentos/parcelas validado localmente,
-publicado na branch `feature/matriz-filial-xml` e com hotfixes de CI aplicados;
-deploy VPS Native deve ser retomado pelo commit `c50b1bb`
+**Última atualização:** 01/09/2026
+**Status:** pacote operacional de pagamentos/parcelas publicado e nova correção
+local aplicada para busca ampla em `Notas Fiscais e Contas`; deploy deve ser
+feito após validação/commit deste pacote
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -52,8 +52,9 @@ pequena.
 
 ## Próxima tarefa executável
 
-1. Reexecutar o workflow `Deploy VPS Native` com `deploy_ref=c50b1bb`.
-2. Se o preflight passar, validar na VPS os fluxos alterados:
+1. Validar/commitar a correção local de busca ampla em `Notas Fiscais e Contas`.
+2. Reexecutar o workflow `Deploy VPS Native` com o SHA do commit gerado.
+3. Se o preflight passar, validar na VPS os fluxos alterados:
    - estornar pagamento e confirmar que a parcela volta para a agenda/baixa;
    - confirmar que pagamentos estornados não aparecem no histórico padrão de
      `Pagamentos realizados`, salvo filtro explícito;
@@ -61,14 +62,14 @@ pequena.
      parcelas quando ainda não houver pagamento efetivo;
    - baixar pagamento usando saldo histórico da data correta;
    - criar recorrência digitando datas manualmente.
-3. Se houver erro funcional, tratar primeiro o menor ajuste reproduzível.
-4. Se não houver erro bloqueante, escolher o próximo pacote pequeno de melhoria
+4. Se houver erro funcional, tratar primeiro o menor ajuste reproduzível.
+5. Se não houver erro bloqueante, escolher o próximo pacote pequeno de melhoria
    entre:
    - padronização de mensagens/toasts próprios do FinControl;
    - revisão de cache/versionamento visível pós-deploy em uso real;
    - refinamentos restantes em Baixa de Pagamentos e Agenda;
    - próxima frente funcional planejada após o pacote operacional.
-5. Rodar `./Checar_alteracao.sh` apenas quando o pacote estiver completo ou
+6. Rodar `./Checar_alteracao.sh` apenas quando o pacote estiver completo ou
    quando explicitamente solicitado.
 
 ## Escopo desta tarefa
@@ -156,6 +157,14 @@ pequena.
     seletor de quantidade por página e filtros por data de pagamento;
   - filtros compartilhados de busca, empresa e fornecedor continuam afetando
     fila de parcelas e histórico, mas cada lista mantém sua própria paginação.
+- correção local em 01/09/2026 para busca em `Notas Fiscais e Contas`:
+  - ao iniciar uma busca textual, a tela passa automaticamente para busca
+    ampla;
+  - status é alterado para `Todos`;
+  - recorrências passam para `Todas as recorrências`;
+  - período passa para `Todos os períodos` e as datas de vencimento ficam
+    limpas/desativadas, evitando limitar a busca ao mês atual;
+  - a tela exibe aviso de `Busca ampla ativa` para deixar claro o escopo usado.
 - ajuste local em 11/08/2026 para higiene de repositório e README:
   - README reforçado para apresentar o FinControl como ERP financeiro full
     stack em desenvolvimento ativo, separando funcionalidades existentes de

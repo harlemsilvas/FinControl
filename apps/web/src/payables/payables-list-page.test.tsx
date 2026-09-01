@@ -170,6 +170,34 @@ describe('PayablesListPage', () => {
     await waitFor(() => expect(getLastPayablesParams()?.status).toBeUndefined());
   });
 
+  it('broadens filters automatically when using the text search', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PayablesListPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    fireEvent.change(await screen.findByLabelText('Pesquisar notas fiscais e contas'), { target: { value: 'cartão' } });
+
+    await waitFor(() => expect(getLastPayablesParams()).toMatchObject({
+      search: 'cartão',
+      recurrenceStatus: 'ALL',
+    }));
+    expect(getLastPayablesParams()?.status).toBeUndefined();
+    expect(getLastPayablesParams()?.dueFrom).toBeUndefined();
+    expect(getLastPayablesParams()?.dueTo).toBeUndefined();
+    expect(screen.getByLabelText('Filtrar por período')).toHaveProperty('value', 'all');
+    expect(screen.getByLabelText('Vencimento inicial')).toHaveProperty('value', '');
+    expect(screen.getByLabelText('Vencimento inicial')).toBeDisabled();
+    expect(screen.getByLabelText('Vencimento final')).toHaveProperty('value', '');
+    expect(screen.getByLabelText('Vencimento final')).toBeDisabled();
+    expect(screen.getByText('Busca ampla ativa: pesquisando em todos os status, todas as recorrências e sem limitar ao mês atual.')).toBeTruthy();
+  });
+
   it('allows the totals panel to be hidden and shown again', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
