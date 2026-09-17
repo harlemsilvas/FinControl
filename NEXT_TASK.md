@@ -1,9 +1,9 @@
 # FinControl — Next Task
 
 **Última atualização:** 01/09/2026
-**Status:** pacote operacional de pagamentos/parcelas publicado e nova correção
-local aplicada para busca ampla em `Notas Fiscais e Contas`; deploy deve ser
-feito após validação/commit deste pacote
+**Status:** pacote operacional de pagamentos/parcelas publicado, busca ampla em
+`Notas Fiscais e Contas` validada em produção e base local de Toast iniciada;
+próximo deploy deve incluir o pacote de notificações quando commitado
 **Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
 pagamentos/tesouraria e recorrências implementados localmente
 
@@ -52,9 +52,11 @@ pequena.
 
 ## Próxima tarefa executável
 
-1. Validar/commitar a correção local de busca ampla em `Notas Fiscais e Contas`.
+1. Validar/commitar a base local de Toast do FinControl.
 2. Reexecutar o workflow `Deploy VPS Native` com o SHA do commit gerado.
-3. Se o preflight passar, validar na VPS os fluxos alterados:
+3. Se o preflight passar, validar na VPS:
+   - toast de sucesso em ação de recorrência na listagem de contas;
+   - busca ampla já publicada em `Notas Fiscais e Contas`;
    - estornar pagamento e confirmar que a parcela volta para a agenda/baixa;
    - confirmar que pagamentos estornados não aparecem no histórico padrão de
      `Pagamentos realizados`, salvo filtro explícito;
@@ -165,6 +167,15 @@ pequena.
   - período passa para `Todos os períodos` e as datas de vencimento ficam
     limpas/desativadas, evitando limitar a busca ao mês atual;
   - a tela exibe aviso de `Busca ampla ativa` para deixar claro o escopo usado.
+- pacote local em 16/09/2026 para notificações Toast:
+  - criado `ToastProvider` global com fila de até 4 mensagens, variações
+    `success`, `error`, `warning` e `info`, fechamento manual e auto-fechamento;
+  - `AppProviders` passa a disponibilizar o provider para a aplicação;
+  - hook `useToast` fica em arquivo separado para respeitar Fast Refresh;
+  - `Notas Fiscais e Contas` passa a usar toast de sucesso nas ações de
+    recorrência;
+  - item `Notificações Toast` em Features passa a indicar base global iniciada
+    e migração gradual das telas operacionais.
 - ajuste local em 11/08/2026 para higiene de repositório e README:
   - README reforçado para apresentar o FinControl como ERP financeiro full
     stack em desenvolvimento ativo, separando funcionalidades existentes de

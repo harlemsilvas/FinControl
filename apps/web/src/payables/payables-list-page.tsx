@@ -5,6 +5,7 @@ import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { useToast } from '../components/ui/toast-context';
 import type { OptionResponse } from '../intelligence/contracts';
 import { currency, isTerminalRecurrence, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
 import { RecurrenceActionsLauncher } from './recurrence-actions';
@@ -78,6 +79,7 @@ function recurrenceStatusLabel(status?: string | null): string {
 }
 
 export function PayablesListPage(): ReactElement {
+  const { showToast } = useToast();
   const initialRange = rangeForPreset('month');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -91,7 +93,6 @@ export function PayablesListPage(): ReactElement {
   const [companyId, setCompanyId] = useState('');
   const [recurrenceStatus, setRecurrenceStatus] = useState<RecurrenceListFilter>('OPERATIONAL');
   const [xmlImportOpen, setXmlImportOpen] = useState(false);
-  const [feedback, setFeedback] = useState('');
   const [totalsVisible, setTotalsVisible] = useState(true);
 
   const query = useQuery({
@@ -195,6 +196,10 @@ export function PayablesListPage(): ReactElement {
     setDueTo('');
   }
 
+  function showSuccessFeedback(message: string): void {
+    showToast({ type: 'success', title: 'Ação concluída', description: message });
+  }
+
   const metricCards = [
     { label: 'Total em aberto', value: summary.openTotal, helper: `${summary.openCount} título${summary.openCount === 1 ? '' : 's'}`, icon: '▣', accent: 'border-blue-100 bg-blue-50 text-blue-700' },
     { label: 'Vence hoje', value: summary.todayTotal, helper: `${summary.todayCount} título${summary.todayCount === 1 ? '' : 's'}`, icon: '◷', accent: 'border-amber-100 bg-amber-50 text-amber-700' },
@@ -220,8 +225,6 @@ export function PayablesListPage(): ReactElement {
           </Link>
         </div>
       </header>
-
-      {feedback && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</div>}
 
       <section className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -355,7 +358,7 @@ export function PayablesListPage(): ReactElement {
                   <span className="truncate text-slate-600">{item.categoryName}</span>
                   <span className="truncate text-slate-600">{item.paymentMethodName ?? '—'}</span>
                   <span className="font-black text-slate-950 xl:text-right">{currency(item.openBalance)}</span>
-                  <span className="flex items-center gap-3 xl:justify-end"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyle[item.statusCode] ?? statusStyle.OPEN}`}>{statusLabel(item.statusCode)}</span>{item.recurrenceId && !isTerminalRecurrence(item.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={item} onFeedback={setFeedback} /> : null}<Link className="font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`}>Ver</Link></span>
+                  <span className="flex items-center gap-3 xl:justify-end"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyle[item.statusCode] ?? statusStyle.OPEN}`}>{statusLabel(item.statusCode)}</span>{item.recurrenceId && !isTerminalRecurrence(item.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={item} onFeedback={showSuccessFeedback} /> : null}<Link className="font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`}>Ver</Link></span>
                 </div>
               ))}
               {rows.length === 0 && <p className="py-12 text-center text-slate-500">Nenhuma nota fiscal ou conta encontrada.</p>}
