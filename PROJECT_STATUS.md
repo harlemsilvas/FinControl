@@ -1,12 +1,11 @@
 # FinControl — Status Consolidado do Projeto
 
 **Código:** DOC-11  
-**Versão:** 0.4  
-**Data:** 25/08/2026
-**Status atual:** sistema além da Fase 16, com deploy VPS validado anteriormente
-em `d107d1d` e novo pacote operacional publicado em
-`c50b1bb` na branch `feature/matriz-filial-xml`, aguardando repetição do
-`Deploy VPS Native`
+**Versão:** 0.5
+**Data:** 17/09/2026
+**Status atual:** sistema além da Fase 16, com o commit `ac6df5b` publicado e
+validado na VPS; próxima frente funcional definida para Relatórios, iniciando
+pela previsão de compromissos de contas a pagar por empresa e consolidada
 
 ## 1. Objetivo deste arquivo
 
@@ -76,6 +75,46 @@ Este documento registra o estado consolidado do projeto sem substituir:
   - criação e exportação de backup são registradas em auditoria.
 
 ## 3. Avanços além da Fase 16
+
+### Deploy e definição da próxima fase em 17/09/2026
+
+- busca textual ampla de `Notas Fiscais e Contas` publicada em `d55614a` e
+  validada visualmente na VPS;
+- base global de notificações Toast publicada em
+  `ac6df5b feat(web): add global toast notifications`;
+- workflow `Deploy VPS Native` número `35276599924` concluído com sucesso:
+  - preflight completo aprovado em 51 segundos;
+  - deploy controlado remoto aprovado em 3 minutos e 13 segundos;
+  - frontend público respondeu HTTP `200`;
+  - health da API e dependência PostgreSQL responderam `status: ok`;
+  - `version.json` confirmou o release `ac6df5b6b28a` e o SHA completo
+    `ac6df5b6b28a4115f2cea9a4863467fcf0eedbce`;
+- próxima fase funcional escolhida: primeiro relatório operacional do
+  FinControl, voltado a compromissos futuros de contas a pagar;
+- o primeiro relatório deve oferecer períodos inteligentes, filtro explícito
+  por empresa e visão `Todas as empresas`, sempre respeitando as empresas
+  permitidas ao usuário;
+- o escopo inicial permanece em contas a pagar. Contas a receber e projeção de
+  saldo futuro não devem ser apresentadas como fluxo de caixa implementado.
+
+Documento de escopo: `docs/REPORTS-PAYABLES-FORECAST.md`.
+
+### Primeiro relatório operacional iniciado em 17/09/2026
+
+- criado endpoint `GET /api/v1/reports/payables-forecast` em DOM-005;
+- consulta considera parcelas ativas com saldo em aberto e exclui títulos
+  cancelados ou removidos logicamente;
+- backend aplica o escopo de empresas do usuário na visão consolidada e rejeita
+  seleção explícita de empresa não autorizada;
+- resposta oferece resumo financeiro, agrupamentos por vencimento e empresa,
+  lista paginada e filtros por período, empresa, fornecedor, categoria,
+  situação e texto;
+- rota `/reports` deixou de ser placeholder e recebeu a tela
+  `Compromissos a pagar`;
+- atalhos implementados: próximos 7 dias, próxima semana, este mês e próximo
+  mês, além de período personalizado;
+- pacote está implementado localmente e aguarda validação visual com os dados
+  reais antes da checagem completa e do deploy.
 
 ### Encerramento operacional em 25/08/2026
 

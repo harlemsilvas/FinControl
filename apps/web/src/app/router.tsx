@@ -19,6 +19,7 @@ import { plannedFeatures } from '../pages/planned-features';
 import { environment } from '../config/environment';
 import { UsersPage } from '../administration/users-page';
 import { BackupsPage } from '../administration/backups-page';
+import { PayablesForecastPage } from '../reports/payables-forecast-page';
 
 export const router = createBrowserRouter(
   [
@@ -40,13 +41,14 @@ export const router = createBrowserRouter(
             { path: 'recurrences', element: <RecurrencesPage /> },
             { path: 'users', element: <UsersPage /> },
             { path: 'backups', element: <BackupsPage /> },
+            { path: 'reports', element: <PayablesForecastPage /> },
             { path: 'payables/new', element: <PayableFormPage /> },
             { path: 'payables/:id', element: <PayableFormPage /> },
             { path: 'suppliers', element: <SuppliersPage /> },
             ...Object.entries(resources)
               .filter(([path]) => path !== 'suppliers')
               .map(([path, config]) => ({ path, element: <MasterDataPage config={config} /> })),
-            ...plannedFeatures.filter((feature) => !['recurrences', 'users'].includes(feature.path)).map((feature) => ({
+            ...plannedFeatures.filter((feature) => !['recurrences', 'users', 'reports'].includes(feature.path)).map((feature) => ({
               path: feature.path,
               element: <PlannedFeaturePage feature={feature} />,
             })),

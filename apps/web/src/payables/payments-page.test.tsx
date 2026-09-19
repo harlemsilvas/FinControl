@@ -185,11 +185,11 @@ describe('PaymentsPage', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Baixa de Pagamentos' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Filtrar por status')).toHaveValue('OPEN');
+    expect(screen.getByLabelText('Filtrar por status')).toHaveValue('ALL');
     expect(screen.getByText('Pagamentos efetuados')).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByText(/R\$\s*403,06/).length).toBeGreaterThan(1));
     expect((await screen.findAllByText('CIA BRASILEIRA DIST AUTO S.A')).length).toBeGreaterThan(0);
-    await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
+    await waitFor(() => expect(eligiblePaymentParams()?.status).toBeUndefined());
     await waitFor(() => expect(paymentHistoryParams()).toMatchObject({ page: 1, pageSize: 20, status: 'EFFECTIVE' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Baixar' }));
@@ -231,7 +231,7 @@ describe('PaymentsPage', () => {
   it('uses a paid operational filter without requesting eligible installments', async () => {
     renderPage();
 
-    await waitFor(() => expect(eligiblePaymentParams()?.status).toBe('OPEN'));
+    await waitFor(() => expect(eligiblePaymentParams()?.status).toBeUndefined());
     await waitFor(() => expect(paymentHistoryParams()?.status).toBe('EFFECTIVE'));
     mocks.get.mockClear();
 

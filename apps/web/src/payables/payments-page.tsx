@@ -158,7 +158,7 @@ function treasuryErrorMessage(error: unknown, fallback: string): string {
 }
 
 function initialStatus(value: string | null): PaymentQueueFilter {
-  return statusOptions.some((item) => item.value === value) ? value as PaymentQueueFilter : 'OPEN';
+  return statusOptions.some((item) => item.value === value) ? value as PaymentQueueFilter : 'ALL';
 }
 
 function initialDate(value: string | null): string {
@@ -457,7 +457,7 @@ export function PaymentsPage(): ReactElement {
 
   function clearFilters(): void {
     setSearch('');
-    setStatus('OPEN');
+    setStatus('ALL');
     setCompanyId('');
     setSupplierId('');
     setSupplierSearch('');

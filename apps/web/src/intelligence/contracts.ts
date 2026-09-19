@@ -6,6 +6,10 @@ export interface AgendaItem {id:string;payableTitleId:string;documentNumber:stri
 export interface AgendaResponse {data:AgendaItem[];total:string;count:number}
 export interface Option {id:string;name?:string;legalName?:string}
 export interface OptionResponse {data:Option[]}
+export interface PayablesForecastSummary {totalPending:string;overdue:string;upcoming:string;installmentCount:string;companyCount:string}
+export interface PayablesForecastGroup {id?:string|null;label:string;amount:string;count:string}
+export interface PayablesForecastItem {id:string;payableTitleId:string;documentNumber:string;description:string;supplierName:string;companyName:string;categoryName:string;installmentNumber:number;installmentCount:number;dueDate:string;openBalance:string;status:'OVERDUE'|'TODAY'|'UPCOMING'}
+export interface PayablesForecastResponse {summary:PayablesForecastSummary;byDate:PayablesForecastGroup[];byCompany:PayablesForecastGroup[];data:PayablesForecastItem[];pagination:{page:number;pageSize:number;total:number;totalPages:number}}
 export function iso(date:Date):string{return date.toISOString().slice(0,10);}
 export function monthRange(date=new Date()):{from:string;to:string}{return {from:iso(new Date(date.getFullYear(),date.getMonth(),1)),to:iso(new Date(date.getFullYear(),date.getMonth()+1,0))};}
 export function monthKey(date=new Date()):string{return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;}

@@ -1,42 +1,39 @@
 # FinControl — Next Task
 
-**Última atualização:** 01/09/2026
-**Status:** pacote operacional de pagamentos/parcelas publicado, busca ampla em
-`Notas Fiscais e Contas` validada em produção e base local de Toast iniciada;
-próximo deploy deve incluir o pacote de notificações quando commitado
-**Contexto:** continuidade pós-Fase 16, já com multiempresa, XML operacional,
-pagamentos/tesouraria e recorrências implementados localmente
+**Última atualização:** 17/09/2026
+**Status:** deploy do pacote de notificações validado na VPS; primeira entrega
+de Relatórios implementada localmente e aguardando validação visual do
+relatório de compromissos a pagar
+**Contexto:** continuidade pós-Fase 16, com multiempresa, XML operacional,
+pagamentos/tesouraria, recorrências, busca ampla e base global de Toast
+publicados
 
 ## Objetivo
 
-Retomar o desenvolvimento a partir do pacote publicado em `c50b1bb`, validando
-primeiro o deploy controlado na VPS e, em seguida, continuar os ajustes
-operacionais observados no uso real sem rodar validação completa a cada mudança
-pequena.
+Iniciar a próxima fase funcional com um relatório operacional que responda com
+clareza quanto deve ser pago nos próximos períodos, permitindo consultar uma
+empresa específica ou a visão global das empresas autorizadas ao usuário.
 
 ## Ponto de retomada imediato
 
 - Branch de trabalho: `feature/matriz-filial-xml`.
-- Último commit da branch: `c50b1bb test(web): wait for bank account select
-  values`.
-- Último pacote funcional do dia: `e0bbb38 fix(payables): refine payment
-  reversals and installment editing`.
-- Hotfixes de CI aplicados após o pacote funcional:
-  - `b96ffbe test(api): type payment list assertions`;
-  - `c811f36 fix(web): type occurrence change handler`;
-  - `c50b1bb test(web): wait for bank account select values`.
-- Deploy VPS Native iniciado, mas o preflight encontrou falhas de lint/testes
-  já corrigidas nos hotfixes acima.
-- Próxima ação operacional: repetir o workflow `Deploy VPS Native` usando:
-  - `deploy_ref`: `c50b1bb`;
-  - `run_checks`: `true`;
-  - `confirmation`: `DEPLOY`.
-- Último deploy funcional conhecido na VPS antes deste pacote: `d107d1d
-  fix(payables): refine operational payment and xml flows`.
+- Último commit publicado: `ac6df5b feat(web): add global toast
+  notifications`.
+- Busca ampla de `Notas Fiscais e Contas` publicada anteriormente em
+  `d55614a fix(payables): broaden text search filters` e validada visualmente.
+- Workflow `Deploy VPS Native` número `35276599924` concluído com sucesso em
+  17/09/2026:
+  - preflight completo aprovado;
+  - deploy remoto aprovado;
+  - página pública respondeu HTTP `200`;
+  - API e PostgreSQL responderam `status: ok`;
+  - `version.json` confirmou o SHA completo
+    `ac6df5b6b28a4115f2cea9a4863467fcf0eedbce`.
+- Produção atual: `https://hrmmotos.com.br/fincontrol/`.
 - Branches remotas sincronizadas em 11/08/2026:
   - `main`: `cc7c295`;
   - `agent/phases-5-11`: `005808c`;
-  - `feature/matriz-filial-xml`: atualizada depois para `c50b1bb`.
+  - `feature/matriz-filial-xml`: atualizada depois para `ac6df5b`.
 - CI das branches sincronizadas concluído com sucesso:
   - `31544491973 main`: sucesso;
   - `31544627105 agent/phases-5-11`: sucesso;
@@ -52,27 +49,42 @@ pequena.
 
 ## Próxima tarefa executável
 
-1. Validar/commitar a base local de Toast do FinControl.
-2. Reexecutar o workflow `Deploy VPS Native` com o SHA do commit gerado.
-3. Se o preflight passar, validar na VPS:
-   - toast de sucesso em ação de recorrência na listagem de contas;
-   - busca ampla já publicada em `Notas Fiscais e Contas`;
-   - estornar pagamento e confirmar que a parcela volta para a agenda/baixa;
-   - confirmar que pagamentos estornados não aparecem no histórico padrão de
-     `Pagamentos realizados`, salvo filtro explícito;
-   - editar uma nota importada com parcela única e dividi-la em duas ou mais
-     parcelas quando ainda não houver pagamento efetivo;
-   - baixar pagamento usando saldo histórico da data correta;
-   - criar recorrência digitando datas manualmente.
-4. Se houver erro funcional, tratar primeiro o menor ajuste reproduzível.
-5. Se não houver erro bloqueante, escolher o próximo pacote pequeno de melhoria
-   entre:
-   - padronização de mensagens/toasts próprios do FinControl;
-   - revisão de cache/versionamento visível pós-deploy em uso real;
-   - refinamentos restantes em Baixa de Pagamentos e Agenda;
-   - próxima frente funcional planejada após o pacote operacional.
-6. Rodar `./Checar_alteracao.sh` apenas quando o pacote estiver completo ou
-   quando explicitamente solicitado.
+Validar localmente o MVP `Relatório de compromissos a pagar`, conforme
+`docs/REPORTS-PAYABLES-FORECAST.md`:
+
+1. Conferir os totais contra Agenda e Notas Fiscais e Contas para o mesmo
+   período.
+2. Testar usuário Master e usuário restrito a uma empresa, confirmando que a
+   visão global nunca ultrapassa as empresas autorizadas.
+3. Validar os filtros rápidos:
+   - hoje;
+   - próximos 7 dias;
+   - próxima semana, de segunda a domingo;
+   - este mês;
+   - próximo mês;
+   - período personalizado.
+4. Conferir filtros por empresa, fornecedor, categoria, situação e busca.
+5. Conferir cards, agrupamentos por data/empresa, paginação e link para o
+   título.
+6. Ajustar eventuais divergências encontradas no teste visual.
+7. Executar `./Checar_alteracao.sh` somente depois da validação local do usuário
+   e antes do commit/deploy.
+
+Pacote local implementado em 17/09/2026:
+
+- novo endpoint `GET /api/v1/reports/payables-forecast`;
+- escopo multiempresa aplicado no backend para Master e usuários restritos;
+- totalizações de pendente, vencido, a vencer, parcelas e empresas;
+- agrupamentos por data e empresa;
+- detalhamento paginado com filtros e busca;
+- rota `/reports` substitui o placeholder pela tela real;
+- testes focados de API e frontend aprovados;
+- typecheck de API e frontend aprovado;
+- lint focado de API e frontend aprovado.
+
+Ficam fora do primeiro pacote: contas a receber, projeção de entradas, saldo
+futuro, conciliação, gráficos gerenciais complexos e exportação. Esses itens
+continuam no roadmap e não devem ser apresentados como implementados.
 
 ## Escopo desta tarefa
 

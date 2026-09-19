@@ -44,11 +44,11 @@ export const plannedFeatures: PlannedFeature[] = [
     path: 'reports',
     domain: 'Relatórios',
     title: 'Relatórios',
-    description: 'Central de relatórios operacionais e gerenciais do contas a pagar.',
+    description: 'Central iniciada com o relatório operacional de compromissos a pagar por período e empresa.',
     suggestedNextSteps: [
-      'Listar relatórios essenciais para a primeira entrega.',
-      'Definir filtros padrão, exportação e permissões.',
-      'Priorizar relatórios por uso operacional diário.',
+      'Validar o relatório de compromissos a pagar no uso diário.',
+      'Planejar exportação somente após estabilizar filtros e totalizações.',
+      'Priorizar o próximo relatório operacional com base no uso real.',
     ],
   },
   {
