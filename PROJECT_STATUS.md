@@ -2,7 +2,7 @@
 
 **Código:** DOC-11  
 **Versão:** 0.5
-**Data:** 17/09/2026
+**Data:** 20/09/2026
 **Status atual:** sistema além da Fase 16, com o commit `ac6df5b` publicado e
 validado na VPS; próxima frente funcional definida para Relatórios, iniciando
 pela previsão de compromissos de contas a pagar por empresa e consolidada
@@ -75,6 +75,23 @@ Este documento registra o estado consolidado do projeto sem substituir:
   - criação e exportação de backup são registradas em auditoria.
 
 ## 3. Avanços além da Fase 16
+
+### Enriquecimento de fornecedores iniciado em 19/09/2026
+
+- importação de NFe passa a aproveitar também CEP, logradouro, número,
+  complemento, bairro e telefone do emitente;
+- fornecedor criado pelo XML recebe os dados cadastrais disponíveis na nota;
+- fornecedor já existente é enriquecido somente nos campos vazios, sem
+  sobrescrever informações revisadas manualmente, com auditoria da operação;
+- formulário de fornecedor recebe ação `Consultar CNPJ`, que pré-preenche razão
+  social, nome fantasia, endereço, telefone e e-mail para revisão antes de
+  salvar;
+- consulta externa é feita pelo backend, com timeout e URL configurável por
+  `CNPJ_LOOKUP_BASE_URL`;
+- provedor inicial: BrasilAPI, como agregador de dados públicos. A consulta
+  automatizada oficial da Receita/Serpro permanece opção futura mediante
+  contratação e credenciais próprias; a consulta pública não substitui
+  validação fiscal ou cadastral formal.
 
 ### Deploy e definição da próxima fase em 17/09/2026
 
@@ -660,6 +677,20 @@ decisões futuras, negativas temporárias ou roadmap documentado, e nao devem se
 apagados nem confundidos com a tarefa ativa.
 
 ## 7. Próximo marco de projeto
+
+### Cofre de certificados digitais A1 — pacote local em 20/09/2026
+
+- Criada migration imutável no schema `integracoes` para um certificado A1
+  ativo por empresa, com histórico de substituições e permissão dedicada.
+- PFX e senha são protegidos por AES-256-GCM; a chave mestre permanece fora do
+  banco em `CERTIFICATE_ENCRYPTION_KEY`.
+- Backend valida formato, limite, senha, presença de chave privada, validade e
+  compatibilidade do CNPJ antes de substituir o certificado vigente.
+- Operações respeitam escopo multiempresa e são auditadas sem segredo.
+- Frontend recebeu `Configurações > Certificados digitais`, com cadastro,
+  situação de validade, revalidação e desativação; não há download do PFX.
+- Integração SEFAZ ainda não foi implementada neste pacote. Ela deverá consumir
+  o cofre internamente e observar NSU, rate limit, backoff e ambiente fiscal.
 
 O próximo marco estratégico é retomar a sequência de correções operacionais a
 partir do uso real do sistema, priorizando:

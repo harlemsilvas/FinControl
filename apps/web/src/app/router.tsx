@@ -20,6 +20,7 @@ import { environment } from '../config/environment';
 import { UsersPage } from '../administration/users-page';
 import { BackupsPage } from '../administration/backups-page';
 import { PayablesForecastPage } from '../reports/payables-forecast-page';
+import { DigitalCertificatesPage } from '../integrations/digital-certificates-page';
 
 export const router = createBrowserRouter(
   [
@@ -41,6 +42,7 @@ export const router = createBrowserRouter(
             { path: 'recurrences', element: <RecurrencesPage /> },
             { path: 'users', element: <UsersPage /> },
             { path: 'backups', element: <BackupsPage /> },
+            { path: 'digital-certificates', element: <DigitalCertificatesPage /> },
             { path: 'reports', element: <PayablesForecastPage /> },
             { path: 'payables/new', element: <PayableFormPage /> },
             { path: 'payables/:id', element: <PayableFormPage /> },

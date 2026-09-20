@@ -61,6 +61,7 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'Usuários', to: '/users', icon: '♙' },
       { label: 'Backups', to: '/backups', icon: '▣', permission: 'BACKUP_MANAGE' },
+      { label: 'Certificados digitais', to: '/digital-certificates', icon: '◆', permission: 'DIGITAL_CERTIFICATE_MANAGE' },
       { label: 'Perfis de Acesso', to: '/access-profiles', icon: '⚙' },
       { label: 'Parâmetros', to: '/parameters', icon: '⚙' },
     ],

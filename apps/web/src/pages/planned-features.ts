@@ -41,6 +41,18 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
+    path: 'sefaz-dfe-distribution',
+    domain: 'Integrações',
+    title: 'Distribuição DF-e via SEFAZ',
+    description: 'Consulta autenticada de documentos fiscais destinados às empresas usando os certificados digitais A1 cadastrados.',
+    suggestedNextSteps: [
+      'Adaptar o esqueleto técnico validado no projeto dfe-sefaz-enhanced sem copiar credenciais ou dados de runtime.',
+      'Persistir último NSU por empresa e separar homologação de produção.',
+      'Implementar fila, backoff e bloqueio preventivo para consumo indevido cStat 656.',
+      'Exibir documentos encontrados para revisão antes de importar contas ou XMLs.',
+    ],
+  },
+  {
     path: 'reports',
     domain: 'Relatórios',
     title: 'Relatórios',

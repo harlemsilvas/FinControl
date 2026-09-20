@@ -5,6 +5,7 @@ import { createAuthenticate, requirePermission } from '../auth/auth-context.js';
 import type { AuthRepository } from '../auth/auth-repository.js';
 import type { TokenService } from '../auth/token-service.js';
 import type { MasterDataRepository, ResourceDefinition } from './master-data-repository.js';
+import type { CnpjLookupService } from './cnpj-lookup-service.js';
 
 interface RouteResource extends ResourceDefinition {
   path: string;
@@ -16,6 +17,7 @@ interface MasterDataRoutesOptions {
   authRepository: AuthRepository;
   tokenService: TokenService;
   repository: MasterDataRepository;
+  cnpjLookupService: CnpjLookupService;
 }
 
 const uuid = z.uuid();
@@ -363,6 +365,11 @@ export function masterDataRoutes(app: FastifyInstance, options: MasterDataRoutes
   const authenticate = createAuthenticate(options.authRepository, options.tokenService);
   const canView = requirePermission('MASTER_DATA_VIEW');
   const canManage = requirePermission('MASTER_DATA_MANAGE');
+
+  app.get('/suppliers/cnpj/:cnpj', { preHandler: [authenticate, canManage] }, async (request) => {
+    const params = parse(z.object({ cnpj: z.string().trim().min(1).max(32) }), request.params);
+    return options.cnpjLookupService.lookup(params.cnpj);
+  });
 
   for (const resource of resources) {
     app.get(resource.path, { preHandler: [authenticate, canView] }, async (request) => {

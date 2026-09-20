@@ -6,6 +6,12 @@ export interface PartyInfo {
   stateRegistration?: string;
   cityName?: string;
   stateCode?: string;
+  postalCode?: string;
+  street?: string;
+  streetNumber?: string;
+  addressComplement?: string;
+  neighborhood?: string;
+  phone?: string;
 }
 
 export interface XmlInstallmentPreview {
@@ -84,6 +90,12 @@ function partyFrom(element: Element | undefined, addressTag: 'enderEmit' | 'ende
     stateRegistration: textOf(element, 'IE'),
     cityName: textOf(address, 'xMun'),
     stateCode: textOf(address, 'UF'),
+    postalCode: digitsOnly(textOf(address, 'CEP')) || undefined,
+    street: textOf(address, 'xLgr'),
+    streetNumber: textOf(address, 'nro'),
+    addressComplement: textOf(address, 'xCpl'),
+    neighborhood: textOf(address, 'xBairro'),
+    phone: digitsOnly(textOf(address, 'fone')) || undefined,
   };
 }
 
@@ -147,4 +159,3 @@ export function parseNfeXml(rawXml: string): ParsedNfeXml {
     items,
   };
 }
-

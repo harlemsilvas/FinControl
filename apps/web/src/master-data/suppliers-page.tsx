@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { ApiError, httpClient } from '../api/http-client';
@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
+import { useToast } from '../components/ui/toast-context';
 
 type ActiveFilter = 'active' | 'inactive' | 'all';
 type SupplierType = 'INDIVIDUAL' | 'COMPANY' | 'FOREIGN';
@@ -77,6 +78,23 @@ interface LookupItem {
   description?: string | null;
   color?: string | null;
   stateId?: string;
+}
+
+interface CnpjLookupResult {
+  source: string;
+  documentNumber: string;
+  legalName: string;
+  tradeName: string | null;
+  postalCode: string | null;
+  street: string | null;
+  streetNumber: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  cityName: string | null;
+  stateCode: string | null;
+  phone: string | null;
+  email: string | null;
+  registrationStatus: string | null;
 }
 
 interface SupplierFormValues {
@@ -286,12 +304,14 @@ function SupplierField({
 
 export function SuppliersPage(): ReactElement {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('active');
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SupplierTab>('Dados Gerais');
+  const [pendingLookupCity, setPendingLookupCity] = useState<string | null>(null);
 
   const suppliersQuery = useQuery({
     queryKey: ['suppliers', page, search, activeFilter],
@@ -351,6 +371,7 @@ export function SuppliersPage(): ReactElement {
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<SupplierFormValues>({ defaultValues: defaultFormValues() });
   const supplierType = watch('supplierType');
+  const documentNumber = watch('documentNumber');
   const stateId = watch('stateId');
   const markerIds = watch('markerIds');
 
@@ -359,6 +380,46 @@ export function SuppliersPage(): ReactElement {
     if (!stateId) return [];
     return cities.filter((item) => item.stateId === stateId);
   }, [citiesQuery.data, stateId]);
+
+  useEffect(() => {
+    if (!pendingLookupCity || !stateId) return;
+    const normalizedCity = pendingLookupCity.toLocaleLowerCase('pt-BR');
+    const city = citiesQuery.data?.find((item) => item.stateId === stateId && item.name.toLocaleLowerCase('pt-BR') === normalizedCity);
+    setValue('cityId', city?.id ?? '', { shouldDirty: true });
+    setValue('cityName', city ? '' : pendingLookupCity, { shouldDirty: true, shouldValidate: true });
+    setPendingLookupCity(null);
+  }, [citiesQuery.data, pendingLookupCity, setValue, stateId]);
+
+  const cnpjLookupMutation = useMutation({
+    mutationFn: async () => {
+      const cnpj = digitsOnly(documentNumber);
+      if (cnpj.length !== 14) throw new Error('Informe um CNPJ com 14 dígitos antes de consultar.');
+      return (await httpClient.get<CnpjLookupResult>(`/api/v1/suppliers/cnpj/${cnpj}`)).data;
+    },
+    onSuccess: (data) => {
+      const setText = (field: keyof SupplierFormValues, value: string | null): void => {
+        if (value) setValue(field, value, { shouldDirty: true, shouldValidate: true });
+      };
+      setText('legalName', data.legalName);
+      setText('tradeName', data.tradeName);
+      setText('postalCode', data.postalCode ? formatPostalCode(data.postalCode) : null);
+      setText('street', data.street);
+      setText('streetNumber', data.streetNumber);
+      setText('addressComplement', data.addressComplement);
+      setText('neighborhood', data.neighborhood);
+      setText('phone', data.phone ? formatPhone(data.phone) : null);
+      setText('email', data.email);
+      const state = statesQuery.data?.find((item) => item.code === data.stateCode);
+      if (state) {
+        setValue('stateId', state.id, { shouldDirty: true });
+        setPendingLookupCity(data.cityName);
+      }
+      showToast({ type: 'success', title: 'Dados do CNPJ carregados', description: `${data.source}. Revise as informações antes de salvar.${data.registrationStatus ? ` Situação: ${data.registrationStatus}.` : ''}` });
+    },
+    onError: (error) => {
+      showToast({ type: 'error', title: 'Não foi possível consultar o CNPJ', description: error instanceof Error ? error.message : 'Tente novamente mais tarde.' });
+    },
+  });
 
   const openNewForm = (): void => {
     const defaultStatus = statusesQuery.data?.find((item) => item.code === 'ACTIVE')?.id ?? '';
@@ -598,7 +659,7 @@ export function SuppliersPage(): ReactElement {
                 <SupplierField label="Nome Fantasia" className="lg:col-span-1"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('tradeName')} /></SupplierField>
                 <SupplierField label="Tipo de Pessoa" required error={errors.supplierType?.message}><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('supplierType', { required: 'Campo obrigatório.' })}><option value="COMPANY">Jurídica</option><option value="INDIVIDUAL">Física</option><option value="FOREIGN">Estrangeiro</option></select></SupplierField>
 
-                <SupplierField label={supplierType === 'INDIVIDUAL' ? 'CPF' : supplierType === 'COMPANY' ? 'CNPJ' : 'Documento'} error={errors.documentNumber?.message}><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('documentNumber', {
+                <SupplierField label={supplierType === 'INDIVIDUAL' ? 'CPF' : supplierType === 'COMPANY' ? 'CNPJ' : 'Documento'} error={errors.documentNumber?.message} className="lg:col-span-2"><div className="flex flex-col gap-2 sm:flex-row"><input className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('documentNumber', {
                   onChange: (event) => setValue('documentNumber', formatDocument(inputValueFromUnknown(event), supplierType)),
                   validate: (value) => {
                     const digits = digitsOnly(value ?? '');
@@ -607,7 +668,7 @@ export function SuppliersPage(): ReactElement {
                     if (supplierType === 'COMPANY') return digits.length === 14 || 'CNPJ deve conter 14 dígitos.';
                     return true;
                   },
-                })} /></SupplierField>
+                })} />{supplierType === 'COMPANY' ? <Button type="button" variant="secondary" disabled={cnpjLookupMutation.isPending || digitsOnly(documentNumber).length !== 14} onClick={() => cnpjLookupMutation.mutate()}>{cnpjLookupMutation.isPending ? 'Consultando...' : 'Consultar CNPJ'}</Button> : null}</div></SupplierField>
                 <SupplierField label="Inscrição Estadual"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('stateRegistration')} /></SupplierField>
                 <SupplierField label="Inscrição Municipal"><input className="min-h-11 rounded-xl border border-slate-300 px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('municipalRegistration')} /></SupplierField>
                 <SupplierField label="Categoria" required error={errors.supplierCategoryId?.message}><select className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" {...register('supplierCategoryId', { required: 'Campo obrigatório.' })}><option value="">Selecione</option>{(categoriesQuery.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></SupplierField>

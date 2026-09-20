@@ -14,7 +14,7 @@ export interface PaymentListFilters { search?: string; status?: 'EFFECTIVE' | 'R
 export interface PaymentInput { installmentId: string; batchId?: string | null; bankAccountId: string; paymentMethodId: string; paymentDate: string; principalAmount: number; interestAmount?: number; penaltyAmount?: number; discountAmount?: number; additionalAmount?: number; transactionNumber?: string | null; overpaymentConfirmed?: boolean }
 export interface XmlImportInstallmentInput { installmentNumber: number; dueDate: string; amount: number; paymentMethodRaw?: string | null; notes?: string | null }
 export interface XmlImportGenerateInput { categoryId?: string | null; documentTypeId?: string | null; paymentMethodId?: string | null; paymentTermId?: string | null; costCenterId?: string | null; description?: string | null; duplicateConfirmed?: boolean }
-export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; recipientLegalName?: string | null; recipientDocumentNumber?: string | null; recipientStateRegistration?: string | null; recipientCityName?: string | null; recipientStateCode?: string | null; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; mainCompanyDocumentNumber?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
+export interface XmlImportInput { accessKey?: string | null; attachmentId?: string | null; rawXml?: string | null; sourceFileName?: string | null; sourceMimeType?: string | null; sourceSizeBytes?: number | null; sourceFileHash?: string | null; supplierLegalName?: string | null; supplierTradeName?: string | null; supplierDocumentNumber?: string | null; supplierStateRegistration?: string | null; supplierCityName?: string | null; supplierStateCode?: string | null; supplierPostalCode?: string | null; supplierStreet?: string | null; supplierStreetNumber?: string | null; supplierAddressComplement?: string | null; supplierNeighborhood?: string | null; supplierPhone?: string | null; recipientLegalName?: string | null; recipientDocumentNumber?: string | null; recipientStateRegistration?: string | null; recipientCityName?: string | null; recipientStateCode?: string | null; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; mainCompanyDocumentNumber?: string | null; documentModel?: string | null; documentNumber?: string | null; documentSeries?: string | null; issueDate?: string | null; operationDate?: string | null; dueDate?: string | null; productsAmount?: number | null; freightAmount?: number | null; insuranceAmount?: number | null; discountAmount?: number | null; otherAmount?: number | null; invoiceTotalAmount?: number | null; paymentAmount?: number | null; currencyCode?: string; parsedData?: Record<string, unknown>; installments?: XmlImportInstallmentInput[] }
 export interface RecurrenceInput { companyId: string; supplierId: string; categoryId: string; costCenterId?: string | null; documentTypeId: string; paymentMethodId: string; paymentTermId?: string | null; description: string; baseDocumentNumber?: string | null; baseAmount: number; frequencyCode: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL'; startDate: string; endDate?: string | null; maxOccurrences?: number | null; dueDay?: number | null; isOpenEnded?: boolean; notes?: string | null }
 export interface RecurrenceListFilters { search?: string; status?: string; companyId?: string; supplierId?: string; frequencyCode?: string }
 export interface RecurrenceGenerationInput { untilDate?: string | null; occurrenceCount?: number | null }
@@ -989,25 +989,51 @@ export class PayablesRepository {
     const documentNumber = input.supplierDocumentNumber?.replace(/\D+/g, '') ?? '';
     if (!/^\d{11}$/.test(documentNumber) && !/^\d{14}$/.test(documentNumber)) return null;
 
-    const existing = await tx.query(`SELECT * FROM cadastros.suppliers WHERE country_code='BR' AND document_number=$1 AND deleted_at IS NULL LIMIT 1`, [documentNumber]);
-    if (existing.rows[0]) return { id: existing.rows[0].id as string, created: false, entity: api(existing.rows[0]) };
-
     const supplierType = documentNumber.length === 11 ? 'INDIVIDUAL' : 'COMPANY';
     const legalName = input.supplierLegalName?.trim() || input.supplierTradeName?.trim() || `Fornecedor XML ${documentNumber}`;
     const tradeName = input.supplierTradeName?.trim() || null;
     const stateCode = input.supplierStateCode?.trim().toUpperCase() || null;
     const cityName = input.supplierCityName?.trim() || null;
+    const supplierData = [
+      input.supplierStateRegistration?.trim() || null,
+      input.supplierPostalCode?.replace(/\D+/g, '') || null,
+      input.supplierStreet?.trim() || null,
+      input.supplierStreetNumber?.trim() || null,
+      input.supplierAddressComplement?.trim() || null,
+      input.supplierNeighborhood?.trim() || null,
+      input.supplierPhone?.replace(/\D+/g, '') || null,
+    ] as const;
+    const existing = await tx.query(`SELECT * FROM cadastros.suppliers WHERE country_code='BR' AND document_number=$1 AND deleted_at IS NULL LIMIT 1`, [documentNumber]);
+    if (existing.rows[0]) {
+      const previous = existing.rows[0];
+      const enriched = await tx.query(`UPDATE cadastros.suppliers SET
+          legal_name=COALESCE(NULLIF(legal_name,''),$2),trade_name=COALESCE(NULLIF(trade_name,''),$3),
+          state_registration=COALESCE(NULLIF(state_registration,''),$4),postal_code=COALESCE(NULLIF(postal_code,''),$5),
+          street=COALESCE(NULLIF(street,''),$6),street_number=COALESCE(NULLIF(street_number,''),$7),
+          address_complement=COALESCE(NULLIF(address_complement,''),$8),neighborhood=COALESCE(NULLIF(neighborhood,''),$9),
+          phone=COALESCE(NULLIF(phone,''),$10),
+          state_id=COALESCE(state_id,(SELECT id FROM cadastros.states WHERE code=$11 LIMIT 1)),
+          city_id=COALESCE(city_id,(SELECT c.id FROM cadastros.cities c JOIN cadastros.states s ON s.id=c.state_id WHERE s.code=$11 AND lower(c.name)=lower($12) LIMIT 1)),
+          updated_by=$13
+        WHERE id=$1 RETURNING *`, [previous.id,legalName,tradeName,...supplierData,stateCode,cityName,userId]);
+      const entity = api(enriched.rows[0]!);
+      if (JSON.stringify(api(previous)) !== JSON.stringify(entity)) {
+        await this.audit(tx,'SUPPLIER',previous.id as string,'ENRICHED_FROM_XML_IMPORT',userId,api(previous),entity);
+      }
+      return { id: previous.id as string, created: false, entity };
+    }
+
     const notes = `Fornecedor criado automaticamente pela importação XML NFe${input.accessKey ? ` ${input.accessKey}` : ''}.`;
     const created = await tx.query(`INSERT INTO cadastros.suppliers (
-        supplier_type,legal_name,trade_name,document_number,country_code,state_registration,supplier_category_id,status_id,state_id,city_id,notes,created_by,updated_by
+        supplier_type,legal_name,trade_name,document_number,country_code,state_registration,postal_code,street,street_number,address_complement,neighborhood,phone,supplier_category_id,status_id,state_id,city_id,notes,created_by,updated_by
       ) VALUES (
-        $1,$2,$3,$4,'BR',$5,
+        $1,$2,$3,$4,'BR',$5,$6,$7,$8,$9,$10,$11,
         (SELECT id FROM cadastros.supplier_categories WHERE code='SUPPLIER'),
         (SELECT id FROM cadastros.supplier_statuses WHERE code='ACTIVE'),
-        (SELECT id FROM cadastros.states WHERE code=$6 LIMIT 1),
-        (SELECT c.id FROM cadastros.cities c JOIN cadastros.states s ON s.id=c.state_id WHERE s.code=$6 AND lower(c.name)=lower($7) LIMIT 1),
-        $8,$9,$9
-      ) RETURNING *`, [supplierType,legalName,tradeName,documentNumber,input.supplierStateRegistration ?? null,stateCode,cityName,notes,userId]);
+        (SELECT id FROM cadastros.states WHERE code=$12 LIMIT 1),
+        (SELECT c.id FROM cadastros.cities c JOIN cadastros.states s ON s.id=c.state_id WHERE s.code=$12 AND lower(c.name)=lower($13) LIMIT 1),
+        $14,$15,$15
+      ) RETURNING *`, [supplierType,legalName,tradeName,documentNumber,...supplierData,stateCode,cityName,notes,userId]);
     const entity = api(created.rows[0]!);
     await tx.query(`INSERT INTO administracao.audit_events(domain_code,entity_name,entity_id,action_code,previous_data,new_data,user_id,source_code) VALUES('DOM-001','SUPPLIER',$1,'CREATED_FROM_XML_IMPORT',NULL,$2,$3,'API')`, [entity.id,JSON.stringify(entity),userId]);
     return { id: entity.id as string, created: true, entity };

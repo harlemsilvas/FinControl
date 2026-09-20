@@ -1,6 +1,6 @@
 # FinControl — Next Task
 
-**Última atualização:** 17/09/2026
+**Última atualização:** 20/09/2026
 **Status:** deploy do pacote de notificações validado na VPS; primeira entrega
 de Relatórios implementada localmente e aguardando validação visual do
 relatório de compromissos a pagar
@@ -15,6 +15,25 @@ clareza quanto deve ser pago nos próximos períodos, permitindo consultar uma
 empresa específica ou a visão global das empresas autorizadas ao usuário.
 
 ## Ponto de retomada imediato
+
+- Módulo local de certificados digitais A1 em implementação:
+  - cofre por empresa com AES-256-GCM e chave exclusiva do ambiente;
+  - validação de PFX/P12, senha, chave privada, validade e CNPJ;
+  - permissão `DIGITAL_CERTIFICATE_MANAGE`, escopo multiempresa e auditoria;
+  - tela `Configurações > Certificados digitais` sem exportação do segredo;
+  - consulta SEFAZ permanece como etapa posterior e desacoplada do cofre;
+  - guia operacional em `docs/DIGITAL-CERTIFICATES-A1.md`.
+  - distribuição futura de DF-e via SEFAZ registrada em Features e em
+    `docs/FUTURE-SEFAZ-DFE-DISTRIBUTION.md`, usando o projeto local
+    `dfe-sefaz-enhanced` somente como referência técnica.
+
+- Pacote local em desenvolvimento para completar fornecedores:
+  - XML da NFe passa a preencher endereço e telefone do emitente;
+  - cadastros existentes recebem somente campos ainda vazios;
+  - tela de fornecedores recebe consulta pública por CNPJ com revisão manual;
+  - não há migration neste pacote;
+  - validações focadas de parser, serviço CNPJ, fornecedores e typecheck foram
+    aprovadas; falta validação visual e checagem completa antes de commit/deploy.
 
 - Branch de trabalho: `feature/matriz-filial-xml`.
 - Último commit publicado: `ac6df5b feat(web): add global toast

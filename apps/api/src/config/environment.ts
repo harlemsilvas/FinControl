@@ -42,6 +42,8 @@ const environmentSchema = z.object({
   BACKUP_DIRECTORY: z.string().min(1).default('/opt/fincontrol/shared/backups'),
   BACKUP_SCRIPT_PATH: z.string().min(1).default('/opt/fincontrol/bin/backup-db'),
   BACKUP_SCRIPT_USE_SUDO: envBoolean,
+  CNPJ_LOOKUP_BASE_URL: z.url().default('https://brasilapi.com.br/api/cnpj/v1'),
+  CERTIFICATE_ENCRYPTION_KEY: optionalText,
 }).superRefine((environment, context) => {
   if (!environment.SMTP_ENABLED) return;
   if (!environment.SMTP_HOST) {
