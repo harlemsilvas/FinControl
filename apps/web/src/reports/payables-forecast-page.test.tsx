@@ -49,10 +49,11 @@ describe('PayablesForecastPage', () => {
     expect(screen.getByText('NF-100')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Exibir painel' }));
 
+    const expectedRange = rangeForForecastPreset('NEXT_WEEK', new Date());
     fireEvent.click(screen.getByRole('button', { name: 'Próxima semana' }));
     await waitFor(() => {
       const reportCall = [...mocks.get.mock.calls].reverse().find(([url]) => url === '/api/v1/reports/payables-forecast');
-      expect(reportCall?.[1]?.params).toMatchObject({ from: '2026-09-21', to: '2026-09-27' });
+      expect(reportCall?.[1]?.params).toMatchObject(expectedRange);
     });
   });
 });
