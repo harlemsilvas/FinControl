@@ -126,4 +126,7 @@ jobs:
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             "$VPS_USER@$VPS_HOST" \
-            "sudo -n /opt/fincontrol/bin/deploy '$COMMIT_SHA'"
+            "sudo -n /opt/fincontrol/bin/deploy '$COMMIT_SHA' && \
+             sudo -n install -o root -g root -m 755 \
+               /opt/fincontrol/current/deploy/vps/bin/deploy \
+               /opt/fincontrol/bin/deploy"

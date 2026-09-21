@@ -41,7 +41,8 @@ BEGIN
             ('financeiro', 'approvals'), ('financeiro', 'attachments'),
             ('financeiro', 'tags'), ('financeiro', 'payable_title_tags'),
             ('financeiro', 'xml_imports'), ('financeiro', 'payable_recurrence_statuses'),
-            ('financeiro', 'payable_recurrences'), ('financeiro', 'payable_recurrence_titles')
+            ('financeiro', 'payable_recurrences'), ('financeiro', 'payable_recurrence_titles'),
+            ('integracoes', 'company_digital_certificates')
     ), missing AS (
         SELECT e.schema_name || '.' || e.object_name AS object_name
         FROM expected e
@@ -117,7 +118,8 @@ BEGIN
             ('RECURRENCE_CREATE'),
             ('RECURRENCE_UPDATE'),
             ('RECURRENCE_CANCEL'),
-            ('RECURRENCE_GENERATE')
+            ('RECURRENCE_GENERATE'),
+            ('DIGITAL_CERTIFICATE_MANAGE')
     ), missing_permissions AS (
         SELECT code
         FROM expected_permissions

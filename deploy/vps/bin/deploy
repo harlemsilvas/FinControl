@@ -161,7 +161,8 @@ apply_migrations() {
     description="${filename%.sql}"
     description="${description#${version}_}"
     checksum="$(sha256sum "$migration" | awk '{print $1}')"
-    applied="$(psql_app -Atc "SELECT checksum FROM administracao.schema_versions WHERE version = '$version'")"
+    # docker exec -i must not inherit the migration-list stream from this loop.
+    applied="$(psql_app -Atc "SELECT checksum FROM administracao.schema_versions WHERE version = '$version'" </dev/null)"
 
     if [[ -n "$applied" ]]; then
       if [[ "$applied" != "$checksum" && "$applied" != "baseline-existing" ]]; then
@@ -174,7 +175,7 @@ apply_migrations() {
 
     echo "Applying migration $filename"
     psql_app < "$migration"
-    psql_app -c "INSERT INTO administracao.schema_versions(version, description, checksum) VALUES ('$version', '$description', '$checksum');"
+    psql_app -c "INSERT INTO administracao.schema_versions(version, description, checksum) VALUES ('$version', '$description', '$checksum');" </dev/null
   done < <(find "$release_dir/database/migrations" -maxdepth 1 -type f -name '*.sql' -print0 | sort -z)
 }
 
@@ -210,6 +211,9 @@ else
   rsync -a --delete --exclude '.git' "$work_dir/repo/" "$release_dir/"
   chown -R fincontrol:fincontrol "$release_dir"
 fi
+
+# Keep the installed control plane aligned for the next deployment.
+install -o root -g root -m 755 "$release_dir/deploy/vps/bin/deploy" "$APP_ROOT/bin/deploy"
 
 echo "Installing dependencies"
 cd "$release_dir"
