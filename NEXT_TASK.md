@@ -21,6 +21,11 @@ empresa específica ou a visão global das empresas autorizadas ao usuário.
   API. Monitor local, timer systemd e avisos por e-mail/Telegram foram
   preparados em `docs/VPS-API-MONITORING.md`; falta publicar, configurar
   `monitor.env` na VPS, habilitar as unidades e testar os dois avisos.
+- Deploy do monitor em `f7619c7` parou nas migrations: a tabela de recorrencias
+  ja existe, mas sua versao nao consta em `administracao.schema_versions`.
+  O script de deploy recebeu marcadores de baseline para as migrations
+  posteriores que ja podem existir na VPS; repetir o deploy e conferir o
+  resultado antes de habilitar o timer.
 
 - Módulo local de certificados digitais A1 em implementação:
   - cofre por empresa com AES-256-GCM e chave exclusiva do ambiente;

@@ -113,6 +113,9 @@ baseline_existing_migrations() {
   if [[ "$(psql_app -Atc "SELECT to_regclass('administracao.schema_versions') IS NOT NULL")" != "t" ]]; then
     return 0
   fi
+  if [[ "$(psql_app -Atc "SELECT to_regclass('administracao.permissions') IS NOT NULL AND to_regclass('cadastros.supplier_categories') IS NOT NULL")" != "t" ]]; then
+    return 0
+  fi
 
   register_existing_migration_if_needed "202607162000" "core_enable_extensions" "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto')"
   register_existing_migration_if_needed "202607162010" "core_create_schemas" "SELECT to_regnamespace('financeiro') IS NOT NULL"
@@ -142,6 +145,13 @@ baseline_existing_migrations() {
   register_existing_migration_if_needed "202607162290" "administracao_create_auth_sessions" "SELECT to_regclass('administracao.auth_sessions') IS NOT NULL"
   register_existing_migration_if_needed "202607162300" "administracao_seed_master_data_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'MASTER_DATA_VIEW')"
   register_existing_migration_if_needed "202607162310" "financeiro_phase_7_permissions_and_title_balance" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'PAYABLE_TITLE_VIEW')"
+  register_existing_migration_if_needed "202607231000" "financeiro_create_payable_recurrences" "SELECT to_regclass('financeiro.payable_recurrence_statuses') IS NOT NULL AND to_regclass('financeiro.payable_recurrences') IS NOT NULL AND to_regclass('financeiro.payable_recurrence_titles') IS NOT NULL"
+  register_existing_migration_if_needed "202607231010" "administracao_seed_recurrence_permissions" "SELECT count(*) = 5 FROM administracao.permissions WHERE code IN ('RECURRENCE_VIEW','RECURRENCE_CREATE','RECURRENCE_UPDATE','RECURRENCE_CANCEL','RECURRENCE_GENERATE')"
+  register_existing_migration_if_needed "202607291000" "administracao_seed_user_management_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'USER_MANAGE')"
+  register_existing_migration_if_needed "202607291010" "administracao_create_password_reset_outbox" "SELECT to_regclass('administracao.password_reset_tokens') IS NOT NULL AND to_regclass('administracao.email_outbox') IS NOT NULL"
+  register_existing_migration_if_needed "202607311130" "cadastros_seed_supplier_category_particular" "SELECT EXISTS (SELECT 1 FROM cadastros.supplier_categories WHERE code = 'PARTICULAR')"
+  register_existing_migration_if_needed "202608011400" "administracao_seed_backup_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'BACKUP_MANAGE')"
+  register_existing_migration_if_needed "202609201500" "integracoes_create_company_digital_certificates" "SELECT to_regclass('integracoes.company_digital_certificates') IS NOT NULL AND EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'DIGITAL_CERTIFICATE_MANAGE')"
 }
 
 apply_migrations() {
