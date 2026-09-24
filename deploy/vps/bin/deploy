@@ -281,4 +281,8 @@ if ! wait_for_url "$WEB_HEALTH_URL" "Frontend"; then
 fi
 
 echo "$short_sha" > "$APP_ROOT/shared/current-release"
+install -o root -g root -m 755 "$release_dir/deploy/vps/bin/monitor-api.py" "$APP_ROOT/bin/monitor-api.py"
+install -o root -g root -m 644 "$release_dir/deploy/vps/systemd/fincontrol-api-monitor.service" "/etc/systemd/system/fincontrol-api-monitor.service"
+install -o root -g root -m 644 "$release_dir/deploy/vps/systemd/fincontrol-api-monitor.timer" "/etc/systemd/system/fincontrol-api-monitor.timer"
+systemctl daemon-reload
 echo "Deploy completed: $short_sha"

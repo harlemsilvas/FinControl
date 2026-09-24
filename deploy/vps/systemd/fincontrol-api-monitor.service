@@ -1,0 +1,17 @@
+[Unit]
+Description=Check and recover FinControl API
+After=network-online.target pm2-fincontrol.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fincontrol
+Group=fincontrol
+WorkingDirectory=/opt/fincontrol
+Environment=PATH=/opt/fincontrol/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PM2_HOME=/opt/fincontrol/.pm2
+EnvironmentFile=/opt/fincontrol/shared/.env
+EnvironmentFile=/opt/fincontrol/shared/monitor.env
+ExecStart=/usr/bin/python3 /opt/fincontrol/bin/monitor-api.py
+TimeoutStartSec=120
+KillMode=process

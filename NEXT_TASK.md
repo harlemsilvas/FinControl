@@ -16,6 +16,12 @@ empresa específica ou a visão global das empresas autorizadas ao usuário.
 
 ## Ponto de retomada imediato
 
+- Incidente de 24/09/2026: a API caiu porque o PM2 estava sem processos e
+  `pm2-fincontrol.service` estava desabilitado. `pm2 resurrect` recuperou a
+  API. Monitor local, timer systemd e avisos por e-mail/Telegram foram
+  preparados em `docs/VPS-API-MONITORING.md`; falta publicar, configurar
+  `monitor.env` na VPS, habilitar as unidades e testar os dois avisos.
+
 - Módulo local de certificados digitais A1 em implementação:
   - cofre por empresa com AES-256-GCM e chave exclusiva do ambiente;
   - validação de PFX/P12, senha, chave privada, validade e CNPJ;

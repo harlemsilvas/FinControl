@@ -15,8 +15,11 @@ install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/deploy" "$APP_ROOT/bin/
 install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/rollback" "$APP_ROOT/bin/rollback"
 install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/backup-db" "$APP_ROOT/bin/backup-db"
 install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/restore-db" "$APP_ROOT/bin/restore-db"
+install -o root -g root -m 755 "$REPO_DIR/deploy/vps/bin/monitor-api.py" "$APP_ROOT/bin/monitor-api.py"
 install -o fincontrol -g fincontrol -m 644 "$REPO_DIR/deploy/vps/pm2/ecosystem.config.cjs" "$APP_ROOT/shared/ecosystem.config.cjs"
 install -o root -g root -m 644 "$REPO_DIR/deploy/vps/systemd/pm2-fincontrol.service" "/etc/systemd/system/pm2-fincontrol.service"
+install -o root -g root -m 644 "$REPO_DIR/deploy/vps/systemd/fincontrol-api-monitor.service" "/etc/systemd/system/fincontrol-api-monitor.service"
+install -o root -g root -m 644 "$REPO_DIR/deploy/vps/systemd/fincontrol-api-monitor.timer" "/etc/systemd/system/fincontrol-api-monitor.timer"
 
 if [[ -f "$REPO_DIR/deploy/vps/postgres/compose.yaml" ]]; then
   install -d -o fincontrol -g fincontrol -m 750 "$APP_ROOT/infra/postgres"
@@ -28,8 +31,11 @@ echo "  $APP_ROOT/bin/deploy"
 echo "  $APP_ROOT/bin/rollback"
 echo "  $APP_ROOT/bin/backup-db"
 echo "  $APP_ROOT/bin/restore-db"
+echo "  $APP_ROOT/bin/monitor-api.py"
 echo "  $APP_ROOT/shared/ecosystem.config.cjs"
 echo "  /etc/systemd/system/pm2-fincontrol.service"
+echo "  /etc/systemd/system/fincontrol-api-monitor.service"
+echo "  /etc/systemd/system/fincontrol-api-monitor.timer"
 echo
 echo "To enable PM2 startup after the first successful deploy:"
 echo "  sudo systemctl daemon-reload"
