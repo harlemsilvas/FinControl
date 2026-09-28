@@ -50,7 +50,9 @@ const menuSections: MenuSection[] = [
   {
     title: 'Relatórios',
     items: [
-      { label: 'Relatórios', to: '/reports', icon: '▱' },
+      { label: 'Compromissos a pagar', to: '/reports', icon: '▱', permission: 'PAYABLE_TITLE_VIEW' },
+      { label: 'Pagamentos realizados', to: '/reports/payments', icon: '$', permission: 'PAYABLE_TITLE_VIEW' },
+      { label: 'Previsto x pago', to: '/reports/planned-vs-paid', icon: '≋', permission: 'PAYABLE_TITLE_VIEW' },
       { label: 'Dashboards', to: '/analytics-dashboards', icon: '◔' },
       { label: 'Fluxo de Caixa', to: '/cash-flow', icon: '〽' },
       { label: 'Indicadores', to: '/indicators', icon: '⌁' },
@@ -93,7 +95,7 @@ function MenuEntry({ item }: { item: MenuItem }): ReactElement {
   return (
     <NavLink
       to={item.to}
-      end={item.to === '/dashboard'}
+      end={item.to === '/dashboard' || item.to === '/reports'}
       className={({ isActive }) =>
         [
           'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
@@ -184,9 +186,9 @@ export function AppShell(): ReactElement {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 lg:flex">
-      {sidebarOpen ? <button type="button" className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
+      {sidebarOpen ? <button data-app-overlay type="button" className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
       {sidebarOpen ? (
-      <aside className="fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 text-white shadow-2xl shadow-slate-950/30 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shadow-none">
+      <aside data-app-sidebar className="fixed inset-y-0 left-0 z-40 w-72 bg-slate-950 text-white shadow-2xl shadow-slate-950/30 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:shadow-none">
         <div className="flex h-full flex-col bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.24),transparent_34%),linear-gradient(180deg,#061b3a_0%,#031326_100%)]">
           <div className="flex h-20 items-center gap-3 border-b border-white/10 px-5">
             <FinControlMark />
@@ -217,7 +219,7 @@ export function AppShell(): ReactElement {
       ) : null}
 
       <div className="min-w-0 flex-1">
-        <header className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
+        <header data-app-header className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -239,7 +241,7 @@ export function AppShell(): ReactElement {
             Sair
           </button>
         </header>
-        <main className="p-4 sm:p-6 lg:p-8">
+        <main data-app-main className="p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

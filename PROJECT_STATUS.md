@@ -76,6 +76,22 @@ Este documento registra o estado consolidado do projeto sem substituir:
 
 ## 3. Avanços além da Fase 16
 
+### Relatórios e monitoramento em 24/09/2026
+
+- Monitor da API com recuperação via PM2 e alertas por e-mail/Telegram
+  publicado e validado na VPS no release `10b4219`.
+- Totais do relatório `Compromissos a pagar` conferidos pelo usuário contra
+  a Agenda com dados reais.
+- Relatório `Pagamentos realizados` implementado localmente em DOM-005,
+  considerando apenas pagamentos efetivos sem estorno e a data do pagamento;
+  inclui escopo multiempresa, filtros, agrupamentos, paginação, impressão e
+  planilha. Aguarda validação visual antes de publicação.
+- Próxima etapa funcional aprovada: comparativo `previsto x pago`, após
+  validar o relatório de pagamentos realizados.
+- Comparativo `Previsto x pago` implementado localmente, separando parcelas
+  por vencimento de pagamentos efetivos por data da baixa; aguarda conferência
+  visual e validação financeira antes do deploy.
+
 ### Enriquecimento de fornecedores iniciado em 19/09/2026
 
 - importação de NFe passa a aproveitar também CEP, logradouro, número,

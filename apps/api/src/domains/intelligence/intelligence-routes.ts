@@ -4,11 +4,11 @@ import { ApplicationError } from '../../common/errors/application-error.js';
 import { createAuthenticate, requirePermission } from '../auth/auth-context.js';
 import type { AuthRepository } from '../auth/auth-repository.js';
 import type { TokenService } from '../auth/token-service.js';
-import type { IntelligenceFilters, IntelligenceRepository, PayablesForecastFilters } from './intelligence-repository.js';
+import type { IntelligenceFilters, IntelligenceRepository, PayablesForecastFilters, PaymentsReportFilters, PlannedVsPaidFilters } from './intelligence-repository.js';
 
 interface Options { authRepository:AuthRepository;tokenService:TokenService;repository:IntelligenceRepository }
 const filters=z.object({from:z.iso.date(),to:z.iso.date(),supplierId:z.uuid().optional(),categoryId:z.uuid().optional(),companyId:z.uuid().optional()}).refine(value=>value.from<=value.to,{message:'Initial date must not exceed final date',path:['to']});
-const payablesForecastFilters=z.object({
+const reportFilterFields=z.object({
   from:z.iso.date(),
   to:z.iso.date(),
   companyId:z.uuid().optional(),
@@ -18,9 +18,13 @@ const payablesForecastFilters=z.object({
   search:z.string().trim().min(1).max(120).optional(),
   page:z.coerce.number().int().min(1).default(1),
   pageSize:z.coerce.number().int().min(1).max(100).default(20),
-}).refine(value=>value.from<=value.to,{message:'Initial date must not exceed final date',path:['to']});
+});
+const payablesForecastFilters=reportFilterFields.refine(value=>value.from<=value.to,{message:'Initial date must not exceed final date',path:['to']});
 function parse(value:unknown):IntelligenceFilters{const result=filters.safeParse(value);if(!result.success)throw new ApplicationError({code:'VALIDATION_ERROR',message:'Invalid request data',statusCode:400,details:result.error.issues});return result.data;}
 function parseForecast(value:unknown):PayablesForecastFilters{const result=payablesForecastFilters.safeParse(value);if(!result.success)throw new ApplicationError({code:'VALIDATION_ERROR',message:'Invalid request data',statusCode:400,details:result.error.issues});return result.data;}
+const paymentsReportFilters=reportFilterFields.omit({status:true}).refine(value=>value.from<=value.to,{message:'Initial date must not exceed final date',path:['to']});
+function parsePayments(value:unknown):PaymentsReportFilters{const result=paymentsReportFilters.safeParse(value);if(!result.success)throw new ApplicationError({code:'VALIDATION_ERROR',message:'Invalid request data',statusCode:400,details:result.error.issues});return result.data;}
+function parseComparison(value:unknown):PlannedVsPaidFilters{const result=filters.safeParse(value);if(!result.success)throw new ApplicationError({code:'VALIDATION_ERROR',message:'Invalid request data',statusCode:400,details:result.error.issues});return result.data;}
 
 export function intelligenceRoutes(app:FastifyInstance,options:Options):Promise<void>{
   const authenticate=createAuthenticate(options.authRepository,options.tokenService);
@@ -30,6 +34,20 @@ export function intelligenceRoutes(app:FastifyInstance,options:Options):Promise<
   app.get('/reports/payables-forecast',{preHandler:[authenticate,view]},request=>{
     const currentUser=request.authUser!;
     return options.repository.payablesForecast(parseForecast(request.query),{
+      isMaster:currentUser.isMaster,
+      companyIds:currentUser.companies.map(company=>company.id),
+    });
+  });
+  app.get('/reports/payments',{preHandler:[authenticate,view]},request=>{
+    const currentUser=request.authUser!;
+    return options.repository.paymentsReport(parsePayments(request.query),{
+      isMaster:currentUser.isMaster,
+      companyIds:currentUser.companies.map(company=>company.id),
+    });
+  });
+  app.get('/reports/planned-vs-paid',{preHandler:[authenticate,view]},request=>{
+    const currentUser=request.authUser!;
+    return options.repository.plannedVsPaid(parseComparison(request.query),{
       isMaster:currentUser.isMaster,
       companyIds:currentUser.companies.map(company=>company.id),
     });

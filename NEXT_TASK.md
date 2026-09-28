@@ -1,9 +1,16 @@
 # FinControl — Next Task
 
-**Última atualização:** 20/09/2026
-**Status:** deploy do pacote de notificações validado na VPS; primeira entrega
-de Relatórios implementada localmente e aguardando validação visual do
-relatório de compromissos a pagar
+**Ultima mensagem do chat:**
+
+- Pergunta:
+  - O botão de imprimir deve selecionar a area dos dados retornado, não do menu lateral. Temos como definir essa area na impressão ? Se mudar para outra posilção, até mostra ,,,, mas não vejo necessidade de mostrar um monte de coisa e menus .... temos como definir uma impressão mais acertiva ?
+- Resposta
+  - Vou aplicar um estilo de impressão próprio para os relatórios: ocultar menu e cabeçalho da aplicação, remover controles de filtro, usar a largura da folha e permitir que tabelas quebrem corretamente entre páginas. Também vou deixar visível no papel o período e a empresa selecionada.
+
+**Última atualização:** 24/09/2026
+**Status:** monitor da API publicado e validado na VPS; três relatórios
+operacionais implementados localmente, com comparativo previsto x pago
+aguardando validação visual antes do deploy
 **Contexto:** continuidade pós-Fase 16, com multiempresa, XML operacional,
 pagamentos/tesouraria, recorrências, busca ampla e base global de Toast
 publicados
@@ -16,16 +23,29 @@ empresa específica ou a visão global das empresas autorizadas ao usuário.
 
 ## Ponto de retomada imediato
 
+- O usuário confirmou os totais do relatório de compromissos a pagar contra
+  a Agenda. Próxima entrega aprovada: `Pagamentos realizados`; em seguida,
+  `Comparativo previsto x pago`.
+- Relatório `Pagamentos realizados` implementado localmente em
+  `/reports/payments` e `GET /api/v1/reports/payments`, com escopo multiempresa,
+  filtros, resumo, agrupamentos, paginação, impressão, planilha XLSX e acesso
+  direto pelo menu lateral.
+  Regras e validação operacional: `docs/REPORTS-PAYMENTS-REALIZED.md`.
+- Comparativo `Previsto x pago` implementado localmente em
+  `/reports/planned-vs-paid` e `GET /api/v1/reports/planned-vs-paid`, com
+  conjuntos independentes de vencimentos e pagamentos, filtros por empresa,
+  fornecedor e categoria, impressão e planilha. Regra financeira em
+  `docs/REPORTS-PLANNED-VS-PAID.md`.
+- Monitoramento da API publicado no release `10b4219`, timer e alertas de
+  e-mail/Telegram validados na VPS. O token exposto foi revogado e atualizado
+  pelo usuário.
+
 - Incidente de 24/09/2026: a API caiu porque o PM2 estava sem processos e
   `pm2-fincontrol.service` estava desabilitado. `pm2 resurrect` recuperou a
-  API. Monitor local, timer systemd e avisos por e-mail/Telegram foram
-  preparados em `docs/VPS-API-MONITORING.md`; falta publicar, configurar
-  `monitor.env` na VPS, habilitar as unidades e testar os dois avisos.
-- Deploy do monitor em `f7619c7` parou nas migrations: a tabela de recorrencias
-  ja existe, mas sua versao nao consta em `administracao.schema_versions`.
-  O script de deploy recebeu marcadores de baseline para as migrations
-  posteriores que ja podem existir na VPS; repetir o deploy e conferir o
-  resultado antes de habilitar o timer.
+  API; monitor, timer e alertas foram publicados e validados. Detalhes em
+  `docs/VPS-API-MONITORING.md`.
+- O deploy do monitor inicialmente parou em migrations preexistentes sem
+  registro. O baseline foi corrigido e o deploy de `10b4219` concluiu.
 
 - Módulo local de certificados digitais A1 em implementação:
   - cofre por empresa com AES-256-GCM e chave exclusiva do ambiente;
@@ -48,7 +68,7 @@ empresa específica ou a visão global das empresas autorizadas ao usuário.
 
 - Branch de trabalho: `feature/matriz-filial-xml`.
 - Último commit publicado: `ac6df5b feat(web): add global toast
-  notifications`.
+notifications`.
 - Busca ampla de `Notas Fiscais e Contas` publicada anteriormente em
   `d55614a fix(payables): broaden text search filters` e validada visualmente.
 - Workflow `Deploy VPS Native` número `35276599924` concluído com sucesso em
@@ -78,6 +98,15 @@ empresa específica ou a visão global das empresas autorizadas ao usuário.
   - `docs/wireframes/Tela-Agenda.jpg`.
 
 ## Próxima tarefa executável
+
+Validar visualmente `Previsto x pago` com dados reais, especialmente parcelas
+vencidas e pagas em meses diferentes, pagamentos parciais e estornos; conferir
+usuário restrito, planilha e impressão. O usuário já aprovou a navegação e a
+apresentação inicial de `Pagamentos realizados`. Depois da validação, executar
+`./Checar_alteracao.sh` e publicar o pacote dos relatórios.
+
+O roteiro abaixo descreve a validação anterior do relatório de compromissos
+a pagar; seus totais contra a Agenda já foram confirmados pelo usuário.
 
 Validar localmente o MVP `Relatório de compromissos a pagar`, conforme
 `docs/REPORTS-PAYABLES-FORECAST.md`:
@@ -269,7 +298,7 @@ continuam no roadmap e não devem ser apresentados como implementados.
     ano acima de 4 dígitos, preservando o valor anterior quando o navegador
     emitir algo como `666666-08-17`;
   - a mesma proteção foi aplicada à data final da recorrência, à data `Gerar
-    até` e ao modal de revisão futura (`Vigência a partir de` e `Data final`);
+até` e ao modal de revisão futura (`Vigência a partir de` e `Data final`);
   - campos receberam limites `1900-01-01` a `9999-12-31`;
   - validação focada executada:
     `npm test --workspace @fincontrol/web -- date-input-utils.test.ts recurrences-page.test.tsx payables-list-page.test.tsx`
@@ -457,7 +486,7 @@ continuam no roadmap e não devem ser apresentados como implementados.
   - mensagem de credenciais inválidas do login passa a ser exibida em português;
 - refinamento local em 31/07/2026 para `Baixa de Pagamentos`:
   - API de parcelas elegíveis calcula atraso dinamicamente por `due_date <
-    CURRENT_DATE`, evitando que boleto manual ou recorrente vencido permaneça
+CURRENT_DATE`, evitando que boleto manual ou recorrente vencido permaneça
     invisível no filtro `Atrasados` por ainda estar gravado como `OPEN`;
   - tela substitui o card `Pagamentos parciais` por `Pagamentos efetuados`;
   - card `Pagamentos efetuados` passa a exibir o valor monetário total dos
@@ -525,24 +554,26 @@ continuam no roadmap e não devem ser apresentados como implementados.
 8. Criar commit local personalizado após `STATUS: OK`.
 9. Fazer push somente quando o usuário validar/autorizá-lo.
 10. Se o script retornar `STATUS: FAIL`, analisar o log indicado e voltar aos
-   testes/correções normais.
+    testes/correções normais.
 11. Na VPS, verificar se a release usada contém
-   `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
+    `database/migrations/202607231000_financeiro_create_payable_recurrences.sql`.
 12. Na VPS, consultar `administracao.schema_versions` para as versões
-   `202607231000` e `202607231010`.
+    `202607231000` e `202607231010`.
 13. Na VPS, consultar `to_regclass` das três tabelas de recorrência.
 14. Se `schema_versions` não tiver as versões novas e as tabelas não existirem,
-   aplicar as duas migrations de recorrência a partir da release publicada e
-   registrar checksums.
+    aplicar as duas migrations de recorrência a partir da release publicada e
+    registrar checksums.
 15. Se `schema_versions` tiver a versão `202607231000`, mas as tabelas não
-   existirem, remover apenas esse registro inconsistente depois de backup lógico
-   ou aplicar reparo manual com registro correto.
+    existirem, remover apenas esse registro inconsistente depois de backup lógico
+    ou aplicar reparo manual com registro correto.
 16. Depois de corrigir o banco, repetir o deploy/verify.
 17. Só então decidir entre:
-   - deploy controlado manual da branch/commit;
-   - ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
+
+- deploy controlado manual da branch/commit;
+- ou publicação via workflow `Deploy Production`, se `main` estiver pronta.
+
 18. Se usar workflow, abrir/mergear PR para `main` antes do acionamento manual,
-   pois o workflow atual faz checkout fixo de `main`.
+    pois o workflow atual faz checkout fixo de `main`.
 19. Se usar deploy manual, executar `/opt/fincontrol/bin/deploy` apontando para
     o SHA publicado escolhido.
 20. Na VPS, configurar `PASSWORD_RESET_BASE_URL` e variáveis SMTP reais em

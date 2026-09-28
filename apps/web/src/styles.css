@@ -12,3 +12,118 @@
   body { margin: 0; min-width: 320px; min-height: 100vh; font-family: var(--font-sans); }
   button, input, select, textarea { font: inherit; }
 }
+
+@page fincontrol-report {
+  size: A4 landscape;
+  margin: 18mm 12mm 16mm;
+
+  @top-left {
+    content: "FinControl";
+    color: #0f766e;
+    font-size: 10pt;
+    font-weight: 700;
+  }
+
+  @top-right {
+    content: "Relatório financeiro";
+    color: #475569;
+    font-size: 9pt;
+  }
+
+  @bottom-left {
+    content: "FinControl · Uso interno";
+    color: #64748b;
+    font-size: 8pt;
+  }
+
+  @bottom-right {
+    content: "Página " counter(page) " de " counter(pages);
+    color: #64748b;
+    font-size: 8pt;
+  }
+}
+
+@media print {
+  html, body, #root {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    background: white !important;
+  }
+
+  #root > div,
+  [data-app-main] > div {
+    display: block !important;
+    min-height: 0 !important;
+  }
+
+  [data-app-sidebar], [data-app-header], [data-app-overlay] {
+    display: none !important;
+  }
+
+  [data-app-main] {
+    display: block;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  [data-print-report] {
+    page: fincontrol-report;
+    display: block;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #111827;
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  [data-print-report] > * {
+    margin-bottom: 6mm;
+  }
+
+  [data-print-report] header {
+    padding: 0 0 5mm !important;
+    border: 0 !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  [data-print-report] article {
+    break-inside: avoid-page;
+  }
+
+  [data-print-report] table {
+    width: 100%;
+    min-width: 0 !important;
+    font-size: 9pt;
+  }
+
+  [data-print-report] thead {
+    display: table-header-group;
+  }
+
+  [data-print-report] tr {
+    break-inside: avoid-page;
+  }
+
+  [data-print-report] th,
+  [data-print-report] td {
+    padding: 2mm !important;
+  }
+
+  [data-print-report] [class*="overflow"] {
+    overflow: visible !important;
+  }
+
+  [data-print-report] [class*="min-w-"] {
+    min-width: 0 !important;
+  }
+
+  [data-print-report] [class*="shadow"] {
+    box-shadow: none !important;
+  }
+}
