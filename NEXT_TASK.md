@@ -1,27 +1,63 @@
 # FinControl — Next Task
 
-**Ultima mensagem do chat:**
+**Última atualização:** 29/09/2026
+**Status:** ambiente Debian e banco local recuperados; dependências corrigidas,
+auditoria e checagem completa aprovadas; pacote autorizado para commit/deploy.
+**Último deploy registrado:** `10b4219` em 24/09/2026; não reconsultado na VPS.
 
-- Pergunta:
-  - O botão de imprimir deve selecionar a area dos dados retornado, não do menu lateral. Temos como definir essa area na impressão ? Se mudar para outra posilção, até mostra ,,,, mas não vejo necessidade de mostrar um monte de coisa e menus .... temos como definir uma impressão mais acertiva ?
-- Resposta
-  - Vou aplicar um estilo de impressão próprio para os relatórios: ocultar menu e cabeçalho da aplicação, remover controles de filtro, usar a largura da folha e permitir que tabelas quebrem corretamente entre páginas. Também vou deixar visível no papel o período e a empresa selecionada.
-
-**Última atualização:** 24/09/2026
-**Status:** monitor da API publicado e validado na VPS; três relatórios
-operacionais implementados localmente, com comparativo previsto x pago
-aguardando validação visual antes do deploy
 **Contexto:** continuidade pós-Fase 16, com multiempresa, XML operacional,
 pagamentos/tesouraria, recorrências, busca ampla e base global de Toast
 publicados
 
 ## Objetivo
 
-Iniciar a próxima fase funcional com um relatório operacional que responda com
-clareza quanto deve ser pago nos próximos períodos, permitindo consultar uma
-empresa específica ou a visão global das empresas autorizadas ao usuário.
+Publicar com segurança o pacote validado e confirmar o release na VPS; depois,
+retomar a validação visual e financeira dos relatórios operacionais.
 
-## Ponto de retomada imediato
+## Histórico Git recuperado do GitHub — 29/09/2026
+
+- Remoto confirmado: `https://github.com/harlemsilvas/FinControl.git`.
+- Clone separado salvo em `/home/harlem/projetos/FinControl-recuperado`.
+- Branch selecionada: `feature/matriz-filial-xml`, acompanhando `origin`.
+- HEAD: `93ea2c3adf1f8df57be00dbd7ca565ca7d44c69e` (28/09/2026),
+  `feat(reports): add payment and planned versus paid reports`.
+- `main` permanece em `cc7c295`; não é a branch funcional mais recente.
+- Comparação por conteúdo, desconsiderando diferenças de bit executável:
+  arquivos versionados em `apps/` e `database/migrations/` coincidem com a
+  cópia atual. Foram encontradas diferenças em 13 arquivos: nove documentos
+  desta revisão, `.env.example`, duas configurações `.vscode` e
+  `package-lock.json`. Arquivos não versionados e privados foram preservados.
+- Portanto, os relatórios já estão publicados no GitHub; isso não comprova
+  deploy ou aprovação visual/financeira. O último deploy documentado continua
+  sendo `10b4219`.
+- A pasta original continua sem Git recuperado. Próximo passo: revisar e
+  transferir as diferenças locais necessárias para o clone separado, incluindo
+  esta documentação, e preparar o ambiente nele antes de adotá-lo como workspace.
+  Não substituir arquivos privados nem incluir artefatos automaticamente.
+- A `.git` do Windows antigo ainda poderá recuperar commits/branches nunca
+  enviados ao GitHub. Nenhum arquivo atual foi substituído pelo clone.
+
+## Ponto de retomada imediato — Debian
+
+1. Criar commit apenas com código, manifests, lockfile e documentação deste
+   pacote; preservar `.env`, dumps, logs e artefatos locais fora do Git.
+2. Enviar `feature/matriz-filial-xml` e publicar o SHA imutável pelo workflow
+   `Deploy VPS Native`, com checks ativos e confirmação `DEPLOY`.
+3. Confirmar workflow, release público, `version.json`, frontend, API e banco.
+4. Registrar o SHA e o resultado do deploy neste arquivo.
+5. Retomar a validação visual e financeira dos relatórios, especialmente
+   impressão, planilha e usuário restrito.
+
+Validações locais do pacote: `npm audit` sem vulnerabilidades,
+`./Checar_alteracao.sh` com `STATUS: OK`, exportação XLSX aprovada e health da
+API/banco com status `ok`.
+
+## Continuidade funcional registrada em 24/09/2026
+
+- Última solicitação de interface: imprimir apenas os dados dos relatórios,
+  ocultando menu lateral, cabeçalho da aplicação e controles de filtro;
+  preservar período/empresa no papel, largura útil e quebra de tabelas entre
+  páginas. Confirmar esse comportamento no navegador durante a retomada.
 
 - O usuário confirmou os totais do relatório de compromissos a pagar contra
   a Agenda. Próxima entrega aprovada: `Pagamentos realizados`; em seguida,
@@ -67,7 +103,7 @@ empresa específica ou a visão global das empresas autorizadas ao usuário.
     aprovadas; falta validação visual e checagem completa antes de commit/deploy.
 
 - Branch de trabalho: `feature/matriz-filial-xml`.
-- Último commit publicado: `ac6df5b feat(web): add global toast
+- Checkpoint de 17/09/2026: `ac6df5b feat(web): add global toast
 notifications`.
 - Busca ampla de `Notas Fiscais e Contas` publicada anteriormente em
   `d55614a fix(payables): broaden text search filters` e validada visualmente.
@@ -98,6 +134,12 @@ notifications`.
   - `docs/wireframes/Tela-Agenda.jpg`.
 
 ## Próxima tarefa executável
+
+Revisar as diferenças locais e preparar o clone recuperado como workspace
+Debian conforme o checkpoint acima. Depois, retomar a tarefa funcional já
+aprovada a seguir.
+
+### Validação funcional após recuperação do ambiente
 
 Validar visualmente `Previsto x pago` com dados reais, especialmente parcelas
 vencidas e pagas em meses diferentes, pagamentos parciais e estornos; conferir
@@ -145,7 +187,12 @@ Ficam fora do primeiro pacote: contas a receber, projeção de entradas, saldo
 futuro, conciliação, gráficos gerenciais complexos e exportação. Esses itens
 continuam no roadmap e não devem ser apresentados como implementados.
 
-## Escopo desta tarefa
+## Histórico de pacotes e validações anteriores
+
+Os itens abaixo preservam a continuidade das sessões anteriores; não são
+um roteiro para reaplicar correções nem comprovam o estado do clone Debian.
+
+### Escopo dos pacotes anteriores
 
 - manter como checkpoints:
   - `c1fec93 feat(payables): refine recurrence lifecycle actions`;
@@ -880,5 +927,7 @@ Após a publicação do pacote atual, reavaliar a próxima frente principal entr
 - sincronização futura de comprovantes com Google Drive;
 - evolução do MVP de recorrências.
 
-Último deploy executado foi `Deploy VPS Native` do commit `d107d1d` em
+Registro histórico: deploy `Deploy VPS Native` do commit `d107d1d` em
 11/08/2026, run GitHub Actions `31543548787`, concluído com sucesso.
+
+O checkpoint de produção mais recente documentado é `10b4219`, de 24/09/2026.

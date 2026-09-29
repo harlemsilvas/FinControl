@@ -1,151 +1,192 @@
 # Ambiente de desenvolvimento e GitHub
 
-## Fluxo oficial de trabalho
+**Atualizado em:** 29/09/2026
+**Ambiente oficial:** Debian nativo, substituindo Windows/WSL e Docker Desktop.
 
-O projeto deve permanecer em `/home/harlem/projetos/FinControl`.
+## Fluxo oficial
 
-Fluxo padrao para evitar conflito de caminho entre Windows e WSL:
+- Projeto: `/home/harlem/projetos/FinControl`, no filesystem Linux.
+- API/frontend: Node.js 22 e npm nativos; versão exigida em `package.json`.
+- Banco: PostgreSQL 17 em Docker Engine/Compose no Debian.
+- Endereço padrão do banco: `127.0.0.1:5434`, conforme `compose.yaml`.
+- Segredos: `.env` e arquivos privados locais, nunca versionados.
+- VPS preserva PostgreSQL em Docker, API com PM2 e frontend em Nginx.
 
-1. abrir um terminal no Windows apenas para entrar no Ubuntu WSL;
-2. no Ubuntu, acessar `/home/harlem/projetos/FinControl`;
-3. executar comandos do projeto sempre dentro do WSL;
-4. abrir `code .` somente quando precisar editar arquivos.
-
-Exemplo:
+Abra o terminal no Debian e, se usar VS Code, abra a pasta diretamente:
 
 ```bash
 cd /home/harlem/projetos/FinControl
 code .
 ```
 
-No canto inferior esquerdo do VS Code deve aparecer `WSL: Ubuntu`. Nao abra o projeto por `/mnt/c`, nao rode Node.js pelo Windows e nao use a pasta UNC `\\wsl.localhost\...` como ponto principal de trabalho.
+Não é necessária conexão `WSL: Ubuntu` ou integração com Docker Desktop.
+Documentos de validações antigas e `guia-otimizacao-wsl.md` são históricos.
 
-## Arquivos locais de referencia
+## Diagnóstico da migração em 29/09/2026
 
-Arquivos auxiliares de analise operacional da VPS podem existir localmente sem entrar no versionamento. O arquivo `hrmmotos.com.br`, por exemplo, e apenas referencia de configuracao Nginx da VPS e nao faz parte do ambiente local de execucao.
+- Sistema consultado: Debian GNU/Linux 13 (trixie).
+- `git status` e `git log`: `not a git repository`. Fora do sandbox, `.git`
+  não foi encontrado nesta pasta. Não foi possível confirmar HEAD, branch,
+  remoto, arquivos modificados ou commits enviados ao GitHub.
+- Node/npm indisponíveis no PATH e dependências locais ausentes.
+- Docker CLI `29.8.1` e Compose `v5.5.1` presentes.
+- `docker ps` fora do sandbox: nenhum container em execução. A consulta no
+  sandbox falhou por permissão no socket; não confundir com daemon inativo.
+- Não foram inspecionados dados/volumes nem restaurado banco. Existência de
+  dumps locais não comprova integridade ou restauração da base migrada.
 
-## Distribuicao das ferramentas
+## Recuperação concluída em 29/09/2026
 
-- Node.js, npm, codigo, testes e Git: Ubuntu WSL;
-- PostgreSQL: Docker Desktop no Windows;
-- conexao local: `127.0.0.1:5434`;
-- segredos locais: `.env`, nunca versionado.
+- Clone ativo recuperado em `/home/harlem/projetos/FinControl-recuperado`, na
+  branch `feature/matriz-filial-xml`.
+- Node.js 22.23.1 e npm 12.1.0 instalados em `~/.local`.
+- Helper legado `docker-credential-desktop` removido da configuração ativa;
+  backup privado preservado em `~/.docker/config.json.pre-debian-20260929`.
+- PostgreSQL 17.11 disponível em `127.0.0.1:5434`; backup de 29/09 restaurado
+  e validado pelo roteiro oficial do banco.
+- Dependências instaladas, `npm audit` sem vulnerabilidades e checagem completa
+  aprovada. API e frontend disponíveis em `127.0.0.1:3000` e
+  `127.0.0.1:5173`.
 
+Os itens do diagnóstico acima registram o estado inicial da migração. Este
+checkpoint posterior é o estado operacional vigente.
 
-## Start local no WSL
+## Histórico Git recuperado do GitHub — 29/09/2026
 
-Para o desenvolvimento diario, use o script abaixo dentro do Ubuntu WSL:
+- Remoto confirmado: `https://github.com/harlemsilvas/FinControl.git`.
+- Clone separado salvo em `/home/harlem/projetos/FinControl-recuperado`.
+- Branch selecionada: `feature/matriz-filial-xml`, acompanhando `origin`.
+- HEAD: `93ea2c3adf1f8df57be00dbd7ca565ca7d44c69e` (28/09/2026),
+  `feat(reports): add payment and planned versus paid reports`.
+- `main` permanece em `cc7c295`; não é a branch funcional mais recente.
+- Comparação por conteúdo, desconsiderando diferenças de bit executável:
+  arquivos versionados em `apps/` e `database/migrations/` coincidem com a
+  cópia atual. Foram encontradas diferenças em 13 arquivos: nove documentos
+  desta revisão, `.env.example`, duas configurações `.vscode` e
+  `package-lock.json`. Arquivos não versionados e privados foram preservados.
+- Portanto, os relatórios já estão publicados no GitHub; isso não comprova
+  deploy ou aprovação visual/financeira. O último deploy documentado continua
+  sendo `10b4219`.
+- A pasta original continua sem Git recuperado. Próximo passo: revisar e
+  transferir as diferenças locais necessárias para o clone separado, incluindo
+  esta documentação, e preparar o ambiente nele antes de adotá-lo como workspace.
+  Não substituir arquivos privados nem incluir artefatos automaticamente.
+- A `.git` do Windows antigo ainda poderá recuperar commits/branches nunca
+  enviados ao GitHub. Nenhum arquivo atual foi substituído pelo clone.
+
+## Recuperar o Git antes de publicar
+
+Esta pasta contém trabalho local e arquivos privados. Preserve uma cópia
+integral antes de recuperar o repositório. Recupere o `.git` original de uma
+cópia confiável ou clone o remoto confirmado em **outra pasta** e compare os
+arquivos, preservando as alterações locais. Não use `git init`, reset ou
+checkout destrutivo para tentar reconstruir o histórico.
+
+Depois de recuperar o clone:
 
 ```bash
-cd /home/harlem/projetos/FinControl
-scripts/start-local-dev.sh
+git status --short --branch
+git log -8 --oneline
+git remote -v
+git fetch origin
+git branch -vv
+git diff --stat
+git diff --check
 ```
 
-O script:
+A branch registrada anteriormente era `feature/matriz-filial-xml`; confirme
+no repositório recuperado. Buscar referências não integra automaticamente
+alterações. Compare o upstream antes de merge/pull e selecione explicitamente
+os arquivos do pacote antes de commit. Push/deploy seguem a autorização do
+usuário. Não recrie um remoto vazio nem publique esta cópia como projeto novo.
 
-- mantem o PostgreSQL no Docker Desktop;
-- remove apenas containers locais antigos da API/Web, quando existirem;
-- libera as portas padrao da API e do Web;
-- sobe a API no WSL em `http://127.0.0.1:3000`;
-- sobe o Web no WSL em `http://127.0.0.1:5173`;
-- usa proxy do Vite para `/auth`, `/api` e `/health`, evitando falhas de login por URL incorreta;
-- grava logs em `.local/dev/api.log` e `.local/dev/web.log`.
+## Preparar e conferir Node.js
 
-Se o Windows nao encaminhar `127.0.0.1`, use o IP do WSL impresso pelo script, por exemplo:
-
-```text
-http://<IP-DO-WSL>:5173
-```
-
-Para acompanhar logs:
+Disponibilize Node.js 22 e npm no PATH do terminal Debian. O script legado
+`scripts/setup-wsl-dev.sh` instala um binário Linux x64 em `~/.local/opt` e
+links em `~/.local/bin`; o nome ainda é histórico. Confira arquitetura e
+script antes de usá-lo. Ele não configura Docker nem recupera banco/Git.
+Se usar essa instalação, inclua `~/.local/bin` no PATH.
 
 ```bash
-tail -f .local/dev/api.log
-tail -f .local/dev/web.log
+node --version
+npm --version
+npm ci
 ```
 
-Para parar API/Web iniciados pelo script:
+A versão de Node deve ser `v22.x`. `npm ci` usa o lockfile existente e deve ser
+executado na raiz; não transportar `node_modules` do ambiente antigo.
+
+## Conferir PostgreSQL e dados locais
+
+Antes de criar containers, confira os existentes, inclusive parados, e volumes:
 
 ```bash
-kill $(cat .local/dev/api.pid) $(cat .local/dev/web.pid)
+docker compose version
+docker ps -a
+docker volume ls
+docker compose config --quiet
 ```
 
-## Docker local
-
-Use a integracao WSL do Docker Desktop; nao instale outro daemon Docker dentro do Ubuntu.
-
-Para o desenvolvimento diario, mantenha apenas o PostgreSQL em container:
+Confira privadamente `.env` com `.env.example`, preservando os segredos.
+Para iniciar o serviço definido pelo projeto, após conferir o destino dos dados:
 
 ```bash
 docker compose up -d postgres
-npm run dev:api
-npm run dev:web
+docker compose ps
 ```
 
-Para validar as imagens da aplicacao completa:
+Um volume novo estará vazio: não significa que os dados do WSL foram migrados.
+Restauração e aplicação de migrations exigem conferência prévia do backup e do
+banco de destino; não são executadas por este roteiro. Não use `down -v`.
+Consulte `LOCAL-VALIDATION-RUNBOOK.md` para validar a base recuperada.
+
+## Iniciar API e frontend
+
+Depois de preparar dependências, banco e configurações, em terminais separados:
+
+```bash
+npm run dev:api
+```
+
+```bash
+VITE_API_URL=/ VITE_BASE_PATH=/ npm run dev:web -- --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Acesse `http://127.0.0.1:5173`. API padrão: `http://127.0.0.1:3000`.
+Confira também `/health/live` e `/health/ready` da API.
+
+O script existente `scripts/start-local-dev.sh` ainda contém mensagens e
+fallbacks de WSL. Ele remove containers antigos de API/Web e encerra processos
+nas portas configuradas; sua adaptação operacional permanece pendente. Nesta
+retomada, prefira os comandos explícitos acima.
+
+Homologação opcional com aplicação completa em containers:
 
 ```bash
 docker compose --profile app up -d --build
 ```
 
-Nesse modo, acesse `http://127.0.0.1:8080`. A VPS usa Node.js e Nginx nativos; consulte `docs/PHASE-13-LOCAL-CONTAINERS.md`.
+Nesse modo, o frontend usa `http://127.0.0.1:8080`. O Compose não aplica
+migrations automaticamente.
 
-Para reinstalar ou validar o Node.js 22:
+## Validação da retomada
 
-```bash
-bash scripts/setup-wsl-dev.sh
-node --version
-npm --version
-```
+1. Confirmar Git, Node.js 22/npm e dependências.
+2. Confirmar banco recuperado e readiness da API.
+3. Conferir login e relatórios com dados reais no navegador, incluindo
+   impressão sem menu lateral, planilha e usuário restrito.
+4. Ao completar o pacote funcional, executar `./Checar_alteracao.sh`.
+5. Registrar resultados e SHA confirmado em `PROJECT_STATUS.md` e
+   `NEXT_TASK.md` antes da publicação autorizada.
 
-## Conectar ao GitHub pelo VS Code
+A revisão documental de 29/09/2026 não reexecutou testes, typecheck, lint ou
+build, pois Node/npm estavam indisponíveis. A checagem estática de migrations
+não consulta PostgreSQL e não confirma que elas foram aplicadas.
 
-Antes do primeiro commit, configure a identidade Git no terminal WSL:
+## Arquivos privados e auxiliares
 
-```bash
-git config --global user.name "SEU NOME"
-git config --global user.email "EMAIL_USADO_NO_GITHUB"
-```
-
-1. Abra o projeto em `WSL: Ubuntu`.
-2. Abra **Controle do Codigo-Fonte** (`Ctrl+Shift+G`).
-3. Entre na conta GitHub quando solicitado.
-4. Depois do primeiro commit, escolha **Publish Branch** ou **Publicar no GitHub**.
-5. Escolha conscientemente se o repositorio sera privado ou publico.
-6. Confirme no GitHub que `.env` nao foi enviado.
-
-## Conectar por terminal
-
-Crie no GitHub um repositorio vazio, sem README ou `.gitignore` adicionais.
-Depois, no terminal WSL, escolha HTTPS ou SSH:
-
-```bash
-git remote add origin https://github.com/SEU_USUARIO/FinControl.git
-git push -u origin main
-```
-
-```bash
-git remote add origin git@github.com:SEU_USUARIO/FinControl.git
-git push -u origin main
-```
-
-Antes de publicar:
-
-```bash
-git status
-git remote -v
-git ls-files .env
-```
-
-O ultimo comando nao deve retornar nenhum arquivo.
-
-## Fluxo Git minimo
-
-```bash
-git switch -c feature/nome-da-alteracao
-git add caminho/dos/arquivos
-git commit -m "tipo: descricao objetiva"
-git push -u origin feature/nome-da-alteracao
-```
-
-Nao versionar credenciais, dumps locais, `node_modules`, builds ou estado de ferramentas.
+Não versionar `.env`, `monitor.env`, credenciais, dumps, dependências ou builds.
+O arquivo local `hrmmotos.com.br` é referência auxiliar de Nginx da VPS.
+Preserve artefatos de análise e documentos de futuro ao recuperar o clone;
+eles devem ser revisados separadamente, sem inclusão automática no commit.

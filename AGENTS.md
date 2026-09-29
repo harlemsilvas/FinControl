@@ -27,8 +27,8 @@ Antes de qualquer analise ou alteracao, leia integralmente, nesta ordem:
 - Nao abandone arquivos `FUTURE-*`, backlog, checklist ou planos vivos.
 - Migrations aplicadas sao imutaveis; correcoes devem ser novas migrations.
 - Nao crie objetos de aplicacao no schema PostgreSQL `public`.
-- Mantenha codigo e arquivos de desenvolvimento no WSL.
-- Use Docker Desktop do Windows para o PostgreSQL local.
+- Mantenha codigo e arquivos de desenvolvimento no Debian nativo.
+- Use Docker Engine/Compose no Debian para o PostgreSQL local.
 - Documente decisoes, validacoes e desvios relevantes.
 
 ## Modo de trabalho com IA

@@ -1,7 +1,7 @@
 # FinControl — AI Context
 
 **Status deste contexto:** ativo  
-**Última atualização:** 29/07/2026
+**Última atualização:** 29/09/2026
 
 ## 1. Objetivo
 
@@ -41,7 +41,7 @@ uma entrega específica.
 - Frontend: React + Vite + TypeScript
 - Backend: Node.js 22 + Fastify + TypeScript
 - Banco: PostgreSQL 17
-- Infra local: Docker Desktop no Windows
+- Infra local: Debian nativo, com PostgreSQL 17 em Docker Engine/Compose
 - Deploy atual: PostgreSQL em Docker na VPS, API Node.js nativa com PM2 e
   frontend estático em Nginx
 
@@ -68,7 +68,9 @@ uma entrega específica.
 - Não alterar migrations já aplicadas; toda correção estrutural deve ser nova
   migration.
 - Não criar objetos de aplicação no schema PostgreSQL `public`.
-- Usar o Docker Desktop do Windows para o PostgreSQL local.
+- Manter código e ferramentas no Debian nativo; usar Docker Engine/Compose
+  para o PostgreSQL local. A migração substitui a exigência anterior de WSL e
+  Docker Desktop, preservando a arquitetura híbrida.
 - Documentar validações, decisões e desvios relevantes.
 
 ## 7. Regras funcionais permanentes já aprovadas

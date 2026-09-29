@@ -1,11 +1,11 @@
 # FinControl — Status Consolidado do Projeto
 
 **Código:** DOC-11  
-**Versão:** 0.5
-**Data:** 20/09/2026
-**Status atual:** sistema além da Fase 16, com o commit `ac6df5b` publicado e
-validado na VPS; próxima frente funcional definida para Relatórios, iniciando
-pela previsão de compromissos de contas a pagar por empresa e consolidada
+**Versão:** 0.6
+**Data:** 29/09/2026
+**Status atual:** ambiente Debian recuperado e validado, banco local restaurado
+com dados de 29/09/2026 e pacote de dependências sem vulnerabilidades conhecidas.
+Commit e deploy do pacote atual autorizados pelo usuário.
 
 ## 1. Objetivo deste arquivo
 
@@ -15,6 +15,73 @@ Este documento registra o estado consolidado do projeto sem substituir:
 - `NEXT_TASK.md`, que aponta a próxima tarefa executável;
 - backlog, checklist, planos e documentos `FUTURE-*`, que continuam como apoio
   detalhado e roadmap.
+
+## Checkpoint de ambiente e segurança em 29/09/2026
+
+- Histórico Git recuperado do GitHub na branch `feature/matriz-filial-xml`, a
+  partir do checkpoint `93ea2c3` que contém os três relatórios operacionais.
+- Ambiente Debian validado com Node.js 22.23.1, npm 12.1.0, Docker Engine e
+  PostgreSQL 17.11.
+- Backup `fincontrol_20260929T204440Z_93ea2c3adf1f_web.dump` restaurado primeiro
+  em banco separado e aprovado por `verify_database.sql`; banco promovido para
+  `fincontrol` com 58 migrations, 3 usuários, 3 empresas, 191 títulos e 155
+  pagamentos. Estado anterior preservado como `fincontrol_pre_restore_20260929`.
+- Configuração legada `docker-credential-desktop` removida; configuração
+  anterior preservada localmente com permissão privada.
+- Dependências de segurança atualizadas: Nodemailer 10.0.12, Vitest 4.1.11,
+  `uuid` 11.1.1 no ExcelJS e `brace-expansion` 1.1.21.
+- `npm audit` aprovado com zero vulnerabilidades. Exportação XLSX real testada.
+- `./Checar_alteracao.sh` aprovado com migrations, typecheck, lint, testes e
+  builds; log local `checar_alteracao_20260929_181205.log`.
+- API e frontend reiniciados localmente; `/health/ready` confirmou API e banco
+  com status `ok`.
+
+## Histórico Git recuperado do GitHub — 29/09/2026
+
+- Remoto confirmado: `https://github.com/harlemsilvas/FinControl.git`.
+- Clone separado salvo em `/home/harlem/projetos/FinControl-recuperado`.
+- Branch selecionada: `feature/matriz-filial-xml`, acompanhando `origin`.
+- HEAD: `93ea2c3adf1f8df57be00dbd7ca565ca7d44c69e` (28/09/2026),
+  `feat(reports): add payment and planned versus paid reports`.
+- `main` permanece em `cc7c295`; não é a branch funcional mais recente.
+- Comparação por conteúdo, desconsiderando diferenças de bit executável:
+  arquivos versionados em `apps/` e `database/migrations/` coincidem com a
+  cópia atual. Foram encontradas diferenças em 13 arquivos: nove documentos
+  desta revisão, `.env.example`, duas configurações `.vscode` e
+  `package-lock.json`. Arquivos não versionados e privados foram preservados.
+- Portanto, os relatórios já estão publicados no GitHub; isso não comprova
+  deploy ou aprovação visual/financeira. O último deploy documentado continua
+  sendo `10b4219`.
+- A pasta original continua sem Git recuperado. Próximo passo: revisar e
+  transferir as diferenças locais necessárias para o clone separado, incluindo
+  esta documentação, e preparar o ambiente nele antes de adotá-lo como workspace.
+  Não substituir arquivos privados nem incluir artefatos automaticamente.
+- A `.git` do Windows antigo ainda poderá recuperar commits/branches nunca
+  enviados ao GitHub. Nenhum arquivo atual foi substituído pelo clone.
+
+## Checkpoint atual — migração para Debian em 29/09/2026
+
+- Migração de Windows/WSL para Debian nativo informada pelo usuário; ambiente
+  consultado identificado como Debian GNU/Linux 13 (trixie).
+- Código mantido em `/home/harlem/projetos/FinControl`; desenvolvimento segue
+  com Node.js 22 nativo e PostgreSQL 17 em Docker Engine/Compose no Debian.
+- `git status` e `git log` falharam com `not a git repository`, inclusive na
+  consulta fora do sandbox; `.git` não estava disponível nessa consulta.
+  Branch, HEAD, remotes, diferenças locais e sincronização com GitHub não
+  puderam ser confirmados. Não foi executado `git init`, pull, commit ou push.
+- Node.js/npm não encontrados no PATH; `node_modules` não encontrado na raiz
+  nem nos workspaces. Testes, typecheck e build não foram revalidados.
+- Docker CLI `29.8.1` e Compose `v5.5.1` disponíveis. Consulta ao daemon fora
+  do sandbox retornou zero containers em execução; banco e dados locais ainda
+  não foram validados. A restrição de socket do sandbox não prova falha do daemon.
+- Migrations: validação estática aprovada para 58 arquivos ordenados, únicos
+  e transacionais; não equivale a aplicação ou validação em PostgreSQL.
+- Revisão limitada a documentação: arquitetura funcional, migrations, código,
+  backups locais, arquivos privados e documentos de futuro preservados.
+- Detalhes e roteiro de retomada: `docs/DEVELOPMENT-SETUP.md` e `NEXT_TASK.md`.
+
+As seções datadas abaixo preservam o histórico. Seus SHAs, branches, resultados
+e pendências retratam a respectiva data, não uma nova verificação em Debian.
 
 ## 2. Estado geral em 23/07/2026
 
@@ -711,7 +778,8 @@ apagados nem confundidos com a tarefa ativa.
 O próximo marco estratégico é retomar a sequência de correções operacionais a
 partir do uso real do sistema, priorizando:
 
-- validar em produção o pacote já publicado em `d107d1d`;
+- recuperar o ambiente Debian e o vínculo Git desta cópia;
+- validar os relatórios locais, especialmente `Previsto x pago`;
 - tratar eventuais ajustes residuais observados na VPS após o deploy;
 - definir o próximo pacote funcional antes de rodar nova validação completa;
 - manter `NEXT_TASK.md` como ponteiro único da próxima tarefa executável.

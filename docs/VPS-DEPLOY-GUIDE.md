@@ -9,7 +9,7 @@
 
 A VPS nao faz `git push`. Ela apenas le o codigo do GitHub e executa o deploy.
 
-O codigo novo deve ser enviado ao GitHub a partir do ambiente local/WSL. Na VPS, o deploy e feito com:
+O codigo novo deve ser enviado ao GitHub a partir do ambiente local Debian. Na VPS, o deploy e feito com:
 
 ```bash
 sudo /opt/fincontrol/bin/deploy <commit-ou-branch>

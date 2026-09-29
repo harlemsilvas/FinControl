@@ -71,7 +71,8 @@ A arquitetura foi preparada para permitir a evolução futura para outros módul
 
 * Docker
 * Docker Compose
-* Ubuntu Linux
+* Debian Linux (desenvolvimento local)
+* Linux na VPS
 * Nginx
 * PM2
 * Git
@@ -244,6 +245,18 @@ como referência para configurar o ambiente local.
 
 ---
 
+## Desenvolvimento local no Debian
+
+O ambiente oficial passou de Windows/WSL para Debian nativo em 29/09/2026.
+Código em `/home/harlem/projetos/FinControl`, Node.js 22/npm nativos e
+PostgreSQL 17 em Docker Engine/Compose. Setup e recuperação após a migração:
+[Ambiente de desenvolvimento](docs/DEVELOPMENT-SETUP.md).
+
+Na revisão desta cópia, Git não reconheceu o repositório, Node/npm não estavam
+no PATH e não havia containers em execução no daemon consultado. A preparação
+do ambiente é a próxima tarefa técnica; os relatórios continuam aguardando
+validação visual/financeira conforme [NEXT_TASK.md](NEXT_TASK.md).
+
 ## Testes e Qualidade
 
 O projeto possui rotinas para:
@@ -325,14 +338,9 @@ O deploy recomendado é o workflow **Deploy VPS Native**, acionado manualmente c
 
 O deploy nativo executa o script controlado da VPS e publica exatamente o commit resolvido.
 
-Último deploy validado registrado na continuidade:
-
-```text
-commit d107d1d
-workflow run 31543548787
-```
-
-O commit posterior `ebe63c1` registra apenas documentação de continuidade pós-deploy.
+Último deploy validado registrado na continuidade: release `10b4219`, em
+24/09/2026, com monitoramento da API e alertas. Esse registro documental não
+equivale a uma nova consulta à VPS em 29/09/2026.
 
 ---
 
@@ -371,7 +379,7 @@ A arquitetura está preparada para expansão futura para módulos como:
 * Relatórios e indicadores
 * Integrações bancárias
 * Integrações externas
-* Sistema próprio de notificações toast
+* Expansão das notificações Toast já existentes
 * Sincronização futura de comprovantes com armazenamento externo
 
 Esses módulos representam a evolução planejada da arquitetura e não necessariamente funcionalidades já disponíveis na versão atual.
@@ -464,7 +472,8 @@ Principais etapas já implementadas:
 * Deploy nativo controlado por SHA
 * Swagger / OpenAPI
 
-Validação completa mais recente executada localmente e repetida no CI:
+Validação histórica do pacote de 11/08/2026, executada localmente e no CI
+(não reexecutada nesta migração):
 
 ```bash
 git diff --check
@@ -475,7 +484,7 @@ npm test
 npm run build
 ```
 
-Resultado local do último pacote funcional:
+Resultado local daquele pacote:
 
 * API: 101 testes aprovados e 5 integrações opt-in puladas
 * Web: 50 testes aprovados

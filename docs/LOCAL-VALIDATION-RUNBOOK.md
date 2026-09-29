@@ -6,7 +6,7 @@ Este roteiro existe para validar o comportamento real do banco e dos endpoints a
 
 ## Preparacao
 
-1. Garantir Docker Desktop ativo no Windows.
+1. Garantir Docker Engine ativo no Debian nativo e acesso ao daemon.
 2. Garantir o PostgreSQL local disponivel em `127.0.0.1:5434`.
 3. Iniciar a API local ou manter o container `fincontrol-api-1` ativo em `127.0.0.1:3000`.
 

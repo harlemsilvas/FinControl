@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 import type { Environment } from '../../config/environment.js';
 
 interface SmtpSentMessage {
@@ -32,7 +32,7 @@ export class DisabledEmailSender implements EmailSender {
 
 export class SmtpEmailSender implements EmailSender {
   readonly enabled = true;
-  private readonly transporter: nodemailer.Transporter<SmtpSentMessage>;
+  private readonly transporter: Transporter<SmtpSentMessage>;
   private readonly from: string;
 
   constructor(environment: Environment) {
