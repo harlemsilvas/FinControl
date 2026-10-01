@@ -1,7 +1,7 @@
 # FinControl — AI Context
 
 **Status deste contexto:** ativo  
-**Última atualização:** 29/09/2026
+**Última atualização:** 01/10/2026
 
 ## 1. Objetivo
 
@@ -71,6 +71,7 @@ uma entrega específica.
 - Manter código e ferramentas no Debian nativo; usar Docker Engine/Compose
   para o PostgreSQL local. A migração substitui a exigência anterior de WSL e
   Docker Desktop, preservando a arquitetura híbrida.
+- O workspace Debian oficial fica em `/home/harlem/projetos/FinControl`.
 - Documentar validações, decisões e desvios relevantes.
 
 ## 7. Regras funcionais permanentes já aprovadas

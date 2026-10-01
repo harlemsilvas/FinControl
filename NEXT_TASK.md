@@ -1,56 +1,30 @@
 # FinControl — Next Task
 
-**Última atualização:** 29/09/2026
-**Status:** ambiente Debian e banco local recuperados; dependências corrigidas,
-auditoria e checagem completa aprovadas; pacote autorizado para commit/deploy.
-**Último deploy registrado:** `10b4219` em 24/09/2026; não reconsultado na VPS.
-
-**Contexto:** continuidade pós-Fase 16, com multiempresa, XML operacional,
-pagamentos/tesouraria, recorrências, busca ampla e base global de Toast
-publicados
+**Última atualização:** 01/10/2026
+**Status:** ambiente Debian, banco local, repositório e produção validados; os commits `8686203` e `ef22570` estão publicados sem vulnerabilidades conhecidas.
+**Último deploy validado:** `ef22570`, workflow `36910815189`, em 01/10/2026.
 
 ## Objetivo
 
-Publicar com segurança o pacote validado e confirmar o release na VPS; depois,
-retomar a validação visual e financeira dos relatórios operacionais.
+Validar visualmente e financeiramente os relatórios operacionais com os dados restaurados, começando por `Pagamentos realizados` e `Previsto x pago`.
 
-## Histórico Git recuperado do GitHub — 29/09/2026
+## Checkpoint imediato — Debian e produção em 01/10/2026
 
-- Remoto confirmado: `https://github.com/harlemsilvas/FinControl.git`.
-- Clone separado salvo em `/home/harlem/projetos/FinControl-recuperado`.
-- Branch selecionada: `feature/matriz-filial-xml`, acompanhando `origin`.
-- HEAD: `93ea2c3adf1f8df57be00dbd7ca565ca7d44c69e` (28/09/2026),
-  `feat(reports): add payment and planned versus paid reports`.
-- `main` permanece em `cc7c295`; não é a branch funcional mais recente.
-- Comparação por conteúdo, desconsiderando diferenças de bit executável:
-  arquivos versionados em `apps/` e `database/migrations/` coincidem com a
-  cópia atual. Foram encontradas diferenças em 13 arquivos: nove documentos
-  desta revisão, `.env.example`, duas configurações `.vscode` e
-  `package-lock.json`. Arquivos não versionados e privados foram preservados.
-- Portanto, os relatórios já estão publicados no GitHub; isso não comprova
-  deploy ou aprovação visual/financeira. O último deploy documentado continua
-  sendo `10b4219`.
-- A pasta original continua sem Git recuperado. Próximo passo: revisar e
-  transferir as diferenças locais necessárias para o clone separado, incluindo
-  esta documentação, e preparar o ambiente nele antes de adotá-lo como workspace.
-  Não substituir arquivos privados nem incluir artefatos automaticamente.
-- A `.git` do Windows antigo ainda poderá recuperar commits/branches nunca
-  enviados ao GitHub. Nenhum arquivo atual foi substituído pelo clone.
+- Workspace oficial: `/home/harlem/projetos/FinControl`.
+- Branch: `feature/matriz-filial-xml`, sincronizada com `origin`.
+- Commit implantado: `ef22570 fix(security): update axios to 1.20.0`.
+- `npm audit`: zero vulnerabilidades.
+- `Checar_alteracao.sh`: `STATUS: OK`, incluindo migrations, tipos, lint, testes e builds.
+- PostgreSQL local: container `fincontrol-postgres` saudável, com dados restaurados no volume `fincontrol_fincontrol_postgres_data`.
+- Deploy: workflow `Deploy VPS Native` `36910815189` concluído com sucesso.
+- Produção: frontend HTTP 200; API e PostgreSQL com health `ok`.
 
-## Ponto de retomada imediato — Debian
+## Próxima tarefa executável
 
-1. Criar commit apenas com código, manifests, lockfile e documentação deste
-   pacote; preservar `.env`, dumps, logs e artefatos locais fora do Git.
-2. Enviar `feature/matriz-filial-xml` e publicar o SHA imutável pelo workflow
-   `Deploy VPS Native`, com checks ativos e confirmação `DEPLOY`.
-3. Confirmar workflow, release público, `version.json`, frontend, API e banco.
-4. Registrar o SHA e o resultado do deploy neste arquivo.
-5. Retomar a validação visual e financeira dos relatórios, especialmente
-   impressão, planilha e usuário restrito.
-
-Validações locais do pacote: `npm audit` sem vulnerabilidades,
-`./Checar_alteracao.sh` com `STATUS: OK`, exportação XLSX aprovada e health da
-API/banco com status `ok`.
+1. Abrir `Pagamentos realizados` e `Previsto x pago` com dados reais.
+2. Conferir parcelas vencidas e pagas em meses diferentes, pagamentos parciais, estornos e totais por empresa.
+3. Validar usuário restrito, impressão e exportação XLSX.
+4. Registrar eventuais divergências antes de novo pacote de código.
 
 ## Continuidade funcional registrada em 24/09/2026
 
