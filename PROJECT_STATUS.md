@@ -18,6 +18,22 @@ Este documento registra o estado consolidado do projeto sem substituir:
 
 ## Checkpoint de publicação e workspace em 01/10/2026
 
+### Agenda e baixa direta
+
+- Commit `21cf4fe` publicou o acesso direto da Agenda ao diálogo de baixa da
+  parcela selecionada e documentou o storage local de comprovantes no Debian.
+- `Checar_alteracao.sh` terminou com `STATUS: OK`; log local
+  `checar_alteracao_20261001_173159.log`.
+- Workflow `Deploy VPS Native` número `36925438980` concluído com sucesso:
+  preflight em 58s e deploy controlado em 4m27s.
+- `version.json` confirmou o SHA completo
+  `21cf4fe8b2d97f0777fcb309bb98c4ff2a33e6c7`; frontend respondeu HTTP 200 e
+  o health público confirmou API e PostgreSQL com status `ok`.
+- A tentativa local anterior de anexar comprovante falhou antes da gravação no
+  banco porque a API usava `/opt/fincontrol/storage`. O Debian local passou a
+  usar `.local/storage`, validado por gravação e remoção real de arquivo; a VPS
+  preserva seu caminho privado em `/opt/fincontrol/storage`.
+
 - Repositório limpo e sincronizado na branch `feature/matriz-filial-xml`.
 - Commit `8686203` publicou a atualização de dependências, segurança e setup Debian; commit `ef22570` atualizou o Axios para 1.20.0.
 - `npm audit` aprovado com zero vulnerabilidades.
