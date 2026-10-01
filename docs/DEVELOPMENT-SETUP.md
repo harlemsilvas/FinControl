@@ -129,6 +129,16 @@ docker compose config --quiet
 ```
 
 Confira privadamente `.env` com `.env.example`, preservando os segredos.
+No Debian nativo, configure o armazenamento privado de comprovantes dentro do
+workspace; o diretório `.local/` já é ignorado pelo Git:
+
+```text
+ATTACHMENT_STORAGE_ROOT=.local/storage
+```
+
+O caminho `/opt/fincontrol/storage` é reservado para a VPS e não deve ser usado
+pela API executada como usuário local.
+
 Para iniciar o serviço definido pelo projeto, após conferir o destino dos dados:
 
 ```bash

@@ -18,13 +18,20 @@ Validar visualmente e financeiramente os relatórios operacionais com os dados r
 - PostgreSQL local: container `fincontrol-postgres` saudável, com dados restaurados no volume `fincontrol_fincontrol_postgres_data`.
 - Deploy: workflow `Deploy VPS Native` `36910815189` concluído com sucesso.
 - Produção: frontend HTTP 200; API e PostgreSQL com health `ok`.
+- Evolução local em validação: clicar em uma conta da Agenda abre Pagamentos
+  diretamente no diálogo de baixa da parcela selecionada.
+- Incidente local corrigido: comprovantes usam `.local/storage` no Debian;
+  `/opt/fincontrol/storage` permanece exclusivo da VPS.
 
 ## Próxima tarefa executável
 
-1. Abrir `Pagamentos realizados` e `Previsto x pago` com dados reais.
-2. Conferir parcelas vencidas e pagas em meses diferentes, pagamentos parciais, estornos e totais por empresa.
-3. Validar usuário restrito, impressão e exportação XLSX.
-4. Registrar eventuais divergências antes de novo pacote de código.
+1. Validar visualmente o clique Agenda → diálogo de baixa e concluir a baixa
+   de uma parcela de teste.
+2. Abrir `Pagamentos realizados` e `Previsto x pago` com dados reais.
+3. Conferir parcelas vencidas e pagas em meses diferentes, pagamentos
+   parciais, estornos e totais por empresa.
+4. Validar usuário restrito, impressão e exportação XLSX.
+5. Registrar eventuais divergências antes de novo pacote de código.
 
 ## Continuidade funcional registrada em 24/09/2026
 

@@ -127,14 +127,13 @@ function SummaryCard({ title, amount, count, tone, icon }: { title: string; amou
   );
 }
 
-function CalendarItem({ item, companyId }: { item: AgendaItem; companyId: string }): ReactElement {
+function CalendarItem({ item }: { item: AgendaItem }): ReactElement {
   const supplierName = compactName(item.supplierName);
   const companyName = item.companyName ?? 'Empresa não informada';
-  const companyParam = companyId ? `&companyId=${encodeURIComponent(companyId)}` : '';
 
   return (
     <Link
-      to={`/payments?status=OPEN&dueFrom=${item.dueDate}&dueTo=${item.dueDate}${companyParam}`}
+      to={`/payments?installmentId=${encodeURIComponent(item.id)}`}
       title={`${companyName} - ${item.supplierName} - ${item.documentNumber} - Parcela ${item.installmentNumber}/${item.installmentCount}`}
       className={`block max-w-full overflow-hidden rounded-lg border-l-4 p-2 text-[0.72rem] leading-tight shadow-sm transition hover:shadow-md ${itemStyle[item.highlight]}`}
     >
@@ -271,7 +270,7 @@ export function AgendaPage(): ReactElement {
                       </div>
                       <div className="grid min-w-0 gap-1.5">
                         {isCalendarLoading && day.key === days[0]?.key ? <p className="p-2 text-xs text-slate-500">Carregando...</p> : null}
-                        {visibleItems.map((item) => <CalendarItem key={item.id} item={item} companyId={companyId} />)}
+                        {visibleItems.map((item) => <CalendarItem key={item.id} item={item} />)}
                         {hiddenCount > 0 && (
                           <button type="button" onClick={() => setSelectedDay(day.key)} className="rounded-lg px-2 py-1 text-left text-xs font-bold text-blue-700 transition hover:bg-blue-50">
                             +{hiddenCount} conta{hiddenCount === 1 ? '' : 's'}
@@ -298,7 +297,7 @@ export function AgendaPage(): ReactElement {
                     </button>
                   </div>
                   <div className="grid max-h-[560px] gap-2 overflow-y-auto pr-1">
-                    {selectedDayItems.map((item) => <CalendarItem key={item.id} item={item} companyId={companyId} />)}
+                    {selectedDayItems.map((item) => <CalendarItem key={item.id} item={item} />)}
                   </div>
                 </div>
               </aside>

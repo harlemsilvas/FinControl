@@ -228,6 +228,18 @@ describe('PaymentsPage', () => {
     expect(await screen.findByRole('dialog', { name: 'Baixar parcela' })).toBeInTheDocument();
   });
 
+  it('opens the requested installment settlement directly from the agenda', async () => {
+    renderPage('/payments?installmentId=installment-id');
+
+    const dialog = await screen.findByRole('dialog', { name: 'Baixar parcela' });
+    await waitFor(() => expect(eligiblePaymentParams()).toMatchObject({
+      installmentId: 'installment-id',
+      pageSize: 1,
+    }));
+    expect(within(dialog).getByText(/CIA BRASILEIRA DIST AUTO S.A/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Valor principal')).toHaveValue('403,06');
+  });
+
   it('uses a paid operational filter without requesting eligible installments', async () => {
     renderPage();
 

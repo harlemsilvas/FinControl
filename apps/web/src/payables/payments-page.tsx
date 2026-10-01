@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
@@ -211,6 +211,7 @@ export function PaymentsPage(): ReactElement {
   const [detailFor, setDetailFor] = useState<PaymentHistoryItem>();
   const [receiptFile, setReceiptFile] = useState<File>();
   const [downloadError, setDownloadError] = useState('');
+  const autoOpenedInstallment = useRef('');
 
   const installments = useQuery({
     queryKey: ['payment-eligible-installments', page, pageSize, search, status, companyId, supplierId, dueFrom, dueTo, requestedPayableTitleId, requestedInstallmentId],
@@ -400,6 +401,28 @@ export function PaymentsPage(): ReactElement {
   });
 
   const rows = useMemo(() => installments.data?.data ?? [], [installments.data?.data]);
+
+  useEffect(() => {
+    const requestedItem = rows.find((item) => (
+      (requestedInstallmentId && item.installmentId === requestedInstallmentId)
+      || (requestedPayableTitleId && item.payableTitleId === requestedPayableTitleId)
+    ));
+    if (!requestedItem || autoOpenedInstallment.current === requestedItem.installmentId) return;
+
+    autoOpenedInstallment.current = requestedItem.installmentId;
+    setSelected(requestedItem);
+    setBankAccountId('');
+    setPaymentMethodId(requestedItem.paymentMethodId);
+    setPaymentDate(today());
+    setPrincipalAmount(String(Number(requestedItem.openBalance || 0)));
+    setInterestAmount('0');
+    setPenaltyAmount('0');
+    setDiscountAmount('0');
+    setAdditionalAmount('0');
+    setTransactionNumber('');
+    setOverpaymentConfirmed(false);
+  }, [requestedInstallmentId, requestedPayableTitleId, rows]);
+
   const totalPages = Math.max(1, Math.ceil((installments.data?.total ?? 0) / pageSize));
   const historyTotalPages = Math.max(1, Math.ceil((paymentHistory.data?.total ?? 0) / historyPageSize));
   const firstItem = installments.data?.total ? (page - 1) * pageSize + 1 : 0;
