@@ -1,24 +1,27 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../auth/auth-context';
 import type { AuthContextValue } from '../auth/auth-context';
 import { XmlImportsListPage } from './xml-imports-list-page';
+
+const requests = vi.hoisted(() => ({ params: [] as Record<string, unknown>[] }));
 
 vi.mock('../api/http-client', () => ({
   ApiError: class ApiError extends Error {
     constructor(readonly status: number, readonly code: string, message: string) { super(message); }
   },
   httpClient: {
-    get: vi.fn((url: string) => {
+    get: vi.fn((url: string, options?: { params?: Record<string, unknown> }) => {
       if (url === '/api/v1/xml-imports') {
+        requests.params.push(options?.params ?? {});
         return Promise.resolve({
           data: {
             data: [
               {
                 id: 'xml-1',
-                importedAt: '2026-07-21T12:00:00.000Z',
+                importedAt: '2026-10-01T00:24:00.000Z',
                 statusCode: 'RECEIVED',
                 accessKey: '12345678901234567890123456789012345678901234',
                 supplierLegalName: 'Auto Peças Centro Ltda',
@@ -90,16 +93,32 @@ function renderPage(): void {
 }
 
 describe('XmlImportsListPage', () => {
+  afterEach(() => { cleanup(); vi.clearAllMocks(); requests.params.length = 0; });
   it('renders imported XML rows with branch classification and actions', async () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'XMLs Importados' })).toBeInTheDocument();
     expect(await screen.findByText('Auto Peças Centro Ltda')).toBeInTheDocument();
+    expect(screen.getByText('30/09/2026, 21:24')).toBeInTheDocument();
     expect(screen.getAllByText('Filial').length).toBeGreaterThan(0);
     expect(screen.getAllByText('R$ 980,50').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Importar XML' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Gerar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Excluir' })).toBeInTheDocument();
+  });
+
+  it('filters by issue dates only and clears the period', async () => {
+    renderPage();
+    await screen.findByText('Auto Peças Centro Ltda');
+    expect(screen.getByText('Período de emissão')).toBeInTheDocument();
+    expect(document.querySelectorAll('input[type="date"]')).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText('Data inicial'), { target: { value: '2026-09-01' } });
+    fireEvent.change(screen.getByLabelText('Data final'), { target: { value: '2026-09-30' } });
+    await waitFor(() => expect(requests.params.at(-1)).toMatchObject({ issueFrom: '2026-09-01', issueTo: '2026-09-30' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    await waitFor(() => expect(requests.params.at(-1)).toMatchObject({ issueFrom: undefined, issueTo: undefined }));
+    expect(screen.getByLabelText('Data inicial')).toHaveValue('');
+    expect(screen.getByLabelText('Data final')).toHaveValue('');
   });
 
   it('prefills generate dialog from company parameters', async () => {

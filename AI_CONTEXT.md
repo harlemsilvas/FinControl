@@ -1,7 +1,7 @@
 # FinControl — AI Context
 
 **Status deste contexto:** ativo  
-**Última atualização:** 01/10/2026
+**Última atualização:** 19/10/2026
 
 ## 1. Objetivo
 
@@ -73,6 +73,18 @@ uma entrega específica.
   Docker Desktop, preservando a arquitetura híbrida.
 - O workspace Debian oficial fica em `/home/harlem/projetos/FinControl`.
 - Documentar validações, decisões e desvios relevantes.
+
+### Calendário financeiro e instantes
+
+- Fuso oficial de negócio: `America/Sao_Paulo`, igual no Debian e na VPS.
+- API valida `TZ` e fixa o fuso de cada conexão PostgreSQL; Compose e PM2
+  versionados declaram o mesmo fuso. Não depender do padrão do host/navegador.
+- Datas de emissão, vencimento e pagamento são datas civis (`date`), com
+  limites de período inclusivos; não convertê-las em instantes para filtrar.
+- Auditoria/importação preservam `timestamptz` e transporte ISO com UTC;
+  exibição e conversão em dia de negócio usam explicitamente o fuso oficial.
+- O sufixo `Z` de backups indica o instante UTC; não renomear para simular
+  horário local nem reinterpretar dados históricos para corrigir consultas.
 
 ## 7. Regras funcionais permanentes já aprovadas
 

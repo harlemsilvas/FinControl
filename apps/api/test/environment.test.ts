@@ -13,6 +13,7 @@ describe('loadEnvironment', () => {
     });
 
     expect(environment).toMatchObject({
+      TZ: 'America/Sao_Paulo',
       API_HOST: '127.0.0.1',
       API_PORT: 3000,
       DB_PORT: 5434,
@@ -43,6 +44,15 @@ describe('loadEnvironment', () => {
       SMTP_HOST: 'smtp.example.com',
       SMTP_FROM_EMAIL: 'fincontrol@example.com',
     })).toMatchObject({ SMTP_ENABLED: true, SMTP_HOST: 'smtp.example.com' });
+  });
+
+  it('rejects a timezone that would change the business calendar between environments', () => {
+    expect(() => loadEnvironment({
+      DB_HOST: '127.0.0.1', DB_PORT: '5434', DB_NAME: 'fincontrol',
+      DB_USER: 'fincontrol', DB_PASSWORD: 'test-password',
+      AUTH_ACCESS_TOKEN_SECRET: 'test-secret-that-is-at-least-32-characters-long',
+      TZ: 'UTC',
+    })).toThrow('TZ');
   });
 
   it('rejects an incomplete configuration', () => {

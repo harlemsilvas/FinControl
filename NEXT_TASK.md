@@ -1,12 +1,67 @@
 # FinControl — Next Task
 
-**Última atualização:** 01/10/2026
-**Status:** ambiente Debian, banco local, repositório e produção validados; os commits `8686203` e `ef22570` estão publicados sem vulnerabilidades conhecidas.
+**Última atualização:** 19/10/2026
+**Status:** base de 19/10 adotada localmente; API e frontend disponíveis. Pacote de filtros e fuso validado, em preparação para publicação e deploy.
 **Último deploy validado:** `21cf4fe`, workflow `36925438980`, em 01/10/2026.
+
+## Retomada confirmada em 19/10/2026
+
+- Código local: `c344a20c4ea1522d788c27d6788f2e2507687b67`, na branch
+  `feature/matriz-filial-xml`; coincide com a referência local de `origin`.
+  Não houve fetch; isso não confirma o estado remoto atual.
+- Último deploy documentado: `21cf4fe`, seguido do checkpoint documental
+  `c344a20`. A sessão de desenvolvimento recuperada é
+  `01a0ee84-7443-7442-9680-958eb4cd1422`.
+- Histórico de recuperação de 17/10 confirma o banco recuperado e preservado.
+  Backup lógico encontrado em
+  `/home/harlem/backups/fincontrol-recuperado-20261017-191611.sql`;
+  não restaurar automaticamente sobre o volume existente.
+- Node.js consultado: `v22.23.1`. API em `127.0.0.1:3000` e frontend em
+  `127.0.0.1:5173` não responderam à consulta local. Docker consultado fora do
+  sandbox não listou FinControl entre os containers em execução.
+- Primeiro passo operacional: inspecionar container parado, volume recuperado
+  e configuração local conforme `docs/DEVELOPMENT-SETUP.md`; então iniciar
+  os serviços existentes e conferir readiness, sem substituir dados.
+- Depois, executar a validação funcional abaixo. Instruções posteriores
+  marcadas como históricas não substituem este roteiro.
+- Alterações preexistentes preservadas: `.vscode/settings.json` modificado e
+  `docs/PROJECT_HISTORY.md.docx` removido.
+- Evidências e limites: `docs/RESUMPTION-2026-10-19.md`.
 
 ## Objetivo
 
-Validar visualmente e financeiramente os relatórios operacionais com os dados restaurados, começando por `Pagamentos realizados` e `Previsto x pago`.
+Concluir a correção dos filtros de XMLs Importados e conferir a nota 26466
+com dados atualizados da VPS; depois retomar a validação dos relatórios.
+
+## Próxima tarefa executável — filtros XML
+
+1. Backup de 19/10 recebido em `backup/`, ignorado pelo Git; cópias local e
+   Downloads idênticas. Restauração em `fincontrol_validation_20261019`
+   aprovada por `verify_database.sql`; base original preservada.
+2. Base adotada via `DB_NAME=fincontrol_validation_20261019` no `.env`;
+   configuração anterior preservada em `.local/env.before-adopt-20261019`.
+   API readiness confirmou a nova base; frontend respondeu HTTP 200 em 5173.
+3. Conferir no navegador a nota emitida em 29/09 no intervalo 01/09–30/09,
+   usando somente Data inicial e Data final em Período de emissão.
+4. Publicar o pacote e executar Deploy VPS Native por SHA imutável, com
+   checks habilitados. O script de deploy agora configura o fuso do servidor,
+   sincroniza Compose/PM2 e verifica SHOW TimeZone. Como o script instalado
+   anterior se atualiza para o próximo deploy, executar novamente o mesmo SHA
+   para aplicar essa etapa operacional nova e registrar a verificação.
+
+Código local: `issueFrom`/`issueTo` inclusivos por emissão; campos duplicados
+removidos da tela; filtros legados de importação corrigidos para o calendário
+`America/Sao_Paulo`. Sem migration; restauração executada somente em base separada.
+Detalhes e validações: `docs/XML-IMPORTS-LIST-PAGE.md`. Testes, tipos, lint
+e builds aprovados no pacote anterior. Nota real 26466 conferida no backup:
+   emissão 29/09, importação 30/09 21:24 em São Paulo e 01/10 em UTC, confirmando
+   o diagnóstico. Pendente conferência visual. Pacote completo validado com
+   `Checar_alteracao.sh`: `STATUS: OK`, log `checar_alteracao_20261019_184620.log`.
+
+Fuso de negócio fixado em `America/Sao_Paulo` na API/pool, Compose local/VPS,
+PM2 e exibição da importação. PostgreSQL local configurado por ALTER SYSTEM
+com recarga; verificar conexões novas. VPS ainda aguarda aplicação/verificação
+no deploy. Não converter datas civis nem reescrever instantes históricos.
 
 ## Checkpoint imediato — Debian e produção em 01/10/2026
 
@@ -25,7 +80,7 @@ Validar visualmente e financeiramente os relatórios operacionais com os dados r
 - Produção confirmou `version.json` no SHA `21cf4fe8b2d9`, frontend HTTP 200 e
   API/PostgreSQL com health `ok` pelo workflow `36925438980`.
 
-## Próxima tarefa executável
+## Validação funcional posterior — Agenda e relatórios
 
 1. Validar visualmente o clique Agenda → diálogo de baixa e concluir a baixa
    de uma parcela de teste.
@@ -116,7 +171,7 @@ notifications`.
   - `docs/tabelas_fin_control.xlsx`;
   - `docs/wireframes/Tela-Agenda.jpg`.
 
-## Próxima tarefa executável
+## Roteiro histórico de recuperação — superado pelo checkpoint de 19/10/2026
 
 Revisar as diferenças locais e preparar o clone recuperado como workspace
 Debian conforme o checkpoint acima. Depois, retomar a tarefa funcional já
@@ -913,4 +968,5 @@ Após a publicação do pacote atual, reavaliar a próxima frente principal entr
 Registro histórico: deploy `Deploy VPS Native` do commit `d107d1d` em
 11/08/2026, run GitHub Actions `31543548787`, concluído com sucesso.
 
-O checkpoint de produção mais recente documentado é `10b4219`, de 24/09/2026.
+O checkpoint histórico de 24/09/2026 era `10b4219`; foi sucedido pelo deploy
+`21cf4fe` de 01/10/2026, conforme o início deste arquivo.

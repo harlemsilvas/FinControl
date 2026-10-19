@@ -8,7 +8,7 @@ export interface TitleInput { companyId: string; supplierId: string; categoryId:
   documentNumber: string; documentSeries?: string | null; description: string; originCode?: string; issueDate: string; originalAmount: number;
   discountAmount?: number; additionalAmount?: number; notes?: string | null; draft?: boolean; duplicateConfirmed?: boolean; installments: InstallmentInput[] }
 export interface PayableListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; categoryId?: string; companyId?: string; recurrenceStatus?: 'OPERATIONAL' | 'TERMINAL' | 'ALL' }
-export interface XmlImportListFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
+export interface XmlImportListFilters { issueFrom?: string; issueTo?: string; search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; recipientKind?: 'MAIN' | 'BRANCH' | 'UNKNOWN'; recipientDocumentNumber?: string; importedFrom?: string; importedTo?: string }
 export interface PaymentEligibleInstallmentFilters { search?: string; status?: string; dueFrom?: string; dueTo?: string; supplierId?: string; companyId?: string; payableTitleId?: string; installmentId?: string }
 export interface PaymentListFilters { search?: string; status?: 'EFFECTIVE' | 'REVERSED' | 'ALL'; paidFrom?: string; paidTo?: string; supplierId?: string; companyId?: string }
 export interface PaymentInput { installmentId: string; batchId?: string | null; bankAccountId: string; paymentMethodId: string; paymentDate: string; principalAmount: number; interestAmount?: number; penaltyAmount?: number; discountAmount?: number; additionalAmount?: number; transactionNumber?: string | null; overpaymentConfirmed?: boolean }
@@ -927,13 +927,15 @@ export class PayablesRepository {
       conditions.push(`(x.access_key ILIKE $${values.length} OR x.document_number ILIKE $${values.length} OR x.document_series ILIKE $${values.length} OR x.supplier_legal_name ILIKE $${values.length} OR x.supplier_trade_name ILIKE $${values.length} OR x.recipient_legal_name ILIKE $${values.length})`);
     }
     if (filters.status) { values.push(filters.status); conditions.push(`s.code=$${values.length}`); }
+    if (filters.issueFrom) { values.push(filters.issueFrom); conditions.push(`x.issue_date >= $${values.length}::date`); }
+    if (filters.issueTo) { values.push(filters.issueTo); conditions.push(`x.issue_date <= $${values.length}::date`); }
     if (filters.dueFrom) { values.push(filters.dueFrom); conditions.push(`x.due_date >= $${values.length}::date`); }
     if (filters.dueTo) { values.push(filters.dueTo); conditions.push(`x.due_date <= $${values.length}::date`); }
     if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`x.supplier_id=$${values.length}`); }
     if (filters.recipientKind) { values.push(filters.recipientKind); conditions.push(`x.recipient_kind=$${values.length}`); }
     if (filters.recipientDocumentNumber) { values.push(filters.recipientDocumentNumber); conditions.push(`x.recipient_document_number=$${values.length}`); }
-    if (filters.importedFrom) { values.push(filters.importedFrom); conditions.push(`x.imported_at::date >= $${values.length}::date`); }
-    if (filters.importedTo) { values.push(filters.importedTo); conditions.push(`x.imported_at::date <= $${values.length}::date`); }
+    if (filters.importedFrom) { values.push(filters.importedFrom); conditions.push(`(x.imported_at AT TIME ZONE 'America/Sao_Paulo')::date >= $${values.length}::date`); }
+    if (filters.importedTo) { values.push(filters.importedTo); conditions.push(`(x.imported_at AT TIME ZONE 'America/Sao_Paulo')::date <= $${values.length}::date`); }
     const where = conditions.join(' AND ');
     const from = `FROM financeiro.xml_imports x
       JOIN financeiro.xml_import_statuses s ON s.id=x.status_id

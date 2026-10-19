@@ -3,6 +3,7 @@ import { PostgresDatabase } from './infrastructure/database/postgres-database.js
 import { buildApp } from './presentation/http/build-app.js';
 
 const environment = loadEnvironment();
+process.env.TZ = environment.TZ;
 const database = new PostgresDatabase(environment);
 const app = buildApp({ database, environment });
 

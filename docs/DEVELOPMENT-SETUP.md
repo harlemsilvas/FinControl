@@ -200,3 +200,41 @@ Não versionar `.env`, `monitor.env`, credenciais, dumps, dependências ou build
 O arquivo local `hrmmotos.com.br` é referência auxiliar de Nginx da VPS.
 Preserve artefatos de análise e documentos de futuro ao recuperar o clone;
 eles devem ser revisados separadamente, sem inclusão automática no commit.
+
+## Fuso oficial — 19/10/2026
+
+Configure `TZ=America/Sao_Paulo` no `.env` local e no `.env` da VPS.
+A API rejeita outro valor, aplica o fuso ao processo e envia
+`-c timezone=America/Sao_Paulo` em cada conexão do pool. O Compose de PostgreSQL
+local e da VPS declara o mesmo parâmetro; PM2 também declara `TZ`.
+
+Para um container já existente, alterar o Compose não atualiza o servidor em
+execução. Após conferir o destino, executar como administrador PostgreSQL:
+
+```sql
+ALTER SYSTEM SET timezone = 'America/Sao_Paulo';
+SELECT pg_reload_conf();
+```
+
+Verificar em uma conexão nova:
+
+```sql
+SHOW TimeZone;
+SELECT CURRENT_DATE, CURRENT_TIMESTAMP;
+```
+
+Reiniciar a API com o ambiente atualizado ao publicar. Não é necessário
+modificar o fuso do sistema operacional da VPS nem reescrever timestamps.
+Datas civis continuam `date`; instantes podem ser transportados em UTC. Na
+interface, a data/hora de importação usa São Paulo, inclusive em navegador UTC.
+
+Aplicado ao PostgreSQL local em 19/10; configuração da VPS preparada nos
+arquivos versionados, ainda sem aplicação ou verificação remota nesta sessão.
+Backup atual restaurado em `fincontrol_validation_20261019`, com base original
+`fincontrol` preservada. O `.env` passou a apontar para a base validada, sem renomear ou apagar a
+base original. API readiness e consulta real confirmaram a adoção. Inventário privado em `backup/README-local.txt`.
+
+A rotina `deploy/vps/bin/deploy` passa a configurar e verificar o fuso do
+PostgreSQL existente após o backup/migrations e sincronizar PM2/Compose.
+Na primeira publicação dessa rotina, o deploy instalado anterior a atualiza
+para a execução seguinte; repetir o mesmo SHA para aplicar essa configuração.

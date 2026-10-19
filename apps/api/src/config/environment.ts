@@ -10,6 +10,8 @@ const envBoolean = z.preprocess((value) => {
 }, z.boolean()).default(false);
 
 const environmentSchema = z.object({
+  // O calendario financeiro deve ser igual no Debian e na VPS.
+  TZ: z.literal('America/Sao_Paulo').default('America/Sao_Paulo'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),

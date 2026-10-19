@@ -191,6 +191,7 @@ apply_migrations() {
 
 require_root
 load_app_env
+export TZ=America/Sao_Paulo
 validate_toolchain
 
 mkdir -p "$APP_ROOT/releases" "$WEB_ROOT/releases" "$APP_ROOT/storage/attachments/payments"
@@ -252,6 +253,19 @@ EOF_VERSION
 echo "Applying database migrations"
 "$release_dir/deploy/vps/bin/backup-db" "pre-deploy-$short_sha"
 apply_migrations
+
+echo "Configuring business timezone"
+docker exec -i "$POSTGRES_CONTAINER" sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL_TIMEZONE'
+ALTER SYSTEM SET timezone = 'America/Sao_Paulo';
+SELECT pg_reload_conf();
+SQL_TIMEZONE
+if [[ "$(psql_app -Atc 'SHOW TimeZone')" != "America/Sao_Paulo" ]]; then
+  echo "PostgreSQL business timezone was not applied." >&2
+  exit 1
+fi
+install -o fincontrol -g fincontrol -m 644 "$release_dir/deploy/vps/pm2/ecosystem.config.cjs" "$APP_ROOT/shared/ecosystem.config.cjs"
+install -d -o fincontrol -g fincontrol -m 750 "$APP_ROOT/infra/postgres"
+install -o fincontrol -g fincontrol -m 644 "$release_dir/deploy/vps/postgres/compose.yaml" "$APP_ROOT/infra/postgres/compose.yaml"
 
 echo "Verifying database"
 psql_app < "$release_dir/database/scripts/verify_database.sql"

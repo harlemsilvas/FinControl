@@ -2,10 +2,11 @@
 
 **Código:** DOC-11  
 **Versão:** 0.7
-**Data:** 01/10/2026
-**Status atual:** ambiente Debian recuperado e validado, banco local restaurado,
-dependências sem vulnerabilidades conhecidas e commit `ef22570` publicado e
-implantado com sucesso na VPS.
+**Data:** 19/10/2026
+**Status atual:** continuidade recuperada dos chats e do Git em 19/10/2026.
+HEAD local `c344a20`; último deploy documentado `21cf4fe` em 01/10.
+Base de 19/10 adotada localmente; API e frontend disponíveis. Publicação e deploy
+do pacote de filtros/fuso em preparação.
 
 ## 1. Objetivo deste arquivo
 
@@ -15,6 +16,77 @@ Este documento registra o estado consolidado do projeto sem substituir:
 - `NEXT_TASK.md`, que aponta a próxima tarefa executável;
 - backlog, checklist, planos e documentos `FUTURE-*`, que continuam como apoio
   detalhado e roadmap.
+
+## Adoção local e publicação em 19/10/2026
+
+- `.env` aponta para `fincontrol_validation_20261019`; base `fincontrol`
+  preservada. Configuração anterior privada em `.local/env.before-adopt-20261019`.
+- API readiness confirmou a nova base e frontend respondeu HTTP 200 na porta
+  5173. Consulta real pelo repositório confirmou 201 títulos, 192 pagamentos,
+  fuso São Paulo, nota 26466 em setembro e ausente no filtro de outubro.
+- Rotina de deploy ajustada para aplicar/verificar fuso PostgreSQL existente
+  e sincronizar arquivos PM2/Compose; sintaxe Bash aprovada.
+- Necessárias duas execuções do mesmo SHA na primeira publicação: o script
+  instalado anterior instala a versão nova para a execução seguinte.
+- Publicação/deploy ainda em andamento; não confundir com conclusão.
+
+## Backup atualizado e fuso em 19/10/2026
+
+- Backup informado pelo usuário em `backup/` conferido contra Downloads,
+  com SHA-256 idêntico; pasta já ignorada e cópia de trabalho com modo 600.
+- PostgreSQL existente iniciado; backup restaurado somente em
+  `fincontrol_validation_20261019`. Verificação oficial PASS: 58 migrations,
+  201 títulos, 192 pagamentos. Base original preservada, ainda usada no `.env`.
+- Nota 26466 confirma emissão 29/09 e importação em 30/09 às 21:24 em São Paulo,
+  que correspondia a 01/10 no fuso UTC do servidor; diagnóstico confirmado.
+- Política oficial de negócio: `America/Sao_Paulo`; API valida TZ e configura
+  todas as conexões do pool, Compose local/VPS e PM2 declaram o fuso e a tela
+  de XML formata importação explicitamente. Datas civis não são timestamps.
+- PostgreSQL local recebeu ALTER SYSTEM e recarga; VPS ainda não alterada.
+- Não houve promoção da base, migration, commit, push ou deploy.
+
+
+Validação final do pacote de fuso em 19/10: `Checar_alteracao.sh` com
+`STATUS: OK` (migrations, tipos, lint, testes e builds), log local
+`logs/alteracoes/checar_alteracao_20261019_184620.log`. Compose local e sintaxe
+PM2 validados; teste da tela em UTC aprovado. `SHOW TimeZone` em conexão nova
+confirmou `America/Sao_Paulo`; verificação oficial do banco restaurado PASS.
+
+## Correção local de filtros XML em 19/10/2026
+
+- Solicitação ativa: datas de emissão inclusivas e somente dois campos de
+  período em XMLs Importados.
+- Diagnóstico: tela usava importação/vencimento; conversão de importação para
+  date dependia do fuso PostgreSQL e podia deslocar a data civil para UTC.
+- Implementação local adiciona `issueFrom`/`issueTo`, simplifica a tela e fixa
+  São Paulo para os filtros legados de importação. Sem migration.
+- Backup atual conferido em base separada conforme checkpoint acima; aguarda
+  conferência visual da nota 26466, sem commit ou alteração em produção.
+
+
+Validações em 19/10: API 120 testes aprovados e 5 integrações opt-in puladas;
+web 62 testes aprovados; types, lint e builds aprovados. A primeira execução
+`Checar_alteracao.sh` registrou FAIL por whitespace documental e lint do teste
+novo; ambos corrigidos e revalidados por `git diff --check` e lint web isolado.
+O teste da tela foi reexecutado após a correção (3 aprovados). Log inicial:
+`logs/alteracoes/checar_alteracao_20261019_181628.log`. Não se declara STATUS OK
+da execução inicial. Conferência da nota real pendente do backup atualizado.
+
+## Checkpoint de retomada em 19/10/2026
+
+- Histórico local confirma o encerramento do desenvolvimento com deploy
+  `21cf4fe` e documentação em `c344a20`.
+- Chat e relatório de recuperação de 17/10 registram PostgreSQL recuperado,
+  saudável naquela data e preservado; backup lógico de 17/10 encontrado.
+- Consulta atual: Node.js `v22.23.1`; FinControl ausente da lista de containers
+  em execução; API e frontend locais sem resposta nas portas 3000 e 5173.
+- Branch local e referência local de origin coincidem em `c344a20`; sem nova
+  consulta ao GitHub ou à VPS. Validações antigas não foram reexecutadas.
+- Próxima ação: conferir e iniciar ambiente existente; depois validar Agenda,
+  comprovantes e relatórios conforme `NEXT_TASK.md`.
+- Registro detalhado: `docs/RESUMPTION-2026-10-19.md`.
+- Mudanças preexistentes em `.vscode/settings.json` e na remoção do documento
+  Word preservadas fora deste pacote documental.
 
 ## Checkpoint de publicação e workspace em 01/10/2026
 

@@ -583,6 +583,27 @@ describe('PayablesRepository business safeguards',()=>{
     expect(query.mock.calls[1]?.[0]).toContain('ORDER BY x.imported_at DESC');
   });
 
+  it('filters XMLs by inclusive issue dates independently of import time and due date', async () => {
+    const query=vi.fn().mockResolvedValue({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query}));
+    await repo.listXmlImports(1,20,{issueFrom:'2026-09-01',issueTo:'2026-09-30'});
+    for (const [sql] of query.mock.calls) {
+      expect(sql).toContain('x.issue_date >= $1::date');
+      expect(sql).toContain('x.issue_date <= $2::date');
+      expect(sql).not.toContain('x.due_date');
+      expect(sql).not.toContain('x.imported_at::date');
+    }
+    expect(query.mock.calls[1]?.[1]).toEqual(['2026-09-01','2026-09-30',20,0]);
+  });
+
+  it('keeps legacy import date filters in the Brazilian calendar regardless of session timezone', async () => {
+    const query=vi.fn().mockResolvedValue({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query}));
+    await repo.listXmlImports(1,20,{importedFrom:'2026-09-01',importedTo:'2026-09-30'});
+    expect(query.mock.calls[0]?.[0]).toContain("(x.imported_at AT TIME ZONE 'America/Sao_Paulo')::date >= $1::date");
+    expect(query.mock.calls[0]?.[0]).toContain("(x.imported_at AT TIME ZONE 'America/Sao_Paulo')::date <= $2::date");
+  });
+
   it('returns company parameters in xml import list resolved by recipient document',async()=>{
     const query=vi.fn()
       .mockResolvedValueOnce({rows:[{total:'1'}],rowCount:1})
