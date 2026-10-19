@@ -252,10 +252,10 @@ Código em `/home/harlem/projetos/FinControl`, Node.js 22/npm nativos e
 PostgreSQL 17 em Docker Engine/Compose. Setup e recuperação após a migração:
 [Ambiente de desenvolvimento](docs/DEVELOPMENT-SETUP.md).
 
-Na revisão desta cópia, Git não reconheceu o repositório, Node/npm não estavam
-no PATH e não havia containers em execução no daemon consultado. A preparação
-do ambiente é a próxima tarefa técnica; os relatórios continuam aguardando
-validação visual/financeira conforme [NEXT_TASK.md](NEXT_TASK.md).
+Em 19/10/2026, a base atualizada foi adotada localmente, preservando a anterior.
+API e frontend estão disponíveis em `127.0.0.1:3000` e `127.0.0.1:5173`. O fuso
+financeiro oficial é `America/Sao_Paulo`, aplicado também na VPS. A validação
+visual/financeira continua conforme [NEXT_TASK.md](NEXT_TASK.md).
 
 ## Testes e Qualidade
 
@@ -338,9 +338,9 @@ O deploy recomendado é o workflow **Deploy VPS Native**, acionado manualmente c
 
 O deploy nativo executa o script controlado da VPS e publica exatamente o commit resolvido.
 
-Último deploy validado registrado na continuidade: release `10b4219`, em
-24/09/2026, com monitoramento da API e alertas. Esse registro documental não
-equivale a uma nova consulta à VPS em 29/09/2026.
+Último deploy validado: release `0c00cc0af631`, em 19/10/2026, com filtros XML
+por emissão e fuso financeiro padronizado. Workflow `39331599472` aprovado;
+SHA confirmado em `version.json`, frontend HTTP 200 e API/PostgreSQL saudáveis.
 
 ---
 

@@ -1,8 +1,8 @@
 # FinControl — Next Task
 
 **Última atualização:** 19/10/2026
-**Status:** base de 19/10 adotada localmente; API e frontend disponíveis. Pacote de filtros e fuso validado, em preparação para publicação e deploy.
-**Último deploy validado:** `21cf4fe`, workflow `36925438980`, em 01/10/2026.
+**Status:** base de 19/10 ativa localmente; filtros XML e fuso publicados e implantados, com checks aprovados.
+**Último deploy validado:** `0c00cc0`, workflow `39331599472`, em 19/10/2026.
 
 ## Retomada confirmada em 19/10/2026
 
@@ -30,38 +30,35 @@
 
 ## Objetivo
 
-Concluir a correção dos filtros de XMLs Importados e conferir a nota 26466
-com dados atualizados da VPS; depois retomar a validação dos relatórios.
+Conferir visualmente a correção dos filtros XML publicada e retomar a
+validação financeira dos relatórios com os dados atualizados.
 
-## Próxima tarefa executável — filtros XML
+## Próxima tarefa executável
 
-1. Backup de 19/10 recebido em `backup/`, ignorado pelo Git; cópias local e
-   Downloads idênticas. Restauração em `fincontrol_validation_20261019`
-   aprovada por `verify_database.sql`; base original preservada.
-2. Base adotada via `DB_NAME=fincontrol_validation_20261019` no `.env`;
-   configuração anterior preservada em `.local/env.before-adopt-20261019`.
-   API readiness confirmou a nova base; frontend respondeu HTTP 200 em 5173.
-3. Conferir no navegador a nota emitida em 29/09 no intervalo 01/09–30/09,
-   usando somente Data inicial e Data final em Período de emissão.
-4. Publicar o pacote e executar Deploy VPS Native por SHA imutável, com
-   checks habilitados. O script de deploy agora configura o fuso do servidor,
-   sincroniza Compose/PM2 e verifica SHOW TimeZone. Como o script instalado
-   anterior se atualiza para o próximo deploy, executar novamente o mesmo SHA
-   para aplicar essa etapa operacional nova e registrar a verificação.
+1. Abrir `http://127.0.0.1:5173` ou a produção e conferir XMLs Importados:
+   nota 26466, período de emissão 01/09/2026–30/09/2026, somente Data inicial
+   e Data final. A consulta real ao repositório local já confirmou o resultado.
+2. Conferir limpar filtros, paginação e exibição da importação em São Paulo.
+3. Retomar `Pagamentos realizados` e `Previsto x pago`: meses distintos,
+   pagamentos parciais, estornos, escopo por empresa, impressão e XLSX.
+4. Registrar divergências antes de definir outro pacote funcional.
 
-Código local: `issueFrom`/`issueTo` inclusivos por emissão; campos duplicados
-removidos da tela; filtros legados de importação corrigidos para o calendário
-`America/Sao_Paulo`. Sem migration; restauração executada somente em base separada.
-Detalhes e validações: `docs/XML-IMPORTS-LIST-PAGE.md`. Testes, tipos, lint
-e builds aprovados no pacote anterior. Nota real 26466 conferida no backup:
-   emissão 29/09, importação 30/09 21:24 em São Paulo e 01/10 em UTC, confirmando
-   o diagnóstico. Pendente conferência visual. Pacote completo validado com
-   `Checar_alteracao.sh`: `STATUS: OK`, log `checar_alteracao_20261019_184620.log`.
+## Checkpoint concluído — 19/10/2026
 
-Fuso de negócio fixado em `America/Sao_Paulo` na API/pool, Compose local/VPS,
-PM2 e exibição da importação. PostgreSQL local configurado por ALTER SYSTEM
-com recarga; verificar conexões novas. VPS ainda aguarda aplicação/verificação
-no deploy. Não converter datas civis nem reescrever instantes históricos.
+- Base ativa no `.env`: `fincontrol_validation_20261019`, com 201 títulos e
+  192 pagamentos no momento da adoção. Base original `fincontrol` preservada.
+- Configuração anterior privada: `.local/env.before-adopt-20261019`.
+- API local readiness e frontend HTTP 200 confirmados após o deploy.
+- Commit funcional publicado/implantado: `0c00cc0af631f5f0d0121ee8e9434b49a3f9c7b1`.
+- Workflows `39330875919` e `39331599472` concluídos com sucesso: primeira
+  execução atualizou a rotina instalada; segunda aplicou/verificou o fuso.
+- PostgreSQL/API local e VPS usam `America/Sao_Paulo`. A rotina sincronizou
+  PM2/Compose e aprovou SHOW TimeZone. Instantes ISO/UTC permanecem preservados.
+- Produção: `version.json` confirmou o SHA; frontend HTTP 200; API/banco `ok`.
+- `Checar_alteracao.sh` STATUS OK, log `checar_alteracao_20261019_184620.log`;
+  ajuste Bash de deploy validado e ambos os pipelines completos aprovados.
+- Evidências e detalhes em `PROJECT_STATUS.md`, `docs/DEVELOPMENT-SETUP.md` e
+  `docs/XML-IMPORTS-LIST-PAGE.md`. Backup e logs privados continuam ignorados.
 
 ## Checkpoint imediato — Debian e produção em 01/10/2026
 

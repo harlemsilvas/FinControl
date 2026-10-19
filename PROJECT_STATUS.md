@@ -3,10 +3,9 @@
 **Código:** DOC-11  
 **Versão:** 0.7
 **Data:** 19/10/2026
-**Status atual:** continuidade recuperada dos chats e do Git em 19/10/2026.
-HEAD local `c344a20`; último deploy documentado `21cf4fe` em 01/10.
-Base de 19/10 adotada localmente; API e frontend disponíveis. Publicação e deploy
-do pacote de filtros/fuso em preparação.
+**Status atual:** base de 19/10 adotada localmente; API e frontend disponíveis.
+Correções de filtros XML e fuso publicadas e implantadas na VPS no SHA
+`0c00cc0af631f5f0d0121ee8e9434b49a3f9c7b1`, com verificações aprovadas.
 
 ## 1. Objetivo deste arquivo
 
@@ -16,6 +15,29 @@ Este documento registra o estado consolidado do projeto sem substituir:
 - `NEXT_TASK.md`, que aponta a próxima tarefa executável;
 - backlog, checklist, planos e documentos `FUTURE-*`, que continuam como apoio
   detalhado e roadmap.
+
+## Deploy concluído em 19/10/2026
+
+- Commit funcional: `0c00cc0af631f5f0d0121ee8e9434b49a3f9c7b1` na branch
+  `feature/matriz-filial-xml`.
+- Primeira execução: workflow `39330875919`, sucesso; preflight 1min23s e
+  deploy 3min45s. Publicou as correções e atualizou a rotina instalada.
+- Execução final do mesmo SHA: workflow `39331599472`, sucesso; preflight
+  1min08s e deploy 3min21s. Aplicou ALTER SYSTEM, recarregou PostgreSQL,
+  aprovou SHOW TimeZone = `America/Sao_Paulo` e sincronizou PM2/Compose.
+- Verificação oficial da estrutura do banco aprovada na VPS; sem novas
+  migrations neste pacote. Backup automático antecedeu a etapa operacional.
+- `version.json` confirmou o SHA funcional; frontend HTTP 200; API e banco
+  de produção `fincontrol` com status `ok` após a execução final.
+- API local confirmou `fincontrol_validation_20261019` com status `ok` e
+  frontend local HTTP 200. A base original continua preservada.
+- Validação local: `Checar_alteracao.sh` STATUS OK; após ajuste operacional,
+  Bash validado e ambos os preflights/deploys completos aprovados.
+- Log privado final: `.local/deploy-39331599472.log`.
+- Alterações preexistentes do usuário em `.vscode/settings.json` e remoção
+  de `docs/PROJECT_HISTORY.md.docx` permaneceram fora dos commits.
+- Próxima tarefa: conferência visual do filtro XML e retomada da validação
+  financeira dos relatórios, conforme `NEXT_TASK.md`.
 
 ## Adoção local e publicação em 19/10/2026
 
@@ -28,7 +50,7 @@ Este documento registra o estado consolidado do projeto sem substituir:
   e sincronizar arquivos PM2/Compose; sintaxe Bash aprovada.
 - Necessárias duas execuções do mesmo SHA na primeira publicação: o script
   instalado anterior instala a versão nova para a execução seguinte.
-- Publicação/deploy ainda em andamento; não confundir com conclusão.
+- Esse registro precedeu a publicação; conclusão no checkpoint acima.
 
 ## Backup atualizado e fuso em 19/10/2026
 

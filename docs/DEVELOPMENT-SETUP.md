@@ -1,6 +1,6 @@
 # Ambiente de desenvolvimento e GitHub
 
-**Atualizado em:** 29/09/2026
+**Atualizado em:** 19/10/2026
 **Ambiente oficial:** Debian nativo, substituindo Windows/WSL e Docker Desktop.
 
 ## Fluxo oficial
@@ -160,7 +160,7 @@ npm run dev:api
 ```
 
 ```bash
-VITE_API_URL=/ VITE_BASE_PATH=/ npm run dev:web -- --host 127.0.0.1 --port 5173 --strictPort
+VITE_API_URL=/ VITE_BASE_PATH=/ npm run dev --workspace @fincontrol/web -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
 Acesse `http://127.0.0.1:5173`. API padrão: `http://127.0.0.1:3000`.
@@ -228,8 +228,8 @@ modificar o fuso do sistema operacional da VPS nem reescrever timestamps.
 Datas civis continuam `date`; instantes podem ser transportados em UTC. Na
 interface, a data/hora de importação usa São Paulo, inclusive em navegador UTC.
 
-Aplicado ao PostgreSQL local em 19/10; configuração da VPS preparada nos
-arquivos versionados, ainda sem aplicação ou verificação remota nesta sessão.
+Aplicado e verificado no PostgreSQL local e na VPS em 19/10. Deploy final
+`39331599472` aprovou a configuração do servidor e sincronizou PM2/Compose.
 Backup atual restaurado em `fincontrol_validation_20261019`, com base original
 `fincontrol` preservada. O `.env` passou a apontar para a base validada, sem renomear ou apagar a
 base original. API readiness e consulta real confirmaram a adoção. Inventário privado em `backup/README-local.txt`.
@@ -238,3 +238,8 @@ A rotina `deploy/vps/bin/deploy` passa a configurar e verificar o fuso do
 PostgreSQL existente após o backup/migrations e sincronizar PM2/Compose.
 Na primeira publicação dessa rotina, o deploy instalado anterior a atualiza
 para a execução seguinte; repetir o mesmo SHA para aplicar essa configuração.
+
+Checkpoint final: commit funcional `0c00cc0`, workflows `39330875919` e
+`39331599472` aprovados; `version.json`, health de produção e local e respostas
+HTTP 200 dos frontends confirmados. Nas próximas publicações basta uma execução
+da rotina atualizada; a repetição foi necessária somente para sua instalação.

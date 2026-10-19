@@ -1,7 +1,7 @@
 # XMLs Importados — Especificação Funcional
 
 **Data:** 19/10/2026
-**Status:** implementado; correção de filtros em validação local
+**Status:** correção implantada e validada tecnicamente em 19/10/2026
 **Contexto:** página operacional da Trilha A para consulta e tratamento das importações XML já registradas no sistema.
 
 ## 1. Objetivo da página
@@ -187,7 +187,8 @@ A nota 26466 entrou no filtro de emissão de setembro tanto em sessão UTC quant
 em São Paulo; o filtro antigo por importação em UTC retornava 01/10.
 O servidor local agora informa `SHOW TimeZone = America/Sao_Paulo`. A exibição
 na tela também fixa esse fuso; teste executado com processo/navegador em UTC.
-Configuração da VPS preparada em Compose/PM2, ainda sem deploy remoto.
+Configuração aplicada e verificada na VPS pelo deploy `39331599472`, SHA
+`0c00cc0`. PM2/Compose sincronizados; health e frontend público aprovados.
 
 Validação final do pacote de fuso em 19/10: `Checar_alteracao.sh` com
 `STATUS: OK` (migrations, tipos, lint, testes e builds), log local
