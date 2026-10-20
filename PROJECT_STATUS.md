@@ -2,8 +2,9 @@
 
 **Código:** DOC-11  
 **Versão:** 0.7
-**Data:** 19/10/2026
-**Status atual:** base de 19/10 adotada localmente; API e frontend disponíveis.
+**Data:** 20/10/2026
+**Status atual:** base de 19/10 ativa; relatório de notas importadas e exportação
+ZIP manual implementados e validados localmente em 20/10. API/frontend disponíveis.
 Correções de filtros XML e fuso publicadas e implantadas na VPS no SHA
 `0c00cc0af631f5f0d0121ee8e9434b49a3f9c7b1`, com verificações aprovadas.
 
@@ -15,6 +16,57 @@ Este documento registra o estado consolidado do projeto sem substituir:
 - `NEXT_TASK.md`, que aponta a próxima tarefa executável;
 - backlog, checklist, planos e documentos `FUTURE-*`, que continuam como apoio
   detalhado e roadmap.
+
+## Publicação autorizada — 20/10/2026
+
+Usuário testou o módulo local e confirmou funcionamento. Deploy autorizado;
+pacote em preparação para publicação por SHA imutável, com backup e migration.
+Alterações pessoais de editor e remoção do Word ficam fora do commit.
+
+## Implementação local de relatório/ZIP em 20/10/2026
+
+- Telas aprovadas pelo usuário. Escopo explícito: somente notas importadas
+  manualmente; DFe/Sintegra mantido como feature futura.
+- Implementados relatório por empresa/emissão, impressão, XLSX, seleção,
+  prévia, ZIP conferido, download autorizado e histórico pessoal auditável.
+- Origem MANUAL e tabela de pacotes em migration nova 202610201200, testada
+  primeiro em banco separado e aplicada localmente após backup privado.
+- Verificação oficial de estrutura aprovada. Testes PostgreSQL reais cobriram
+  isolamento, confirmação parcial, concorrência, expiração e endpoints HTTP.
+- Checar_alteracao.sh STATUS OK, log checar_alteracao_20261020_113244.log.
+  Testes dedicados: 4 ZIP, 4 UI e 6 integrações PostgreSQL/HTTP aprovados.
+- Chrome com nota real 26466 validou filtro, seleção, prévia, ZIP conferido,
+  XLSX, histórico e largura móvel; PDF validado sem navegação/filtros.
+- Sessões temporárias de QA revogadas; artefatos reais privados em .local/.
+  Dados financeiros preservados: 201 títulos, 192 pagamentos, 59 migrations.
+- Sem commit, push ou deploy desta nova funcionalidade. Próximo passo:
+  avaliação do usuário e publicação controlada quando solicitada.
+- Alertas de dependências preexistentes documentados para revisão separada;
+  não declarar zero vulnerabilidades com base nas verificações antigas.
+
+## Proposta visual concluída em 20/10/2026
+
+- Protótipo claro de Notas fiscais importadas concluído, com filtros por
+  empresa/emissão, atalhos de mês, resumo, seleção e painel lateral de exportação.
+- Escolha preservada: baixar ZIP e enviar manualmente.
+- Interações verificadas em DOM; revisão Chrome em desktop e celular, com
+  ajuste de largura dos filtros e confirmação de exportação parcial.
+- Prévias salvas em `docs/wireframes/imported-invoices-proposal.png` e
+  `docs/wireframes/imported-invoices-export-proposal.png`.
+- HTML e especificação prontos para avaliação. Nova funcionalidade ainda não
+  integrada à aplicação; não houve alteração de dados ou deploy nesta etapa.
+
+## Proposta de relatório e exportação de notas em 19/10/2026
+
+- Usuário confirmou validação da entrega anterior de filtros XML/fuso.
+- Nova frente solicitada: relatório de notas importadas por empresa e pacote
+  XML por período, Mês atual e Mês anterior, preservando o tema claro.
+- Decisão explícita: baixar ZIP e enviar manualmente.
+- Escopo e critérios: `docs/IMPORTED-INVOICES-REPORT-AND-EXPORT.md`.
+- Protótipo navegável: `docs/wireframes/imported-invoices-proposal.html`,
+  com dados fictícios, seleção e prévia simulada em painel lateral.
+- Proposta ainda não implementada na aplicação; sem migration, envio, commit
+  ou novo deploy nesta etapa. Relatórios anteriores permanecem no backlog.
 
 ## Deploy concluído em 19/10/2026
 

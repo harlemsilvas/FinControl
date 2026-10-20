@@ -1,7 +1,7 @@
 # FinControl — AI Context
 
 **Status deste contexto:** ativo  
-**Última atualização:** 19/10/2026
+**Última atualização:** 20/10/2026
 
 ## 1. Objetivo
 
@@ -123,6 +123,18 @@ uma entrega específica.
   adoção por filtro explícito, sem seletor global de empresa ativa.
 - Os dados de fundação multiempresa já existentes não devem ser reinterpretados
   como escopo global invisível.
+
+### Relatório e exportação de notas importadas
+
+- O escopo atual inclui exclusivamente XMLs importados manualmente, com
+  origem MANUAL explícita; integração automática DFe/Sintegra é futura.
+- Relatório e pacotes usam a emissão, empresa proprietária e permissões atuais,
+  sem inferir situação fiscal a partir do status interno de importação.
+- Pacotes ZIP são pessoais, autenticados, auditados e temporários. Nesta
+  primeira versão limitada, conteúdo/hash/estado ficam atomicamente no banco,
+  em financeiro.xml_export_packages; retenção e volume são configuráveis.
+- Download não significa envio ao contador. O fluxo aprovado é baixar ZIP e
+  enviar manualmente. Documentos fiscais não são reconstruídos financeiramente.
 
 ## 8. Estado estrutural já consolidado até 23/07/2026
 

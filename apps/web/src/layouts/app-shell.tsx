@@ -52,6 +52,7 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'Compromissos a pagar', to: '/reports', icon: '▱', permission: 'PAYABLE_TITLE_VIEW' },
       { label: 'Pagamentos realizados', to: '/reports/payments', icon: '$', permission: 'PAYABLE_TITLE_VIEW' },
+      { label: 'Notas fiscais importadas', to: '/reports/imported-invoices', icon: '▧', permission: 'XML_REPORT_VIEW' },
       { label: 'Previsto x pago', to: '/reports/planned-vs-paid', icon: '≋', permission: 'PAYABLE_TITLE_VIEW' },
       { label: 'Dashboards', to: '/analytics-dashboards', icon: '◔' },
       { label: 'Fluxo de Caixa', to: '/cash-flow', icon: '〽' },

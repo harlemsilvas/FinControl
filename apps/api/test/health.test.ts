@@ -5,7 +5,7 @@ import { buildApp } from '../src/presentation/http/build-app.js';
 
 const environment: Environment = {
   NODE_ENV: 'test',
-  TZ: 'America/Sao_Paulo',
+  TZ: 'America/Sao_Paulo', XML_EXPORT_MAX_NOTES: 500, XML_EXPORT_MAX_BYTES: 20971520, XML_EXPORT_RETENTION_HOURS: 48,
   API_HOST: '127.0.0.1',
   API_PORT: 3000,
   LOG_LEVEL: 'silent',

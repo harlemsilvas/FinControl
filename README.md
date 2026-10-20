@@ -56,7 +56,18 @@ A arquitetura foi preparada para permitir a evolução futura para outros módul
 * Vitest
 * Testing Library
 
-### Backend
+### Relatório de notas importadas — módulo local
+
+Implementado localmente em 20/10/2026, ainda sem deploy: `Relatórios > Notas
+fiscais importadas`, em `/reports/imported-invoices`. Consulta por empresa e
+emissão com mês atual/anterior, impressão, XLSX e exportação de XMLs em ZIP,
+com prévia, histórico pessoal, permissões e conferência de integridade.
+
+Somente importações manuais nesta fase. O usuário baixa o ZIP e faz o envio
+manualmente; importação automática DFe/Sintegra permanece no roadmap.
+Detalhes e limites: [Relatório e exportação de notas](docs/IMPORTED-INVOICES-REPORT-AND-EXPORT.md).
+
+## Backend
 
 * Node.js 22
 * TypeScript

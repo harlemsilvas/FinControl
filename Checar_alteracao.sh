@@ -79,7 +79,7 @@ run_timed_step "Testes API" npm --prefix "$repo_dir" test --workspace @fincontro
 run_timed_step "Testes Web - Payables" npm --prefix "$repo_dir" test --workspace @fincontrol/web -- src/payables
 run_timed_step "Testes Web - Administracao" npm --prefix "$repo_dir" test --workspace @fincontrol/web -- src/administration
 run_timed_step "Testes Web - Cadastros" npm --prefix "$repo_dir" test --workspace @fincontrol/web -- src/master-data
-run_timed_step "Testes Web - Inteligencia" npm --prefix "$repo_dir" test --workspace @fincontrol/web -- src/intelligence
+run_timed_step "Testes Web - Inteligencia" npm --prefix "$repo_dir" test --workspace @fincontrol/web -- src/intelligence src/reports
 run_timed_step "Testes Web - Base" npm --prefix "$repo_dir" test --workspace @fincontrol/web -- src/app src/pages
 run_timed_step "Build API" npm --prefix "$repo_dir" run build --workspace @fincontrol/api
 run_timed_step "Build Web" npm --prefix "$repo_dir" run build --workspace @fincontrol/web

@@ -1,7 +1,7 @@
 # FinControl — Next Task
 
-**Última atualização:** 19/10/2026
-**Status:** base de 19/10 ativa localmente; filtros XML e fuso publicados e implantados, com checks aprovados.
+**Última atualização:** 20/10/2026
+**Status:** módulo validado localmente pelo usuário; deploy de produção autorizado e em preparação em 20/10/2026.
 **Último deploy validado:** `0c00cc0`, workflow `39331599472`, em 19/10/2026.
 
 ## Retomada confirmada em 19/10/2026
@@ -30,18 +30,36 @@
 
 ## Objetivo
 
-Conferir visualmente a correção dos filtros XML publicada e retomar a
-validação financeira dos relatórios com os dados atualizados.
+Definir e implementar relatório de notas fiscais importadas por empresa e
+exportação confiável de XMLs por mês/período, mantendo o tema claro.
 
 ## Próxima tarefa executável
 
-1. Abrir `http://127.0.0.1:5173` ou a produção e conferir XMLs Importados:
-   nota 26466, período de emissão 01/09/2026–30/09/2026, somente Data inicial
-   e Data final. A consulta real ao repositório local já confirmou o resultado.
-2. Conferir limpar filtros, paginação e exibição da importação em São Paulo.
-3. Retomar `Pagamentos realizados` e `Previsto x pago`: meses distintos,
-   pagamentos parciais, estornos, escopo por empresa, impressão e XLSX.
-4. Registrar divergências antes de definir outro pacote funcional.
+Usuário testou o módulo e autorizou o deploy em 20/10/2026.
+Publicar somente o pacote de notas importadas, executar Deploy VPS Native por
+SHA imutável com checks, backup e migration; conferir versão e saúde pública.
+Registrar o resultado antes de encerrar. Produção anterior: `0c00cc0`.
+
+A implementação local passou em Checar_alteracao.sh (STATUS OK), log
+`checar_alteracao_20261020_113244.log`, testes ZIP/UI e 6 integrações reais.
+Chrome conferiu ZIP, hashes, XLSX, histórico, PDF sem menus e tela móvel.
+Migration 202610201200 aplicada após backup privado; dados financeiros
+preservados (201 títulos, 192 pagamentos), total de 59 migrations.
+
+Escopo: somente notas importadas manualmente e download ZIP para envio manual.
+DFe/Sintegra permanece como feature futura, sem consultas automáticas.
+Contratos e evidências: `docs/IMPORTED-INVOICES-REPORT-AND-EXPORT.md`.
+Sessões temporárias de QA foram revogadas; arquivos reais estão em `.local/`.
+
+Manter no backlog a revisão dos avisos npm preexistentes em @fastify/busboy e
+node-forge, registrados na especificação, além da conferência financeira dos
+relatórios anteriores. Não fazer atualização ampla automática de dependências.
+
+## Validação do pacote anterior
+
+Em 19/10, o usuário confirmou "Perfeito. Validado." para a entrega anterior
+de filtros XML/fuso após o deploy `0c00cc0`. Nova solicitação registrada como
+próxima frente; nenhuma aprovação adicional de relatórios foi inferida.
 
 ## Checkpoint concluído — 19/10/2026
 

@@ -24,6 +24,8 @@ import { BackupsService } from '../../domains/administration/backups-service.js'
 import { backupsRoutes } from '../../domains/administration/backups-routes.js';
 import { DigitalCertificateService } from '../../domains/integrations/digital-certificate-service.js';
 import { digitalCertificateRoutes } from '../../domains/integrations/digital-certificate-routes.js';
+import { ImportedInvoicesService } from '../../domains/intelligence/imported-invoices-service.js';
+import { importedInvoicesRoutes } from '../../domains/intelligence/imported-invoices-routes.js';
 import { registerOpenApi } from './openapi.js';
 
 export interface BuildAppOptions {
@@ -101,6 +103,14 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(intelligenceRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
     repository: new IntelligenceRepository(options.database),
+  });
+  void app.register(importedInvoicesRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    service: new ImportedInvoicesService(options.database, {
+      maxNotes: options.environment.XML_EXPORT_MAX_NOTES,
+      maxBytes: options.environment.XML_EXPORT_MAX_BYTES,
+      retentionHours: options.environment.XML_EXPORT_RETENTION_HOURS,
+    }),
   });
   void app.register(usersRoutes, {
     prefix: '/api/v1', authRepository, authService, tokenService,

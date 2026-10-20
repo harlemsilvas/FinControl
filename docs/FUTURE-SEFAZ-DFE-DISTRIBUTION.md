@@ -42,3 +42,13 @@ revisao para a arquitetura do FinControl.
 - consulta cadastral oficial da Receita/Serpro;
 - importacao financeira totalmente automatica;
 - suporte a certificado A3.
+
+## Decisão de escopo em 20/10/2026
+
+O usuário aprovou o relatório e a exportação das notas importadas manualmente.
+A importação automática, referida como DFe/Sintegra, permanece uma feature
+futura. Confirmar provedor, origem e contratos dessa integração antes de
+implementá-la; não inferir equivalência entre serviços apenas pelo nome.
+Nenhuma consulta, monitor ou importação automática foi ativada nesta entrega.
+A coluna import_source registra MANUAL e exige nova migration para futuras
+origens; não classificar automaticamente documentos externos como manuais.

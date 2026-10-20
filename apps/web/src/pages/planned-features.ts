@@ -44,8 +44,9 @@ export const plannedFeatures: PlannedFeature[] = [
     path: 'sefaz-dfe-distribution',
     domain: 'Integrações',
     title: 'Distribuição DF-e via SEFAZ',
-    description: 'Consulta autenticada de documentos fiscais destinados às empresas usando os certificados digitais A1 cadastrados.',
+    description: 'Importação automática de notas via DF-e, citada como DFe/Sintegra: feature futura. O relatório e os pacotes atuais usam somente XMLs importados manualmente.',
     suggestedNextSteps: [
+      'Confirmar o provedor e o significado de Sintegra no fluxo pretendido antes de integrar.',
       'Adaptar o esqueleto técnico validado no projeto dfe-sefaz-enhanced sem copiar credenciais ou dados de runtime.',
       'Persistir último NSU por empresa e separar homologação de produção.',
       'Implementar fila, backoff e bloqueio preventivo para consumo indevido cStat 656.',
