@@ -1,8 +1,8 @@
 # FinControl — Next Task
 
 **Última atualização:** 20/10/2026
-**Status:** módulo validado localmente pelo usuário; deploy de produção autorizado e em preparação em 20/10/2026.
-**Último deploy validado:** `0c00cc0`, workflow `39331599472`, em 19/10/2026.
+**Status:** relatório e exportação ZIP manual publicados em produção em 20/10/2026; conferência autenticada pelo usuário é o próximo passo.
+**Último deploy validado:** `478bcb7`, workflow `39453420210`, em 20/10/2026.
 
 ## Retomada confirmada em 19/10/2026
 
@@ -35,10 +35,17 @@ exportação confiável de XMLs por mês/período, mantendo o tema claro.
 
 ## Próxima tarefa executável
 
-Usuário testou o módulo e autorizou o deploy em 20/10/2026.
-Publicar somente o pacote de notas importadas, executar Deploy VPS Native por
-SHA imutável com checks, backup e migration; conferir versão e saúde pública.
-Registrar o resultado antes de encerrar. Produção anterior: `0c00cc0`.
+Deploy concluído: commit `478bcb735c415d26d1c2e04cacde229f50ad4aec`,
+workflow `39453420210` aprovado, incluindo preflight e execução na VPS.
+Backup pré-deploy concluído antes da migration 202610201200; verificação
+oficial de banco PASS. SHA público confirmado, relatório HTTP 200 e
+API/PostgreSQL de produção com status ok.
+
+Próximo passo: usuário acessar Relatórios > Notas fiscais importadas em
+`https://hrmmotos.com.br/fincontrol/`, conferir empresa/período e baixar um ZIP.
+Fluxo autenticado completo validado localmente; não foi repetido na VPS por
+esta sessão. Depois, retomar backlog financeiro e revisão de dependências.
+Log privado: `.local/deploy-39453420210.log`.
 
 A implementação local passou em Checar_alteracao.sh (STATUS OK), log
 `checar_alteracao_20261020_113244.log`, testes ZIP/UI e 6 integrações reais.

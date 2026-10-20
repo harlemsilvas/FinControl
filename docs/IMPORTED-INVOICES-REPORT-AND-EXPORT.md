@@ -2,7 +2,7 @@
 
 Data: 19/10/2026
 Revisão visual e interações: 20/10/2026
-Status: implementação real concluída e validada localmente em 20/10/2026; sem deploy.
+Status: implementado, validado localmente pelo usuário e publicado na VPS em 20/10/2026.
 Domínios: DOM-005 (relatório), DOM-002 (XMLs), DOM-004 (permissões/auditoria).
 
 ## Decisões e objetivo
@@ -290,3 +290,13 @@ separada da funcionalidade, sem alterar bibliotecas adjacentes neste pacote.
   schema_versions com 59 migrations. API/frontend disponíveis localmente.
 - Sem commit, push ou deploy desta feature. Validação visual pelo usuário e
   publicação controlada são os próximos passos.
+
+## Publicação de produção — 20/10/2026
+
+Commit 478bcb735c415d26d1c2e04cacde229f50ad4aec publicado e implantado pelo
+workflow Deploy VPS Native 39453420210, com preflight e deploy aprovados.
+CI 39453405475 aprovado. Backup pré-deploy concluído antes da migration
+202610201200; verificação estrutural PASS. SHA público confirmado, rota do
+relatório HTTP 200 e health API/PostgreSQL ok. Log privado em
+.local/deploy-39453420210.log. Conferência autenticada do ZIP na VPS pelo
+usuário é o próximo passo; validação completa anterior foi local.

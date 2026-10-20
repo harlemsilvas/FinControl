@@ -56,9 +56,9 @@ A arquitetura foi preparada para permitir a evolução futura para outros módul
 * Vitest
 * Testing Library
 
-### Relatório de notas importadas — módulo local
+### Relatório de notas importadas
 
-Implementado localmente em 20/10/2026, ainda sem deploy: `Relatórios > Notas
+Publicado na VPS em 20/10/2026: `Relatórios > Notas
 fiscais importadas`, em `/reports/imported-invoices`. Consulta por empresa e
 emissão com mês atual/anterior, impressão, XLSX e exportação de XMLs em ZIP,
 com prévia, histórico pessoal, permissões e conferência de integridade.
@@ -349,8 +349,8 @@ O deploy recomendado é o workflow **Deploy VPS Native**, acionado manualmente c
 
 O deploy nativo executa o script controlado da VPS e publica exatamente o commit resolvido.
 
-Último deploy validado: release `0c00cc0af631`, em 19/10/2026, com filtros XML
-por emissão e fuso financeiro padronizado. Workflow `39331599472` aprovado;
+Último deploy validado: release `478bcb735c41`, em 20/10/2026, com relatório
+de notas importadas e exportação ZIP manual. Workflow `39453420210` aprovado;
 SHA confirmado em `version.json`, frontend HTTP 200 e API/PostgreSQL saudáveis.
 
 ---

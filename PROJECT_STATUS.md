@@ -3,10 +3,9 @@
 **Código:** DOC-11  
 **Versão:** 0.7
 **Data:** 20/10/2026
-**Status atual:** base de 19/10 ativa; relatório de notas importadas e exportação
-ZIP manual implementados e validados localmente em 20/10. API/frontend disponíveis.
-Correções de filtros XML e fuso publicadas e implantadas na VPS no SHA
-`0c00cc0af631f5f0d0121ee8e9434b49a3f9c7b1`, com verificações aprovadas.
+**Status atual:** relatório de notas importadas e exportação ZIP manual
+publicados na VPS em 20/10/2026, SHA `478bcb735c415d26d1c2e04cacde229f50ad4aec`.
+Preflight, backup, migration, verificação estrutural e health checks aprovados.
 
 ## 1. Objetivo deste arquivo
 
@@ -17,11 +16,20 @@ Este documento registra o estado consolidado do projeto sem substituir:
 - backlog, checklist, planos e documentos `FUTURE-*`, que continuam como apoio
   detalhado e roadmap.
 
-## Publicação autorizada — 20/10/2026
+## Deploy concluído — 20/10/2026
 
-Usuário testou o módulo local e confirmou funcionamento. Deploy autorizado;
-pacote em preparação para publicação por SHA imutável, com backup e migration.
-Alterações pessoais de editor e remoção do Word ficam fora do commit.
+- Usuário testou localmente e autorizou a publicação.
+- Commit funcional `478bcb735c415d26d1c2e04cacde229f50ad4aec` publicado na branch
+  feature/matriz-filial-xml; CI `39453405475` aprovado.
+- Deploy VPS Native `39453420210`: preflight e deploy aprovados.
+- Backup de produção concluído às 16:04:50 UTC, antes da migration nova
+  202610201200. Verificação oficial da estrutura PASS; 59 migrations validadas.
+- version.json confirmou SHA; rota do relatório HTTP 200; API e banco
+  fincontrol saudáveis. Fuso São Paulo verificado pela rotina de deploy.
+- Fluxo autenticado ZIP já validado localmente; conferência final na VPS
+  pelo usuário permanece como próximo passo, sem alegar repetição remota.
+- Alterações pessoais de editor e remoção do Word preservadas fora do commit.
+- Evidência privada: .local/deploy-39453420210.log.
 
 ## Implementação local de relatório/ZIP em 20/10/2026
 
