@@ -100,7 +100,7 @@ afterEach(() => {
 });
 
 describe('AgendaPage', () => {
-  it('applies the explicit company filter and preserves it in the payment link', async () => {
+  it('applies the explicit company filter and links each account to its installment settlement', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     render(
@@ -117,7 +117,7 @@ describe('AgendaPage', () => {
 
     await waitFor(() => expect(lastParamsFor('/api/v1/agenda')?.companyId).toBe('company-hrm'));
     expect(lastParamsFor('/api/v1/dashboard')?.companyId).toBe('company-hrm');
-    expect((await screen.findByTitle(/HRM Motos - Fornecedor Agenda/)).getAttribute('href')).toContain(`companyId=company-hrm`);
+    expect(await screen.findByTitle(/HRM Motos - Fornecedor Agenda/)).toHaveAttribute('href', '/payments?installmentId=agenda-1');
   });
 
   it('opens a side panel with all accounts hidden behind the day overflow button', async () => {
@@ -136,6 +136,6 @@ describe('AgendaPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: '+1 conta' }));
 
     expect(screen.getByRole('heading', { name: 'Contas do dia' })).toBeInTheDocument();
-    expect(screen.getAllByTitle(/HRM Motos - Fornecedor Quatro/)[0]).toHaveAttribute('href', expect.stringContaining('/payments?status=OPEN'));
+    expect(screen.getAllByTitle(/HRM Motos - Fornecedor Quatro/)[0]).toHaveAttribute('href', '/payments?installmentId=agenda-4');
   });
 });

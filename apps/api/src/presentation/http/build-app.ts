@@ -11,6 +11,7 @@ import { TokenService } from '../../domains/auth/token-service.js';
 import { authRoutes } from '../../domains/auth/auth-routes.js';
 import { MasterDataRepository } from '../../domains/master-data/master-data-repository.js';
 import { masterDataRoutes } from '../../domains/master-data/master-data-routes.js';
+import { CnpjLookupService } from '../../domains/master-data/cnpj-lookup-service.js';
 import { PayablesRepository } from '../../domains/payables/payables-repository.js';
 import { payablesRoutes } from '../../domains/payables/payables-routes.js';
 import { TreasuryRepository } from '../../domains/treasury/treasury-repository.js';
@@ -21,6 +22,10 @@ import { UsersRepository } from '../../domains/administration/users-repository.j
 import { usersRoutes } from '../../domains/administration/users-routes.js';
 import { BackupsService } from '../../domains/administration/backups-service.js';
 import { backupsRoutes } from '../../domains/administration/backups-routes.js';
+import { DigitalCertificateService } from '../../domains/integrations/digital-certificate-service.js';
+import { digitalCertificateRoutes } from '../../domains/integrations/digital-certificate-routes.js';
+import { ImportedInvoicesService } from '../../domains/intelligence/imported-invoices-service.js';
+import { importedInvoicesRoutes } from '../../domains/intelligence/imported-invoices-routes.js';
 import { registerOpenApi } from './openapi.js';
 
 export interface BuildAppOptions {
@@ -84,6 +89,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   void app.register(masterDataRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
     repository: new MasterDataRepository(options.database),
+    cnpjLookupService: new CnpjLookupService(options.environment.CNPJ_LOOKUP_BASE_URL),
   });
   void app.register(payablesRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
@@ -98,6 +104,14 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     prefix: '/api/v1', authRepository, tokenService,
     repository: new IntelligenceRepository(options.database),
   });
+  void app.register(importedInvoicesRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    service: new ImportedInvoicesService(options.database, {
+      maxNotes: options.environment.XML_EXPORT_MAX_NOTES,
+      maxBytes: options.environment.XML_EXPORT_MAX_BYTES,
+      retentionHours: options.environment.XML_EXPORT_RETENTION_HOURS,
+    }),
+  });
   void app.register(usersRoutes, {
     prefix: '/api/v1', authRepository, authService, tokenService,
     repository: new UsersRepository(options.database),
@@ -110,6 +124,10 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       options.environment.BACKUP_SCRIPT_PATH,
       options.environment.BACKUP_SCRIPT_USE_SUDO,
     ),
+  });
+  void app.register(digitalCertificateRoutes, {
+    prefix: '/api/v1', authRepository, tokenService,
+    service: new DigitalCertificateService(options.database, options.environment.CERTIFICATE_ENCRYPTION_KEY),
   });
 
   app.addHook('onClose', async () => {

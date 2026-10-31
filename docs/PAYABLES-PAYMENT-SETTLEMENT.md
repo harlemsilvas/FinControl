@@ -288,7 +288,14 @@ Lacunas para uma tela operacional completa:
 A decisão atual é salvar comprovantes primeiro em storage local privado da API,
 sem tornar Google Drive uma dependência operacional da baixa.
 
-Configuração padrão:
+Configuração no Debian local:
+
+```text
+ATTACHMENT_STORAGE_ROOT=.local/storage
+ATTACHMENT_MAX_FILE_SIZE_BYTES=10485760
+```
+
+Configuração na VPS:
 
 ```text
 ATTACHMENT_STORAGE_ROOT=/opt/fincontrol/storage

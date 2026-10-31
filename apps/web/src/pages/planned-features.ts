@@ -41,14 +41,27 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
+    path: 'sefaz-dfe-distribution',
+    domain: 'Integrações',
+    title: 'Distribuição DF-e via SEFAZ',
+    description: 'Importação automática de notas via DF-e, citada como DFe/Sintegra: feature futura. O relatório e os pacotes atuais usam somente XMLs importados manualmente.',
+    suggestedNextSteps: [
+      'Confirmar o provedor e o significado de Sintegra no fluxo pretendido antes de integrar.',
+      'Adaptar o esqueleto técnico validado no projeto dfe-sefaz-enhanced sem copiar credenciais ou dados de runtime.',
+      'Persistir último NSU por empresa e separar homologação de produção.',
+      'Implementar fila, backoff e bloqueio preventivo para consumo indevido cStat 656.',
+      'Exibir documentos encontrados para revisão antes de importar contas ou XMLs.',
+    ],
+  },
+  {
     path: 'reports',
     domain: 'Relatórios',
     title: 'Relatórios',
-    description: 'Central de relatórios operacionais e gerenciais do contas a pagar.',
+    description: 'Central iniciada com o relatório operacional de compromissos a pagar por período e empresa.',
     suggestedNextSteps: [
-      'Listar relatórios essenciais para a primeira entrega.',
-      'Definir filtros padrão, exportação e permissões.',
-      'Priorizar relatórios por uso operacional diário.',
+      'Validar o relatório de compromissos a pagar no uso diário.',
+      'Planejar exportação somente após estabilizar filtros e totalizações.',
+      'Priorizar o próximo relatório operacional com base no uso real.',
     ],
   },
   {
@@ -88,11 +101,11 @@ export const plannedFeatures: PlannedFeature[] = [
     path: 'toast-notifications',
     domain: 'Experiência do Usuário',
     title: 'Notificações Toast',
-    description: 'Sistema próprio e personalizável de mensagens visíveis para erros, alertas, confirmações e ações concluídas.',
+    description: 'Sistema próprio e personalizável de mensagens visíveis para erros, alertas, confirmações e ações concluídas. Base global iniciada; migração das telas será gradual.',
     suggestedNextSteps: [
-      'Definir padrão visual para erro, sucesso, alerta e informação.',
-      'Criar componente global de toast com fila, tempo de exibição e ação opcional.',
+      'Expandir o uso do componente global para erros e sucessos das telas operacionais.',
       'Substituir mensagens discretas atuais por notificações consistentes nas telas operacionais.',
+      'Avaliar ações opcionais em toast, como Ver detalhe ou Recarregar.',
     ],
   },
   {

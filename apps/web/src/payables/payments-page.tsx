@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
@@ -10,6 +10,7 @@ import { currency, statusLabel, type ListResponse } from './payables-types';
 
 type EligibleStatus = 'OPEN' | 'OVERDUE' | 'PARTIALLY_PAID';
 type PaymentQueueFilter = 'OPEN' | 'OVERDUE' | 'PAID' | 'ALL';
+type PaymentHistoryStatus = 'EFFECTIVE' | 'REVERSED' | 'ALL';
 
 interface EligibleInstallment {
   installmentId: string;
@@ -157,7 +158,7 @@ function treasuryErrorMessage(error: unknown, fallback: string): string {
 }
 
 function initialStatus(value: string | null): PaymentQueueFilter {
-  return statusOptions.some((item) => item.value === value) ? value as PaymentQueueFilter : 'OPEN';
+  return statusOptions.some((item) => item.value === value) ? value as PaymentQueueFilter : 'ALL';
 }
 
 function initialDate(value: string | null): string {
@@ -182,6 +183,7 @@ export function PaymentsPage(): ReactElement {
   const [dueTo, setDueTo] = useState(initialDate(searchParams.get('dueTo')));
   const [paidFrom, setPaidFrom] = useState('');
   const [paidTo, setPaidTo] = useState('');
+  const [historyStatus, setHistoryStatus] = useState<PaymentHistoryStatus>('EFFECTIVE');
   const [selected, setSelected] = useState<EligibleInstallment>();
   const [bankAccountId, setBankAccountId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
@@ -209,6 +211,7 @@ export function PaymentsPage(): ReactElement {
   const [detailFor, setDetailFor] = useState<PaymentHistoryItem>();
   const [receiptFile, setReceiptFile] = useState<File>();
   const [downloadError, setDownloadError] = useState('');
+  const autoOpenedInstallment = useRef('');
 
   const installments = useQuery({
     queryKey: ['payment-eligible-installments', page, pageSize, search, status, companyId, supplierId, dueFrom, dueTo, requestedPayableTitleId, requestedInstallmentId],
@@ -238,14 +241,14 @@ export function PaymentsPage(): ReactElement {
   const paymentMethods = useLookup('/payment-methods');
 
   const bankBalances = useQuery({
-    queryKey: ['payment-bank-balances', selected?.companyId],
+    queryKey: ['payment-bank-balances', selected?.companyId, paymentDate],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<BankBalance>>('/api/v1/bank-account-balances', {
-        params: { pageSize: 100, companyId: selected?.companyId },
+        params: { pageSize: 100, companyId: selected?.companyId, asOfDate: paymentDate || undefined },
       });
       return response.data.data;
     },
-    enabled: Boolean(selected?.companyId),
+    enabled: Boolean(selected?.companyId && paymentDate),
   });
 
   const allBankBalances = useQuery({
@@ -255,14 +258,14 @@ export function PaymentsPage(): ReactElement {
   });
 
   const paymentHistory = useQuery({
-    queryKey: ['payment-history', historyPage, historyPageSize, search, companyId, supplierId, status, paidFrom, paidTo],
+    queryKey: ['payment-history', historyPage, historyPageSize, search, companyId, supplierId, historyStatus, paidFrom, paidTo],
     queryFn: async () => {
       const response = await httpClient.get<PaymentHistoryResponse>('/api/v1/payments', {
         params: {
           page: historyPage,
           pageSize: historyPageSize,
           search: search || undefined,
-          status: status === 'PAID' ? 'EFFECTIVE' : undefined,
+          status: historyStatus,
           companyId: companyId || undefined,
           supplierId: supplierId || undefined,
           paidFrom: paidFrom || undefined,
@@ -398,6 +401,28 @@ export function PaymentsPage(): ReactElement {
   });
 
   const rows = useMemo(() => installments.data?.data ?? [], [installments.data?.data]);
+
+  useEffect(() => {
+    const requestedItem = rows.find((item) => (
+      (requestedInstallmentId && item.installmentId === requestedInstallmentId)
+      || (requestedPayableTitleId && item.payableTitleId === requestedPayableTitleId)
+    ));
+    if (!requestedItem || autoOpenedInstallment.current === requestedItem.installmentId) return;
+
+    autoOpenedInstallment.current = requestedItem.installmentId;
+    setSelected(requestedItem);
+    setBankAccountId('');
+    setPaymentMethodId(requestedItem.paymentMethodId);
+    setPaymentDate(today());
+    setPrincipalAmount(String(Number(requestedItem.openBalance || 0)));
+    setInterestAmount('0');
+    setPenaltyAmount('0');
+    setDiscountAmount('0');
+    setAdditionalAmount('0');
+    setTransactionNumber('');
+    setOverpaymentConfirmed(false);
+  }, [requestedInstallmentId, requestedPayableTitleId, rows]);
+
   const totalPages = Math.max(1, Math.ceil((installments.data?.total ?? 0) / pageSize));
   const historyTotalPages = Math.max(1, Math.ceil((paymentHistory.data?.total ?? 0) / historyPageSize));
   const firstItem = installments.data?.total ? (page - 1) * pageSize + 1 : 0;
@@ -405,11 +430,12 @@ export function PaymentsPage(): ReactElement {
   const firstHistoryItem = paymentHistory.data?.total ? (historyPage - 1) * historyPageSize + 1 : 0;
   const lastHistoryItem = paymentHistory.data?.total ? Math.min(historyPage * historyPageSize, paymentHistory.data.total) : 0;
   const hasFilters = Boolean(search || status !== 'OPEN' || companyId || supplierId || supplierSearch || dueFrom || dueTo || pageSize !== 20 || requestedPayableTitleId || requestedInstallmentId);
-  const hasHistoryFilters = Boolean(search || companyId || supplierId || supplierSearch || paidFrom || paidTo || historyPageSize !== 20);
+  const hasHistoryFilters = Boolean(search || companyId || supplierId || supplierSearch || paidFrom || paidTo || historyStatus !== 'EFFECTIVE' || historyPageSize !== 20);
   const selectedAccount = bankBalances.data?.find((item) => item.bankAccountId === bankAccountId);
   const totalMovement = movementAmount(principalAmount, interestAmount, penaltyAmount, discountAmount, additionalAmount);
   const exceedsOpenBalance = selected ? Number(principalAmount || 0) > Number(selected.openBalance) : false;
   const insufficientBalance = selectedAccount ? Number(selectedAccount.officialBalance) < totalMovement : false;
+  const missingBalanceAmount = selectedAccount ? Math.max(totalMovement - Number(selectedAccount.officialBalance), 0) : 0;
   const paymentBlockReason = !selected ? ''
     : !bankAccountId ? 'Selecione a conta bancária para confirmar a baixa.'
     : !paymentMethodId ? 'Selecione a forma de pagamento para confirmar a baixa.'
@@ -417,7 +443,7 @@ export function PaymentsPage(): ReactElement {
     : Number(principalAmount) <= 0 ? 'Informe um valor principal maior que zero.'
     : totalMovement <= 0 ? 'O valor que sairá da conta precisa ser maior que zero.'
     : exceedsOpenBalance && !overpaymentConfirmed ? 'Confirme o pagamento acima do saldo aberto para continuar.'
-    : insufficientBalance ? 'Saldo insuficiente na conta bancária selecionada.'
+    : insufficientBalance ? `Saldo insuficiente na conta bancária em ${datePtBr(paymentDate)}. Lance uma entrada com data igual ou anterior ao pagamento, ou ajuste a data real da baixa.`
     : '';
   const canSubmit = Boolean(selected && !paymentBlockReason);
   const canCreateCashBalance = Boolean(cashBankAccountId && cashMovementDate && Number(cashAmount) > 0);
@@ -454,7 +480,7 @@ export function PaymentsPage(): ReactElement {
 
   function clearFilters(): void {
     setSearch('');
-    setStatus('OPEN');
+    setStatus('ALL');
     setCompanyId('');
     setSupplierId('');
     setSupplierSearch('');
@@ -462,6 +488,7 @@ export function PaymentsPage(): ReactElement {
     setDueTo('');
     setPaidFrom('');
     setPaidTo('');
+    setHistoryStatus('EFFECTIVE');
     setPage(1);
     setHistoryPage(1);
     setPageSize(20);
@@ -476,6 +503,7 @@ export function PaymentsPage(): ReactElement {
     setSupplierSearch('');
     setPaidFrom('');
     setPaidTo('');
+    setHistoryStatus('EFFECTIVE');
     setPage(1);
     setHistoryPage(1);
     setHistoryPageSize(20);
@@ -485,6 +513,16 @@ export function PaymentsPage(): ReactElement {
     setReverseFor(item);
     setReverseReason('');
     reversePayment.reset();
+  }
+
+  function openCashEntryForPaymentDate(): void {
+    if (!selectedAccount) return;
+    setCashEntryBankAccountId(selectedAccount.bankAccountId);
+    setCashEntryMovementDate(paymentDate);
+    setCashEntryAmount(missingBalanceAmount > 0 ? missingBalanceAmount.toFixed(2) : '');
+    setCashEntryReference(`Entrada para baixa em ${datePtBr(paymentDate)}`);
+    setCashEntryNotes('Entrada operacional lançada na data da baixa para recompor o saldo histórico da conta.');
+    setCashEntryOpen(true);
   }
 
   function changeSupplierFilter(value: string): void {
@@ -613,7 +651,12 @@ export function PaymentsPage(): ReactElement {
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{paymentHistory.data?.total ?? 0} pagamento{(paymentHistory.data?.total ?? 0) === 1 ? '' : 's'}</span>
         </div>
-        <div className="mb-5 grid gap-3 xl:grid-cols-[170px_170px_170px_auto]">
+        <div className="mb-5 grid gap-3 xl:grid-cols-[190px_170px_170px_170px_auto]">
+          <select aria-label="Status do histórico de pagamentos" value={historyStatus} onChange={(event) => { setHistoryStatus(event.target.value as PaymentHistoryStatus); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            <option value="EFFECTIVE">Pagamentos efetivos</option>
+            <option value="REVERSED">Estornados</option>
+            <option value="ALL">Todos</option>
+          </select>
           <input aria-label="Pagamento inicial" type="date" value={paidFrom} onChange={(event) => { setPaidFrom(event.target.value); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
           <input aria-label="Pagamento final" type="date" value={paidTo} onChange={(event) => { setPaidTo(event.target.value); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
           <select aria-label="Pagamentos por página" value={historyPageSize} onChange={(event) => { setHistoryPageSize(Number(event.target.value)); setHistoryPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
@@ -672,7 +715,7 @@ export function PaymentsPage(): ReactElement {
             <label className="grid gap-1 text-sm font-bold text-slate-700">Conta bancária
               <select aria-label="Conta bancária" value={bankAccountId} onChange={(event) => setBankAccountId(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
                 <option value="">Selecione</option>
-                {bankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.bankName} - {item.accountName} - saldo {currency(item.officialBalance)}</option>)}
+                {bankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.bankName} - {item.accountName} - saldo em {datePtBr(paymentDate)} {currency(item.officialBalance)}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-sm font-bold text-slate-700">Forma de pagamento
@@ -705,9 +748,13 @@ export function PaymentsPage(): ReactElement {
               </div>
               <p className="text-2xl font-black text-teal-900">{currency(totalMovement)}</p>
             </div>
-            {selectedAccount ? <p className={`mt-2 text-sm font-bold ${insufficientBalance ? 'text-red-700' : 'text-teal-800'}`}>Saldo da conta selecionada: {currency(selectedAccount.officialBalance)}</p> : null}
+            {selectedAccount ? <p className={`mt-2 text-sm font-bold ${insufficientBalance ? 'text-red-700' : 'text-teal-800'}`}>Saldo da conta selecionada em {datePtBr(paymentDate)}: {currency(selectedAccount.officialBalance)}</p> : null}
             {exceedsOpenBalance ? <label className="mt-3 flex items-center gap-2 text-sm font-bold text-amber-800"><input type="checkbox" checked={overpaymentConfirmed} onChange={(event) => setOverpaymentConfirmed(event.target.checked)} /> Confirmo pagamento acima do saldo aberto.</label> : null}
             {paymentBlockReason && !payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-amber-800">{paymentBlockReason}</p> : null}
+            {insufficientBalance && selectedAccount ? <div className="mt-3 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:flex-row md:items-center md:justify-between">
+              <p className="font-semibold">Para baixar em {datePtBr(paymentDate)}, lance uma entrada de pelo menos {currency(missingBalanceAmount)} nessa data ou antes.</p>
+              <Button variant="secondary" onClick={openCashEntryForPaymentDate}>Lançar entrada nessa data</Button>
+            </div> : null}
             {payment.error ? <p role="alert" className="mt-3 text-sm font-bold text-red-700">{payment.error instanceof ApiError ? payment.error.message : 'Não foi possível registrar a baixa.'}</p> : null}
           </div>
 
@@ -728,7 +775,7 @@ export function PaymentsPage(): ReactElement {
             <label className="grid gap-1 text-sm font-bold text-slate-700">Conta bancária
               <select aria-label="Conta para saldo inicial" value={cashBankAccountId} onChange={(event) => setCashBankAccountId(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
                 <option value="">Selecione</option>
-                {allBankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.companyName ?? '-'} - {item.bankName} - {item.accountName} - saldo {currency(item.officialBalance)}</option>)}
+                {allBankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.companyName ?? '-'} - {item.bankName} - {item.accountName} - saldo atual {currency(item.officialBalance)}</option>)}
               </select>
             </label>
             <div className="grid gap-4 md:grid-cols-2">
@@ -762,7 +809,7 @@ export function PaymentsPage(): ReactElement {
             <label className="grid gap-1 text-sm font-bold text-slate-700">Conta bancária
               <select aria-label="Conta para entrada de caixa" value={cashEntryBankAccountId} onChange={(event) => setCashEntryBankAccountId(event.target.value)} className="min-h-12 rounded-xl border border-slate-300 bg-white px-3 font-medium outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
                 <option value="">Selecione</option>
-                {allBankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.companyName ?? '-'} - {item.bankName} - {item.accountName} - saldo {currency(item.officialBalance)}</option>)}
+                {allBankBalances.data?.map((item) => <option key={item.bankAccountId} value={item.bankAccountId}>{item.companyName ?? '-'} - {item.bankName} - {item.accountName} - saldo atual {currency(item.officialBalance)}</option>)}
               </select>
             </label>
             <div className="grid gap-4 md:grid-cols-2">

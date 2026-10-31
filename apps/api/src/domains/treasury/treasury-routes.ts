@@ -11,7 +11,7 @@ interface Options { authRepository: AuthRepository; tokenService: TokenService; 
 const uuid = z.uuid();
 const money = z.number().finite().positive();
 const list = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(20) });
-const balancesList = list.extend({ companyId: uuid.optional() });
+const balancesList = list.extend({ companyId: uuid.optional(), asOfDate: z.iso.date().optional() });
 const movementList = list.extend({
   bankAccountId: uuid.optional(),
   companyId: uuid.optional(),
@@ -56,7 +56,7 @@ export function treasuryRoutes(app: FastifyInstance, options: Options): Promise<
 
   app.get('/bank-account-balances', { preHandler: [authenticate, canView] }, async (request) => {
     const query = parse(balancesList, request.query);
-    return options.repository.listBalances(query.page, query.pageSize, query.companyId);
+    return options.repository.listBalances(query.page, query.pageSize, query.companyId, query.asOfDate);
   });
 
   app.get('/bank-account-movements', { preHandler: [authenticate, canView] }, async (request) => {

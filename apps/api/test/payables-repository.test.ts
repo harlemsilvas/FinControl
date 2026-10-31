@@ -115,8 +115,10 @@ describe('PayablesRepository business safeguards',()=>{
     const repo=new PayablesRepository(database({query}));
     const result=await repo.addPayment({installmentId:'installment',bankAccountId:'bank',paymentMethodId:'method',paymentDate:'2026-07-22',principalAmount:150},'user-id') as {id:string;bankMovement:{id:string}};
     const movementValues=query.mock.calls[4]?.[1] as unknown[] | undefined;
+    const balanceValues=query.mock.calls[2]?.[1] as unknown[] | undefined;
     expect(result.id).toBe('payment-id');
     expect(result.bankMovement.id).toBe('movement-id');
+    expect(balanceValues).toEqual(['bank', '2026-07-22']);
     expect(movementValues?.[1]).toBe('company-id');
     expect(movementValues?.[2]).toBe('cost-center-id');
     expect(movementValues?.[3]).toBe('payment-id');
@@ -139,7 +141,45 @@ describe('PayablesRepository business safeguards',()=>{
       .mockResolvedValueOnce({rows:[{official_balance:'50.00'}],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     await expect(repo.addPayment({installmentId:'installment',bankAccountId:'bank',paymentMethodId:'method',paymentDate:'2026-07-22',principalAmount:100},'user-id'))
-      .rejects.toMatchObject({code:'INSUFFICIENT_BANK_BALANCE',statusCode:409});
+      .rejects.toMatchObject({
+        code:'INSUFFICIENT_BANK_BALANCE',
+        statusCode:409,
+        message:'Saldo insuficiente na conta bancária em 2026-07-22. Lance uma entrada com data igual ou anterior ao pagamento, ou ajuste a data real da baixa.',
+      });
+  });
+
+  it('blocks paid title identity changes when protected values actually change', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id',company_id:'company-id',supplier_id:'supplier-id',document_number:'NF-1',document_series:null,original_amount:'2249.56',discount_amount:'0.00',additional_amount:'0.00'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    await expect(repo.updateTitle('title-id',{documentNumber:'NF-2',notes:'Ajuste solicitado'},'user-id'))
+      .rejects.toMatchObject({code:'PAID_TITLE_IMMUTABLE',statusCode:409});
+  });
+
+  it('allows paid title monetary sync so open installments can be renegotiated', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id',company_id:'company-id',supplier_id:'supplier-id',category_id:'old-category',document_number:'NF-1',document_series:null,description:'Conta',issue_date:'2026-08-01',original_amount:'2249.56',discount_amount:'0.00',additional_amount:'0.00',notes:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'title-id',original_amount:'2252.56',notes:'Prorrogação aceita pelo fornecedor'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'audit-id'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    await expect(repo.updateTitle('title-id',{originalAmount:2252.56,notes:'Prorrogação aceita pelo fornecedor'},'user-id'))
+      .resolves.toMatchObject({id:'title-id',originalAmount:'2252.56'});
+  });
+
+  it('allows paid title update when protected financial values are resent unchanged', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id',company_id:'company-id',supplier_id:'supplier-id',category_id:'old-category',document_number:'NF-1',document_series:null,description:'Conta',issue_date:'2026-08-01',original_amount:'2249.56',discount_amount:'0.00',additional_amount:'0.00',notes:null}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{exists:1}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'title-id',original_amount:'2249.56',notes:'Ajuste operacional'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'audit-id'}],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    await expect(repo.updateTitle('title-id',{originalAmount:2249.56,notes:'Ajuste operacional'},'user-id'))
+      .resolves.toMatchObject({id:'title-id',originalAmount:'2249.56'});
   });
 
   it('cancels a recurrence without touching already generated titles when the option is disabled', async () => {
@@ -270,11 +310,13 @@ describe('PayablesRepository business safeguards',()=>{
     expect(query.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes("UPDATE financeiro.payable_recurrences SET status_id=(SELECT id FROM financeiro.payable_recurrence_statuses WHERE code='CANCELLED')"))).toBe(true);
   });
 
-  it('reverses payment and creates a compensating bank movement',async()=>{
+  it('reverses payment, recalculates the payable and creates a compensating bank movement',async()=>{
     const query=vi.fn()
-      .mockResolvedValueOnce({rows:[{id:'payment-id',status_code:'EFFECTIVE'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'payment-id',payable_installment_id:'installment-id',payable_title_id:'title-id',status_code:'EFFECTIVE'}],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:0})
       .mockResolvedValueOnce({rows:[{id:'reversal-id',payment_id:'payment-id'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:1})
       .mockResolvedValueOnce({rows:[{id:'movement-id',bank_account_id:'bank',company_id:'company-id',cost_center_id:null,direction:'OUT',amount:'150.00',movement_date:'2026-07-22',description:'Pagamento',reference_number:null}],rowCount:1})
       .mockResolvedValueOnce({rows:[],rowCount:0})
@@ -283,9 +325,13 @@ describe('PayablesRepository business safeguards',()=>{
       .mockResolvedValueOnce({rows:[],rowCount:1});
     const repo=new PayablesRepository(database({query}));
     const result=await repo.reversePayment('payment-id','Pagamento duplicado','user-id') as {id:string;reversedMovements:{id:string}[]};
-    const reversalValues=query.mock.calls[6]?.[1] as unknown[] | undefined;
+    const reversalValues=query.mock.calls[8]?.[1] as unknown[] | undefined;
     expect(result.id).toBe('reversal-id');
     expect(result.reversedMovements[0]?.id).toBe('movement-reversal-id');
+    expect(query.mock.calls[4]?.[0]).toContain('financeiro.recalculate_installment_balance');
+    expect(query.mock.calls[4]?.[1]).toEqual(['installment-id']);
+    expect(query.mock.calls[5]?.[0]).toContain('financeiro.recalculate_title_status');
+    expect(query.mock.calls[5]?.[1]).toEqual(['title-id']);
     expect(reversalValues?.[5]).toBe('IN');
     expect(reversalValues?.[6]).toBe(150);
   });
@@ -304,6 +350,57 @@ describe('PayablesRepository business safeguards',()=>{
     expect(result.data[0]?.movementAmount).toBe('403.06');
     expect(query.mock.calls[0]?.[0]).toContain('COALESCE(SUM(p.movement_amount),0)::text total_movement_amount');
     expect(query.mock.calls[1]?.[0]).toContain('LEFT JOIN financeiro.payment_reversals');
+  });
+
+  it('syncs open installments atomically so a saved title can be split into more parcels', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'title-id'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'inst-1',installment_number:1,amount:'213.20',due_date:'2026-08-18',payment_method_id:'payment-method-id',has_effective_payment:false}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'inst-1',installment_number:1,installment_count:2,amount:'106.60'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{id:'inst-2',installment_number:2,installment_count:2,amount:'106.60'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[{is_valid:true}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+    const result=await repo.syncInstallments('title-id',[
+      {id:'inst-1',installmentNumber:1,installmentCount:2,amount:106.60,dueDate:'2026-08-18',paymentMethodId:'payment-method-id'},
+      {installmentNumber:2,installmentCount:2,amount:106.60,dueDate:'2026-09-18',paymentMethodId:'payment-method-id'},
+    ],'user-id') as {installments:{id:string}[]};
+    expect(result.installments.map(item=>item.id)).toEqual(['inst-1','inst-2']);
+    expect(query.mock.calls[2]?.[0]).toContain('UPDATE financeiro.payable_installments');
+    expect(query.mock.calls[3]?.[0]).toContain('INSERT INTO financeiro.payable_installments');
+    expect(query.mock.calls[4]?.[0]).toContain('validate_title_installments');
+  });
+
+  it('lists only effective payments by default and requires ALL for full audit history', async()=>{
+    const defaultQuery=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'0',total_movement_amount:'0'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query:defaultQuery}));
+    await repo.listPayments(1,20,{});
+    expect(defaultQuery.mock.calls[0]?.[0]).toContain('ps.code=$1');
+    const defaultParams = defaultQuery.mock.calls[0]?.[1] as unknown[] | undefined;
+    expect(defaultParams?.[0]).toBe('EFFECTIVE');
+
+    const allQuery=vi.fn()
+      .mockResolvedValueOnce({rows:[{total:'0',total_movement_amount:'0'}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0});
+    const allRepo=new PayablesRepository(database({query:allQuery}));
+    await allRepo.listPayments(1,20,{status:'ALL'});
+    expect(allQuery.mock.calls[0]?.[0]).not.toContain('ps.code=$1');
+    const allParams = allQuery.mock.calls[0]?.[1] as unknown[] | undefined;
+    expect(allParams?.[0]).toBe(20);
+  });
+
+  it('excludes cancelled titles from broad searches unless explicitly requested', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const repo = new PayablesRepository(database({ query }));
+    await repo.list(1, 20, { search: 'REC-20261022', recurrenceStatus: 'ALL' });
+    expect(query.mock.calls[0]?.[0]).toContain("ts.code <> 'CANCELLED'");
+    query.mockClear();
+    await repo.list(1, 20, { status: 'CANCELLED', recurrenceStatus: 'ALL' });
+    expect(query.mock.calls[0]?.[0]).not.toContain("ts.code <> 'CANCELLED'");
+    expect(query.mock.calls[0]?.[1]).toEqual(['CANCELLED', 20, 0]);
   });
 
   it('hides terminal recurrence titles by default and exposes them through an explicit filter', async()=>{
@@ -497,6 +594,27 @@ describe('PayablesRepository business safeguards',()=>{
     expect(query.mock.calls[1]?.[0]).toContain('ORDER BY x.imported_at DESC');
   });
 
+  it('filters XMLs by inclusive issue dates independently of import time and due date', async () => {
+    const query=vi.fn().mockResolvedValue({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query}));
+    await repo.listXmlImports(1,20,{issueFrom:'2026-09-01',issueTo:'2026-09-30'});
+    for (const [sql] of query.mock.calls) {
+      expect(sql).toContain('x.issue_date >= $1::date');
+      expect(sql).toContain('x.issue_date <= $2::date');
+      expect(sql).not.toContain('x.due_date');
+      expect(sql).not.toContain('x.imported_at::date');
+    }
+    expect(query.mock.calls[1]?.[1]).toEqual(['2026-09-01','2026-09-30',20,0]);
+  });
+
+  it('keeps legacy import date filters in the Brazilian calendar regardless of session timezone', async () => {
+    const query=vi.fn().mockResolvedValue({rows:[],rowCount:0});
+    const repo=new PayablesRepository(database({query}));
+    await repo.listXmlImports(1,20,{importedFrom:'2026-09-01',importedTo:'2026-09-30'});
+    expect(query.mock.calls[0]?.[0]).toContain("(x.imported_at AT TIME ZONE 'America/Sao_Paulo')::date >= $1::date");
+    expect(query.mock.calls[0]?.[0]).toContain("(x.imported_at AT TIME ZONE 'America/Sao_Paulo')::date <= $2::date");
+  });
+
   it('returns company parameters in xml import list resolved by recipient document',async()=>{
     const query=vi.fn()
       .mockResolvedValueOnce({rows:[{total:'1'}],rowCount:1})
@@ -637,6 +755,21 @@ describe('PayablesRepository business safeguards',()=>{
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('flags recurrence preview limited by generation window when requested count is higher than the window', async()=>{
+    const query=vi.fn()
+      .mockResolvedValueOnce({rows:[{id:'recurrence-id',start_date:'2026-08-17',end_date:'2027-08-17',base_amount:'2582.70',base_document_number:'REC',frequency_code:'MONTHLY',due_day:17,status_code:'ACTIVE',generated_count:'0',max_occurrences:null,generation_window_months:6}],rowCount:1})
+      .mockResolvedValueOnce({rows:[],rowCount:0})
+      .mockResolvedValueOnce({rows:[],rowCount:1});
+    const repo=new PayablesRepository(database({query}));
+
+    const result=await repo.previewRecurrenceGeneration('recurrence-id',{occurrenceCount:10},'user-id') as {total:number;limitedByGenerationWindow:boolean;maxGenerationDate:string;occurrences:{occurrenceDate:string}[]};
+
+    expect(result.total).toBe(6);
+    expect(result.limitedByGenerationWindow).toBe(true);
+    expect(result.maxGenerationDate).toBe('2027-02-16');
+    expect(result.occurrences.at(-1)?.occurrenceDate).toBe('2027-01-17');
   });
 
   it('uses the first pending recurrence date as the six-month generation window base', async()=>{

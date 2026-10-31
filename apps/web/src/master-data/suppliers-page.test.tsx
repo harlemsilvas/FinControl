@@ -1,11 +1,17 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SuppliersPage } from './suppliers-page';
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn((url: string) => {
+    if (url === '/api/v1/suppliers/cnpj/11222333000181') return Promise.resolve({ data: {
+      source: 'BrasilAPI / dados públicos do CNPJ', documentNumber: '11222333000181', legalName: 'Fornecedor Consultado Ltda',
+      tradeName: 'Fornecedor Consultado', postalCode: '80010000', street: 'Rua das Flores', streetNumber: '123',
+      addressComplement: 'Galpão 2', neighborhood: 'Centro', cityName: 'São Paulo', stateCode: 'SP',
+      phone: '1133334444', email: 'contato@example.com', registrationStatus: 'ATIVA',
+    } });
     if (url === '/api/v1/suppliers') return Promise.resolve({ data: { data: [], page: 1, pageSize: 20, total: 0 } });
     if (url === '/api/v1/supplier-statuses') return Promise.resolve({ data: { data: [{ id: 'status-active', code: 'ACTIVE', name: 'Ativo' }] } });
     if (url === '/api/v1/supplier-categories') return Promise.resolve({ data: { data: [{ id: 'category-supplier', code: 'SUPPLIER', name: 'Fornecedor' }] } });
@@ -23,6 +29,8 @@ vi.mock('../api/http-client', () => ({
   ApiError: class ApiError extends Error {},
   httpClient: { get: mocks.get, post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
+
+afterEach(() => cleanup());
 
 function renderPage(): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -45,5 +53,20 @@ describe('SuppliersPage', () => {
     expect(within(city).getByRole('option', { name: 'São Paulo' })).toBeInTheDocument();
     expect(within(city).getByRole('option', { name: 'São Bernardo do Campo' })).toBeInTheDocument();
     expect(within(city).queryByRole('option', { name: 'Belo Horizonte' })).not.toBeInTheDocument();
+  });
+
+  it('fills supplier fields from a public CNPJ lookup for user review', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Novo fornecedor' }));
+    fireEvent.change(screen.getByLabelText('CNPJ'), { target: { value: '11222333000181' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar CNPJ' }));
+
+    await waitFor(() => expect(screen.getByLabelText(/Nome \/ Razão Social/)).toHaveValue('Fornecedor Consultado Ltda'));
+    expect(screen.getByLabelText('Nome Fantasia')).toHaveValue('Fornecedor Consultado');
+    expect(screen.getByLabelText('CEP')).toHaveValue('80010-000');
+    expect(screen.getByLabelText(/Logradouro/)).toHaveValue('Rua das Flores');
+    expect(screen.getByLabelText('Estado')).toHaveValue('state-sp');
+    expect(screen.getByRole('combobox', { name: /Cidade cadastrada/ })).toHaveValue('city-sp');
+    expect(screen.getByLabelText('Telefone Comercial')).toHaveValue('(11) 3333-4444');
   });
 });

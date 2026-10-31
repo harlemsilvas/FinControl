@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
@@ -42,6 +42,7 @@ function countByHighlight(items: UpcomingItem[], highlight: UpcomingItem['highli
 }
 
 export function FoundationPage(): ReactElement {
+  const location = useLocation();
   const initialMonth = monthKey();
   const [fromMonth, setFromMonth] = useState(initialMonth);
   const [toMonth, setToMonth] = useState(initialMonth);
@@ -297,7 +298,7 @@ export function FoundationPage(): ReactElement {
                         <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${style.pill}`}>{style.label}</span>
                       </span>
                       <span className="lg:text-right">
-                        <Link className="text-sm font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`}>
+                        <Link className="text-sm font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`} state={{ returnTo: location.pathname + location.search + location.hash }}>
                           Ver
                         </Link>
                       </span>

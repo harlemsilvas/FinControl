@@ -55,7 +55,7 @@ function api(row: Record<string, unknown>): Record<string, unknown> { return Obj
 export class TreasuryRepository {
   constructor(private readonly database: Database) {}
 
-  async listBalances(page: number, pageSize: number, companyId?: string): Promise<object> {
+  async listBalances(page: number, pageSize: number, companyId?: string, asOfDate?: string): Promise<object> {
     const values: unknown[] = [];
     const conditions = ['ba.deleted_at IS NULL'];
     if (companyId) {
@@ -63,18 +63,26 @@ export class TreasuryRepository {
       conditions.push(`ba.company_id = $${values.length}`);
     }
     const where = conditions.join(' AND ');
+    const balanceJoin = asOfDate
+      ? `LEFT JOIN LATERAL (
+          SELECT COALESCE(SUM(CASE m.direction WHEN 'IN' THEN m.amount WHEN 'OUT' THEN -m.amount ELSE 0 END),0)::numeric(18,2) official_balance
+          FROM tesouraria.bank_account_movements m
+          WHERE m.bank_account_id=ba.id AND m.movement_date <= $${values.length + 1}::date
+        ) balance ON true`
+      : 'LEFT JOIN tesouraria.v_bank_account_balances balance ON balance.bank_account_id = ba.id';
     const from = `FROM tesouraria.bank_accounts ba
       JOIN tesouraria.banks b ON b.id = ba.bank_id
       LEFT JOIN cadastros.companies c ON c.id = ba.company_id
-      LEFT JOIN tesouraria.v_bank_account_balances balance ON balance.bank_account_id = ba.id`;
-    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, values);
-    values.push(pageSize, (page - 1) * pageSize);
+      ${balanceJoin}`;
+    const queryValues = asOfDate ? [...values, asOfDate] : [...values];
+    const count = await this.database.query<{ total: string } & Record<string, unknown>>(`SELECT count(*)::text total ${from} WHERE ${where}`, queryValues);
+    const pagedValues = [...queryValues, pageSize, (page - 1) * pageSize];
     const result = await this.database.query(`SELECT ba.id bank_account_id,ba.account_name,ba.branch_number,ba.account_number,ba.account_type,
         ba.company_id,COALESCE(NULLIF(c.trade_name,''),c.legal_name) company_name,b.name bank_name,
         COALESCE(balance.official_balance,0)::text official_balance
       ${from} WHERE ${where}
       ORDER BY COALESCE(NULLIF(c.trade_name,''),c.legal_name),ba.account_name,ba.id
-      LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
+      LIMIT $${pagedValues.length - 1} OFFSET $${pagedValues.length}`, pagedValues);
     return { data: result.rows.map(api), page, pageSize, total: Number(count.rows[0]?.total ?? 0) };
   }
 
@@ -149,7 +157,7 @@ export class TreasuryRepository {
       if (from.company_id !== to.company_id) {
         throw new ApplicationError({ code: 'CROSS_COMPANY_TRANSFER_BLOCKED', message: 'Transfers between different CNPJs are blocked in the MVP', statusCode: 409 });
       }
-      await this.ensureSufficientBalance(tx, input.fromBankAccountId, input.amount);
+      await this.ensureSufficientBalance(tx, input.fromBankAccountId, input.amount, input.movementDate);
       const transferGroupId = randomUUID();
       const description = input.description?.trim() || `Transferência entre contas ${from.account_name} e ${to.account_name}`;
       const out = await this.insertMovement(tx, {
@@ -234,13 +242,15 @@ export class TreasuryRepository {
     }
   }
 
-  private async ensureSufficientBalance(tx: QueryExecutor, bankAccountId: string, amount: number): Promise<void> {
+  private async ensureSufficientBalance(tx: QueryExecutor, bankAccountId: string, amount: number, asOfDate: string): Promise<void> {
     const result = await tx.query<{ official_balance: string } & Record<string, unknown>>(
-      `SELECT official_balance::text FROM tesouraria.v_bank_account_balances WHERE bank_account_id=$1`,
-      [bankAccountId],
+      `SELECT COALESCE(SUM(CASE direction WHEN 'IN' THEN amount WHEN 'OUT' THEN -amount ELSE 0 END),0)::numeric(18,2)::text official_balance
+       FROM tesouraria.bank_account_movements
+       WHERE bank_account_id=$1 AND movement_date <= $2::date`,
+      [bankAccountId, asOfDate],
     );
     if (Number(result.rows[0]?.official_balance ?? 0) < amount) {
-      throw new ApplicationError({ code: 'INSUFFICIENT_BANK_BALANCE', message: 'Bank account has insufficient official balance', statusCode: 409 });
+      throw new ApplicationError({ code: 'INSUFFICIENT_BANK_BALANCE', message: `Saldo insuficiente na conta bancária em ${asOfDate}. Lance uma entrada com data igual ou anterior ao movimento, ou ajuste a data real da operação.`, statusCode: 409 });
     }
   }
 

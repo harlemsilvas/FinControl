@@ -79,6 +79,25 @@ const mocks = vi.hoisted(() => ({
       return Promise.resolve({ data: { id: 'rec-new' } });
     }
     if (url === '/api/v1/recurrences/rec-1/preview-generation') {
+      if (typeof payload === 'object' && payload !== null && 'occurrenceCount' in payload && (payload as { occurrenceCount?: unknown }).occurrenceCount === 10) {
+        return Promise.resolve({
+          data: {
+            recurrenceId: 'rec-1',
+            total: 6,
+            limitedByGenerationWindow: true,
+            maxGenerationDate: '2027-01-20',
+            requestedUntilDate: null,
+            occurrences: [
+              { occurrenceDate: '2026-08-05', dueDate: '2026-08-05', sequenceNumber: 2, documentNumber: 'ALUGUEL-HRM-20260805', amount: 2500 },
+              { occurrenceDate: '2026-09-05', dueDate: '2026-09-05', sequenceNumber: 3, documentNumber: 'ALUGUEL-HRM-20260905', amount: 2500 },
+              { occurrenceDate: '2026-10-05', dueDate: '2026-10-05', sequenceNumber: 4, documentNumber: 'ALUGUEL-HRM-20261005', amount: 2500 },
+              { occurrenceDate: '2026-11-05', dueDate: '2026-11-05', sequenceNumber: 5, documentNumber: 'ALUGUEL-HRM-20261105', amount: 2500 },
+              { occurrenceDate: '2026-12-05', dueDate: '2026-12-05', sequenceNumber: 6, documentNumber: 'ALUGUEL-HRM-20261205', amount: 2500 },
+              { occurrenceDate: '2027-01-05', dueDate: '2027-01-05', sequenceNumber: 7, documentNumber: 'ALUGUEL-HRM-20270105', amount: 2500 },
+            ],
+          },
+        });
+      }
       if (typeof payload === 'object' && payload !== null && 'untilDate' in payload) {
         return Promise.resolve({
           data: {
@@ -240,6 +259,19 @@ describe('RecurrencesPage', () => {
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/preview-generation', { untilDate: '2027-07-31', occurrenceCount: undefined }));
     expect(await screen.findByText(/o preview foi limitado até 20\/01\/2027/i)).toBeTruthy();
+  });
+
+  it('warns when requested occurrence count is reduced by the generation window', async () => {
+    renderPage();
+
+    const generateButtons = await screen.findAllByRole('button', { name: 'Gerar' });
+    fireEvent.click(generateButtons[0]!);
+
+    fireEvent.change(await screen.findByLabelText('Ou quantidade de ocorrências'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Pré-visualizar' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledWith('/api/v1/recurrences/rec-1/preview-generation', { occurrenceCount: 10, untilDate: undefined }));
+    expect(await screen.findByText(/Você solicitou 10 ocorrências, mas esta operação só pode pré-visualizar 6/i)).toBeTruthy();
   });
 
   it('cancels a recurrence with optional future-title cancellation', async () => {

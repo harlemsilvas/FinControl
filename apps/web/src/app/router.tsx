@@ -19,6 +19,11 @@ import { plannedFeatures } from '../pages/planned-features';
 import { environment } from '../config/environment';
 import { UsersPage } from '../administration/users-page';
 import { BackupsPage } from '../administration/backups-page';
+import { PayablesForecastPage } from '../reports/payables-forecast-page';
+import { PaymentsReportPage } from '../reports/payments-report-page';
+import { PlannedVsPaidPage } from '../reports/planned-vs-paid-page';
+import { ImportedInvoicesPage } from '../reports/imported-invoices-page';
+import { DigitalCertificatesPage } from '../integrations/digital-certificates-page';
 
 export const router = createBrowserRouter(
   [
@@ -40,13 +45,18 @@ export const router = createBrowserRouter(
             { path: 'recurrences', element: <RecurrencesPage /> },
             { path: 'users', element: <UsersPage /> },
             { path: 'backups', element: <BackupsPage /> },
+            { path: 'digital-certificates', element: <DigitalCertificatesPage /> },
+            { path: 'reports', element: <PayablesForecastPage /> },
+            { path: 'reports/imported-invoices', element: <ImportedInvoicesPage /> },
+            { path: 'reports/payments', element: <PaymentsReportPage /> },
+            { path: 'reports/planned-vs-paid', element: <PlannedVsPaidPage /> },
             { path: 'payables/new', element: <PayableFormPage /> },
             { path: 'payables/:id', element: <PayableFormPage /> },
             { path: 'suppliers', element: <SuppliersPage /> },
             ...Object.entries(resources)
               .filter(([path]) => path !== 'suppliers')
               .map(([path, config]) => ({ path, element: <MasterDataPage config={config} /> })),
-            ...plannedFeatures.filter((feature) => !['recurrences', 'users'].includes(feature.path)).map((feature) => ({
+            ...plannedFeatures.filter((feature) => !['recurrences', 'users', 'reports'].includes(feature.path)).map((feature) => ({
               path: feature.path,
               element: <PlannedFeaturePage feature={feature} />,
             })),

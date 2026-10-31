@@ -22,6 +22,7 @@ export class PostgresDatabase implements Database {
       idleTimeoutMillis: environment.DB_IDLE_TIMEOUT_MS,
       connectionTimeoutMillis: environment.DB_CONNECTION_TIMEOUT_MS,
       application_name: 'fincontrol-api',
+      options: `-c timezone=${environment.TZ}`,
     });
   }
 

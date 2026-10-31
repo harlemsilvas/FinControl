@@ -56,7 +56,18 @@ A arquitetura foi preparada para permitir a evolução futura para outros módul
 * Vitest
 * Testing Library
 
-### Backend
+### Relatório de notas importadas
+
+Publicado na VPS em 20/10/2026: `Relatórios > Notas
+fiscais importadas`, em `/reports/imported-invoices`. Consulta por empresa e
+emissão com mês atual/anterior, impressão, XLSX e exportação de XMLs em ZIP,
+com prévia, histórico pessoal, permissões e conferência de integridade.
+
+Somente importações manuais nesta fase. O usuário baixa o ZIP e faz o envio
+manualmente; importação automática DFe/Sintegra permanece no roadmap.
+Detalhes e limites: [Relatório e exportação de notas](docs/IMPORTED-INVOICES-REPORT-AND-EXPORT.md).
+
+## Backend
 
 * Node.js 22
 * TypeScript
@@ -71,7 +82,8 @@ A arquitetura foi preparada para permitir a evolução futura para outros módul
 
 * Docker
 * Docker Compose
-* Ubuntu Linux
+* Debian Linux (desenvolvimento local)
+* Linux na VPS
 * Nginx
 * PM2
 * Git
@@ -244,6 +256,18 @@ como referência para configurar o ambiente local.
 
 ---
 
+## Desenvolvimento local no Debian
+
+O ambiente oficial passou de Windows/WSL para Debian nativo em 29/09/2026.
+Código em `/home/harlem/projetos/FinControl`, Node.js 22/npm nativos e
+PostgreSQL 17 em Docker Engine/Compose. Setup e recuperação após a migração:
+[Ambiente de desenvolvimento](docs/DEVELOPMENT-SETUP.md).
+
+Em 19/10/2026, a base atualizada foi adotada localmente, preservando a anterior.
+API e frontend estão disponíveis em `127.0.0.1:3000` e `127.0.0.1:5173`. O fuso
+financeiro oficial é `America/Sao_Paulo`, aplicado também na VPS. A validação
+visual/financeira continua conforme [NEXT_TASK.md](NEXT_TASK.md).
+
 ## Testes e Qualidade
 
 O projeto possui rotinas para:
@@ -325,14 +349,9 @@ O deploy recomendado é o workflow **Deploy VPS Native**, acionado manualmente c
 
 O deploy nativo executa o script controlado da VPS e publica exatamente o commit resolvido.
 
-Último deploy validado registrado na continuidade:
-
-```text
-commit d107d1d
-workflow run 31543548787
-```
-
-O commit posterior `ebe63c1` registra apenas documentação de continuidade pós-deploy.
+Último deploy validado: release `478bcb735c41`, em 20/10/2026, com relatório
+de notas importadas e exportação ZIP manual. Workflow `39453420210` aprovado;
+SHA confirmado em `version.json`, frontend HTTP 200 e API/PostgreSQL saudáveis.
 
 ---
 
@@ -371,7 +390,7 @@ A arquitetura está preparada para expansão futura para módulos como:
 * Relatórios e indicadores
 * Integrações bancárias
 * Integrações externas
-* Sistema próprio de notificações toast
+* Expansão das notificações Toast já existentes
 * Sincronização futura de comprovantes com armazenamento externo
 
 Esses módulos representam a evolução planejada da arquitetura e não necessariamente funcionalidades já disponíveis na versão atual.
@@ -464,7 +483,8 @@ Principais etapas já implementadas:
 * Deploy nativo controlado por SHA
 * Swagger / OpenAPI
 
-Validação completa mais recente executada localmente e repetida no CI:
+Validação histórica do pacote de 11/08/2026, executada localmente e no CI
+(não reexecutada nesta migração):
 
 ```bash
 git diff --check
@@ -475,7 +495,7 @@ npm test
 npm run build
 ```
 
-Resultado local do último pacote funcional:
+Resultado local daquele pacote:
 
 * API: 101 testes aprovados e 5 integrações opt-in puladas
 * Web: 50 testes aprovados

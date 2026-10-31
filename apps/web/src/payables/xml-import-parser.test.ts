@@ -6,7 +6,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
   <NFe>
     <infNFe Id="NFe35260712345678000190550010000012341000012345">
       <ide><mod>55</mod><serie>1</serie><nNF>1234</nNF><dhEmi>2026-07-19T10:00:00-03:00</dhEmi></ide>
-      <emit><CNPJ>11222333000181</CNPJ><xNome>Fornecedor Teste Ltda</xNome><xFant>Fornecedor Teste</xFant><IE>123456789</IE><enderEmit><xMun>Curitiba</xMun><UF>PR</UF></enderEmit></emit>
+      <emit><CNPJ>11222333000181</CNPJ><xNome>Fornecedor Teste Ltda</xNome><xFant>Fornecedor Teste</xFant><IE>123456789</IE><enderEmit><xLgr>Rua das Flores</xLgr><nro>123</nro><xCpl>Galpão 2</xCpl><xBairro>Centro</xBairro><xMun>Curitiba</xMun><UF>PR</UF><CEP>80010000</CEP><fone>4133334444</fone></enderEmit></emit>
       <dest><CNPJ>12345678000190</CNPJ><xNome>HRM Motos Matriz</xNome><IE>987654321</IE><enderDest><xMun>São Paulo</xMun><UF>SP</UF></enderDest></dest>
       <det nItem="1"><prod><cProd>P001</cProd><xProd>Peça teste</xProd><qCom>2.0000</qCom><vProd>150.00</vProd></prod></det>
       <total><ICMSTot><vProd>150.00</vProd><vFrete>20.00</vFrete><vSeg>0.00</vSeg><vDesc>10.00</vDesc><vOutro>0.00</vOutro><vNF>160.00</vNF></ICMSTot></total>
@@ -22,6 +22,7 @@ describe('parseNfeXml', () => {
 
     expect(parsed.accessKey).toBe('35260712345678000190550010000012341000012345');
     expect(parsed.supplier.documentNumber).toBe('11222333000181');
+    expect(parsed.supplier).toMatchObject({ postalCode: '80010000', street: 'Rua das Flores', streetNumber: '123', addressComplement: 'Galpão 2', neighborhood: 'Centro', cityName: 'Curitiba', stateCode: 'PR', phone: '4133334444' });
     expect(parsed.recipient.documentNumber).toBe('12345678000190');
     expect(parsed.documentNumber).toBe('1234');
     expect(parsed.freightAmount).toBe(20);

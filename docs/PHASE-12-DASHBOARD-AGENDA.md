@@ -26,9 +26,20 @@
 
 O hook de autorização do Fastify foi tornado assíncrono. A implementação anterior não concluía o `preHandler` em rotas protegidas, fazendo as consultas permanecerem pendentes após um login válido.
 
+## Evolução em 01/10/2026
+
+- Cada conta exibida na Agenda passou a abrir a tela de Pagamentos com a
+  parcela exata selecionada.
+- O diálogo `Baixar parcela` é aberto automaticamente, já preenchido com o
+  saldo aberto e a forma de pagamento da parcela.
+- As validações existentes de empresa, conta bancária, saldo, data e valor da
+  baixa permanecem obrigatórias antes da confirmação.
+
 ## Validação
 
 - endpoints do dashboard, agenda e Contas a Pagar testados com autenticação Master contra o PostgreSQL local;
 - proteção sem bearer token coberta por teste HTTP;
 - cálculo de intervalos e formatação de datas cobertos no frontend;
 - lint, typecheck, testes e build executados na raiz do workspace.
+- fluxo Agenda → baixa direta coberto por testes focados do frontend em
+  01/10/2026.

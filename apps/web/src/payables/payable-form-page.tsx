@@ -1,9 +1,10 @@
+import { invalidatePayableQueries } from './invalidate-payable-queries';
 /* eslint-disable @typescript-eslint/no-base-to-string */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactElement } from 'react';
 import { Controller, useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
 import { Breadcrumb } from '../components/ui/breadcrumb';
@@ -55,6 +56,17 @@ const inputClass =
 const textareaClass =
   'rounded-lg border border-slate-300 bg-white p-3 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100';
 
+function payableFormErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return 'Não foi possível salvar o título.';
+  if (error.code === 'PAID_TITLE_IMMUTABLE') {
+    return 'Este título já possui pagamento efetivo. Para alterar empresa, fornecedor, documento ou série, estorne o pagamento primeiro. Parcelas sem pagamento efetivo podem ser prorrogadas ou ajustadas pela aba Parcelas.';
+  }
+  if (error.code === 'PAID_INSTALLMENT_IMMUTABLE') {
+    return 'Esta parcela já possui pagamento efetivo. Estorne o pagamento antes de alterar vencimento, valor ou forma de pagamento.';
+  }
+  return error.message || 'Não foi possível salvar o título.';
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -91,6 +103,13 @@ function normalizeDay(value: number | undefined, fallbackDate: string): number {
   const day = Number(value || fallback);
   if (!Number.isFinite(day)) return fallback;
   return Math.min(Math.max(Math.trunc(day), 1), 31);
+}
+
+function isInstallmentLocked(item: Installment | undefined): boolean {
+  if (!item?.id) return false;
+  if (item.statusCode === 'PAID' || item.statusCode === 'PARTIALLY_PAID') return true;
+  if (item.openBalance === null || item.openBalance === undefined) return false;
+  return Math.round(Number(item.openBalance) * 100) <= 0;
 }
 
 function dueDateFrom(baseDate: string, monthOffset: number, dueDay: number): string {
@@ -225,6 +244,12 @@ export function PayableFormPage(): ReactElement {
   const { id } = useParams();
   const editing = Boolean(id);
   const navigate = useNavigate();
+  const location = useLocation();
+  const origin = location.state as { returnTo?: string; returnState?: unknown } | null;
+  const returnTo = origin?.returnTo?.startsWith('/') && !origin.returnTo.startsWith('//') && origin.returnTo !== location.pathname
+    ? origin.returnTo : '/payables';
+  const returnOptions = { replace: true, state: origin?.returnState };
+
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('Dados da Conta');
   const [duplicatePayload, setDuplicatePayload] = useState<Values>();
@@ -328,7 +353,6 @@ export function PayableFormPage(): ReactElement {
 
   useEffect(() => {
     if (editing) return;
-    if (installmentValues.length > 1) return;
 
     const nextInstallments = buildInstallments({
       total,
@@ -367,16 +391,17 @@ export function PayableFormPage(): ReactElement {
           notes: values.notes || null
         });
 
-        for (const item of values.installments) {
-          if (item.id) {
-            await httpClient.patch(`/api/v1/payable-installments/${item.id}`, {
-              amount: item.amount,
-              dueDate: item.dueDate,
-              paymentMethodId: item.paymentMethodId,
-              notes: item.notes || null
-            });
-          }
-        }
+        await httpClient.patch(`/api/v1/payables/${id}/installments`, {
+          installments: values.installments.map(item => ({
+            id: item.id ?? null,
+            installmentNumber: item.installmentNumber,
+            installmentCount: item.installmentCount,
+            amount: item.amount,
+            dueDate: item.dueDate,
+            paymentMethodId: item.paymentMethodId,
+            notes: item.notes || null
+          }))
+        });
 
         return id;
       }
@@ -405,7 +430,7 @@ export function PayableFormPage(): ReactElement {
     },
     onSuccess: async savedId => {
       setDuplicatePayload(undefined);
-      await queryClient.invalidateQueries({ queryKey: ['payables'] });
+      await invalidatePayableQueries(queryClient);
 
       if (saveMode === 'new') {
         reset(defaultValues());
@@ -414,7 +439,8 @@ export function PayableFormPage(): ReactElement {
         return;
       }
 
-      await navigate(`/payables/${savedId}`, { replace: true });
+      if (editing) await navigate(returnTo, returnOptions);
+      else await navigate(`/payables/${savedId}`, { replace: true });
     },
     onError: (error, variables) => {
       if (error instanceof ApiError && error.code === 'POSSIBLE_DUPLICATE') setDuplicatePayload(variables.values);
@@ -442,15 +468,25 @@ export function PayableFormPage(): ReactElement {
     await mutation.mutateAsync({ values: normalizedValues }).catch(() => undefined);
   });
 
-  const cancelTitle = async (): Promise<void> => {
-    if (!id) return;
+  const cancellation = useMutation({
+    mutationFn: async (reason: string) => {
+      await httpClient.post(`/api/v1/payables/${id}/cancel`, { reason });
+    },
+    onSuccess: async () => {
+      await invalidatePayableQueries(queryClient);
+      await navigate(returnTo, returnOptions);
+    },
+  });
 
-    const reason = window.prompt('Informe a justificativa do cancelamento:');
-    if (!reason) return;
-
-    await httpClient.post(`/api/v1/payables/${id}/cancel`, { reason });
-    await queryClient.invalidateQueries({ queryKey: ['payables'] });
-    await navigate('/payables');
+  const cancelTitle = (): void => {
+    if (!id || cancellation.isPending) return;
+    const reason = window.prompt('Informe a justificativa do cancelamento deste título:');
+    if (reason === null) return;
+    if (reason.trim().length < 3) {
+      window.alert('Informe uma justificativa com pelo menos 3 caracteres.');
+      return;
+    }
+    cancellation.mutate(reason.trim());
   };
 
   const replaceInstallments = (items: Installment[]): void => {
@@ -500,11 +536,11 @@ export function PayableFormPage(): ReactElement {
         <div className="flex flex-wrap gap-2">
           {editing && detail.data?.recurrenceId && !isTerminalRecurrence(detail.data.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={detail.data} onFeedback={setFeedback} /> : null}
           {editing && detail.data?.statusCode !== 'CANCELLED' && (
-            <Button type="button" variant="danger" onClick={() => void cancelTitle()}>
-              Cancelar título
+            <Button type="button" variant="danger" disabled={cancellation.isPending} onClick={cancelTitle}>
+              {cancellation.isPending ? 'Cancelando…' : 'Cancelar título'}
             </Button>
           )}
-          <Button type="button" variant="secondary" onClick={() => void navigate('/payables')}>
+          <Button type="button" variant="secondary" onClick={() => void navigate(returnTo, returnOptions)}>
             Cancelar
           </Button>
           <Button type="submit" variant="secondary" disabled={mutation.isPending} onClick={() => setSaveMode('new')}>
@@ -516,6 +552,13 @@ export function PayableFormPage(): ReactElement {
         </div>
       </header>
 
+      {cancellation.error ? (
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {cancellation.error instanceof ApiError && cancellation.error.code === 'TITLE_HAS_PAYMENTS'
+            ? 'Este título possui pagamento efetivo. Estorne o pagamento antes de cancelar.'
+            : cancellation.error instanceof Error ? cancellation.error.message : 'Não foi possível cancelar o título.'}
+        </div>
+      ) : null}
       {feedback ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</div> : null}
 
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
@@ -575,6 +618,46 @@ export function PayableFormPage(): ReactElement {
                     )}
                   />
                 </Field>
+                {!editing && (
+                  <div className="grid gap-4 rounded-2xl border border-teal-100 bg-teal-50/50 p-4 lg:col-span-2 lg:grid-cols-[1fr_160px_160px]">
+                    <Field label="Tipo de cobrança">
+                      <select
+                        className={inputClass}
+                        {...register('occurrenceType', {
+                          onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+                            if (event.target.value === 'SINGLE') setValue('installmentCount', 1, { shouldValidate: true });
+                          },
+                        })}
+                      >
+                        <option value="SINGLE">Única</option>
+                        <option value="INSTALLMENT">Parcelada</option>
+                      </select>
+                    </Field>
+                    <Field label="Nº de parcelas">
+                      <input
+                        type="number"
+                        min="1"
+                        max="120"
+                        disabled={occurrenceType !== 'INSTALLMENT'}
+                        className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                        {...register('installmentCount', { valueAsNumber: true, min: 1, max: 120 })}
+                      />
+                    </Field>
+                    <Field label="Dia de vencimento">
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        disabled={occurrenceType !== 'INSTALLMENT'}
+                        className={`${inputClass} disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed`}
+                        {...register('dueDay', { valueAsNumber: true, min: 1, max: 31 })}
+                      />
+                    </Field>
+                    <p className="text-xs font-medium text-teal-900 lg:col-span-3">
+                      Use Parcelada para o sistema dividir o valor e preparar os vencimentos automaticamente. Se precisar ajustar alguma parcela, revise a aba Parcelas antes de salvar.
+                    </p>
+                  </div>
+                )}
                 {editing && (
                   <div className="lg:col-span-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
                     Vencimento e valor exibidos aqui são referência atual do título. Em edição, ajuste esses dados diretamente na aba Parcelas; ao salvar,
@@ -657,24 +740,36 @@ export function PayableFormPage(): ReactElement {
                 {editing ? 'Em edição, o total do título será ajustado para a soma das parcelas.' : `A soma deve ser igual a ${currency(total)}.`}
               </p>
             </div>
-            {!editing && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={addInstallment}
-              >
-                Adicionar parcela
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={addInstallment}
+            >
+              Adicionar parcela
+            </Button>
           </div>
           <div className="grid gap-4">
             {installments.fields.map((field, index) => (
-              <div key={field.id} className="grid min-w-0 gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 xl:grid-cols-[96px_120px_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end">
+              <div
+                key={field.id}
+                className={`grid min-w-0 gap-3 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-[96px_120px_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end ${
+                  isInstallmentLocked(installmentValues[index])
+                    ? 'border-emerald-200 bg-emerald-50/60'
+                    : 'border-slate-200'
+                }`}
+              >
+                {isInstallmentLocked(installmentValues[index]) && (
+                  <div className="sm:col-span-2 xl:col-span-full">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                      Parcela paga - edição bloqueada
+                    </span>
+                  </div>
+                )}
                 <Field label="Parcela" small>
-                  <input readOnly className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.installmentNumber`, { valueAsNumber: true })} />
+                  <input readOnly className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500`} {...register(`installments.${index}.installmentNumber`, { valueAsNumber: true })} />
                 </Field>
                 <Field label="Total" small>
-                  <input className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.installmentCount`, { valueAsNumber: true, min: 1 })} />
+                  <input readOnly={isInstallmentLocked(installmentValues[index])} className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`} {...register(`installments.${index}.installmentCount`, { valueAsNumber: true, min: 1 })} />
                 </Field>
                 <Field label="Valor" small className="sm:col-span-2 xl:col-span-1">
                   <Controller
@@ -683,7 +778,8 @@ export function PayableFormPage(): ReactElement {
                     rules={{ required: true, min: 0.01 }}
                     render={({ field: amountField }) => (
                       <CurrencyInput
-                        className={`${inputClass} w-full min-w-0`}
+                        readOnly={isInstallmentLocked(installmentValues[index])}
+                        className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`}
                         value={amountField.value}
                         onValueChange={value => amountField.onChange(value ?? 0)}
                         onBlur={amountField.onBlur}
@@ -692,16 +788,17 @@ export function PayableFormPage(): ReactElement {
                   />
                 </Field>
                 <Field label="Vencimento" small className="sm:col-span-2 xl:col-span-1">
-                  <input type="date" className={`${inputClass} w-full min-w-0`} {...register(`installments.${index}.dueDate`, { required: true })} />
+                  <input type="date" readOnly={isInstallmentLocked(installmentValues[index])} className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`} {...register(`installments.${index}.dueDate`, { required: true })} />
                 </Field>
                 <Field label="Descrição da parcela" small className="sm:col-span-2 xl:col-span-full">
                   <input
-                    className={`${inputClass} w-full min-w-0`}
+                    readOnly={isInstallmentLocked(installmentValues[index])}
+                    className={`${inputClass} w-full min-w-0 read-only:bg-slate-100 read-only:text-slate-500 read-only:cursor-not-allowed`}
                     placeholder="Ex.: parcela antiga 03/12, referência do boleto ou observação interna"
                     {...register(`installments.${index}.notes`)}
                   />
                 </Field>
-                {!editing && installments.fields.length > 1 && (
+                {installments.fields.length > 1 && !isInstallmentLocked(installmentValues[index]) && (
                   <button type="button" className="self-end justify-self-start rounded-lg px-2 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 xl:justify-self-end" onClick={() => removeInstallment(index)}>
                     Remover
                   </button>
@@ -753,7 +850,7 @@ export function PayableFormPage(): ReactElement {
 
       {mutation.error && !(mutation.error instanceof ApiError && mutation.error.code === 'POSSIBLE_DUPLICATE') && (
         <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
-          {mutation.error instanceof ApiError ? mutation.error.message : 'Não foi possível salvar o título.'}
+          {payableFormErrorMessage(mutation.error)}
         </p>
       )}
 

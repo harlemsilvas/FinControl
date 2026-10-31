@@ -40,8 +40,9 @@ BEGIN
             ('financeiro', 'payment_reversals'), ('financeiro', 'payment_batches'),
             ('financeiro', 'approvals'), ('financeiro', 'attachments'),
             ('financeiro', 'tags'), ('financeiro', 'payable_title_tags'),
-            ('financeiro', 'xml_imports'), ('financeiro', 'payable_recurrence_statuses'),
-            ('financeiro', 'payable_recurrences'), ('financeiro', 'payable_recurrence_titles')
+            ('financeiro', 'xml_imports'), ('financeiro', 'xml_export_packages'), ('financeiro', 'payable_recurrence_statuses'),
+            ('financeiro', 'payable_recurrences'), ('financeiro', 'payable_recurrence_titles'),
+            ('integracoes', 'company_digital_certificates')
     ), missing AS (
         SELECT e.schema_name || '.' || e.object_name AS object_name
         FROM expected e
@@ -110,14 +111,15 @@ BEGIN
             ('PAYABLE_TITLE_VIEW'),
             ('PAYABLE_ATTACHMENT_MANAGE'),
             ('PAYABLE_TAG_MANAGE'),
-            ('XML_IMPORT_MANAGE'),
+            ('XML_IMPORT_MANAGE'), ('XML_REPORT_VIEW'), ('XML_EXPORT_MANAGE'),
             ('BANK_ACCOUNT_MOVEMENT_VIEW'),
             ('BANK_ACCOUNT_MOVEMENT_MANAGE'),
             ('RECURRENCE_VIEW'),
             ('RECURRENCE_CREATE'),
             ('RECURRENCE_UPDATE'),
             ('RECURRENCE_CANCEL'),
-            ('RECURRENCE_GENERATE')
+            ('RECURRENCE_GENERATE'),
+            ('DIGITAL_CERTIFICATE_MANAGE')
     ), missing_permissions AS (
         SELECT code
         FROM expected_permissions

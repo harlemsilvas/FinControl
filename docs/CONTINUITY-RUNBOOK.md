@@ -1,7 +1,7 @@
 # Runbook de Continuidade
 
 **Status:** ativo  
-**Última atualização:** 23/07/2026
+**Última atualização:** 01/10/2026
 
 ## Objetivo
 
@@ -86,3 +86,12 @@ Ler nesta ordem:
 5. `README.md`
 6. documentos citados pelos arquivos acima
 7. migrations relevantes ao escopo em `database/migrations/`
+
+
+## Checkpoint operacional de 01/10/2026
+
+- O workspace recuperado foi validado e adotado como repositório oficial no Debian, no caminho `/home/harlem/projetos/FinControl`.
+- A branch ativa é `feature/matriz-filial-xml` e acompanha a mesma branch no remoto `origin`.
+- Os checkpoints publicados são `8686203` para migração Debian e dependências e `ef22570` para a atualização de segurança do Axios 1.20.0.
+- `npm audit` terminou com zero vulnerabilidades e `Checar_alteracao.sh` terminou com `STATUS: OK` em 01/10/2026.
+- O workflow `Deploy VPS Native` `36910815189` publicou o commit `ef22570` com preflight e deploy aprovados. Frontend, API e PostgreSQL de produção foram validados após a publicação.

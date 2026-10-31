@@ -5,6 +5,7 @@ import { buildApp } from '../src/presentation/http/build-app.js';
 
 const environment: Environment = {
   NODE_ENV: 'test',
+  TZ: 'America/Sao_Paulo', XML_EXPORT_MAX_NOTES: 500, XML_EXPORT_MAX_BYTES: 20971520, XML_EXPORT_RETENTION_HOURS: 48,
   API_HOST: '127.0.0.1',
   API_PORT: 3000,
   LOG_LEVEL: 'silent',
@@ -32,6 +33,7 @@ const environment: Environment = {
   BACKUP_DIRECTORY: '/tmp/fincontrol-test-backups',
   BACKUP_SCRIPT_PATH: '/tmp/fincontrol-test-backup-db',
   BACKUP_SCRIPT_USE_SUDO: false,
+  CNPJ_LOOKUP_BASE_URL: 'https://brasilapi.com.br/api/cnpj/v1',
 };
 
 const apps: ReturnType<typeof buildApp>[] = [];

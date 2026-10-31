@@ -10,6 +10,8 @@ const envBoolean = z.preprocess((value) => {
 }, z.boolean()).default(false);
 
 const environmentSchema = z.object({
+  // O calendario financeiro deve ser igual no Debian e na VPS.
+  TZ: z.literal('America/Sao_Paulo').default('America/Sao_Paulo'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -39,9 +41,14 @@ const environmentSchema = z.object({
   SMTP_FROM_NAME: z.string().min(1).default('FinControl'),
   ATTACHMENT_STORAGE_ROOT: z.string().min(1).default('/opt/fincontrol/storage'),
   ATTACHMENT_MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  XML_EXPORT_MAX_NOTES: z.coerce.number().int().min(1).max(500).default(500),
+  XML_EXPORT_MAX_BYTES: z.coerce.number().int().min(1024).max(20971520).default(20971520),
+  XML_EXPORT_RETENTION_HOURS: z.coerce.number().int().min(1).max(168).default(48),
   BACKUP_DIRECTORY: z.string().min(1).default('/opt/fincontrol/shared/backups'),
   BACKUP_SCRIPT_PATH: z.string().min(1).default('/opt/fincontrol/bin/backup-db'),
   BACKUP_SCRIPT_USE_SUDO: envBoolean,
+  CNPJ_LOOKUP_BASE_URL: z.url().default('https://brasilapi.com.br/api/cnpj/v1'),
+  CERTIFICATE_ENCRYPTION_KEY: optionalText,
 }).superRefine((environment, context) => {
   if (!environment.SMTP_ENABLED) return;
   if (!environment.SMTP_HOST) {

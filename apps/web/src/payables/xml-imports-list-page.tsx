@@ -117,7 +117,7 @@ function datePtBr(value?: string | null): string {
 
 function dateTimePtBr(value?: string | null): string {
   if (!value) return '-';
-  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }).format(new Date(value));
 }
 
 function digitsOnly(value?: string | null): string {
@@ -167,10 +167,8 @@ export function XmlImportsListPage(): ReactElement {
   const [recipientKind, setRecipientKind] = useState('');
   const [recipientDocumentNumber, setRecipientDocumentNumber] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [dueFrom, setDueFrom] = useState('');
-  const [dueTo, setDueTo] = useState('');
-  const [importedFrom, setImportedFrom] = useState('');
-  const [importedTo, setImportedTo] = useState('');
+  const [issueFrom, setIssueFrom] = useState('');
+  const [issueTo, setIssueTo] = useState('');
   const [selectedId, setSelectedId] = useState<string>();
   const [xmlImportOpen, setXmlImportOpen] = useState(false);
   const [generateFor, setGenerateFor] = useState<XmlImportListItem>();
@@ -182,7 +180,7 @@ export function XmlImportsListPage(): ReactElement {
   const [duplicatePending, setDuplicatePending] = useState(false);
 
   const query = useQuery({
-    queryKey: ['xml-imports', page, pageSize, search, status, recipientKind, recipientDocumentNumber, supplierId, dueFrom, dueTo, importedFrom, importedTo],
+    queryKey: ['xml-imports', page, pageSize, search, status, recipientKind, recipientDocumentNumber, supplierId, issueFrom, issueTo],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<XmlImportListItem>>('/api/v1/xml-imports', {
         params: {
@@ -193,10 +191,8 @@ export function XmlImportsListPage(): ReactElement {
           recipientKind: recipientKind || undefined,
           recipientDocumentNumber: digitsOnly(recipientDocumentNumber) || undefined,
           supplierId: supplierId || undefined,
-          dueFrom: dueFrom || undefined,
-          dueTo: dueTo || undefined,
-          importedFrom: importedFrom || undefined,
-          importedTo: importedTo || undefined,
+          issueFrom: issueFrom || undefined,
+          issueTo: issueTo || undefined,
         },
       });
       return response.data;
@@ -269,7 +265,7 @@ export function XmlImportsListPage(): ReactElement {
   const totalPages = Math.max(1, Math.ceil((query.data?.total ?? 0) / pageSize));
   const firstItem = query.data?.total ? (page - 1) * pageSize + 1 : 0;
   const lastItem = query.data?.total ? Math.min(page * pageSize, query.data.total) : 0;
-  const hasFilters = Boolean(search || status || recipientKind || recipientDocumentNumber || supplierId || dueFrom || dueTo || importedFrom || importedTo || pageSize !== 20);
+  const hasFilters = Boolean(search || status || recipientKind || recipientDocumentNumber || supplierId || issueFrom || issueTo || pageSize !== 20);
   const summary = useMemo(() => ({
     totalAmount: rows.reduce((sum, item) => sum + Number(amount(item) || 0), 0),
     branches: rows.filter((item) => item.recipientKind === 'BRANCH').length,
@@ -282,10 +278,8 @@ export function XmlImportsListPage(): ReactElement {
     setRecipientKind('');
     setRecipientDocumentNumber('');
     setSupplierId('');
-    setDueFrom('');
-    setDueTo('');
-    setImportedFrom('');
-    setImportedTo('');
+    setIssueFrom('');
+    setIssueTo('');
     setPageSize(20);
     setPage(1);
   }
@@ -347,15 +341,14 @@ export function XmlImportsListPage(): ReactElement {
           <input aria-label="Documento do destinatário" value={recipientDocumentNumber} onChange={(event) => { setRecipientDocumentNumber(event.target.value); setPage(1); }} placeholder="CNPJ destinatário" className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </div>
 
-        <div className="mt-3 grid gap-3 xl:grid-cols-[220px_170px_170px_170px_170px_150px]">
+        <p className="mt-3 text-sm font-semibold text-slate-700">Período de emissão</p>
+        <div className="mt-3 grid gap-3 xl:grid-cols-[220px_170px_170px_150px] xl:items-end">
           <select aria-label="Filtrar por fornecedor" value={supplierId} onChange={(event) => { setSupplierId(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
             <option value="">Todos os fornecedores</option>
             {suppliers.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
           </select>
-          <input aria-label="Importado de" type="date" value={importedFrom} onChange={(event) => { setImportedFrom(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-          <input aria-label="Importado até" type="date" value={importedTo} onChange={(event) => { setImportedTo(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-          <input aria-label="Vencimento de" type="date" value={dueFrom} onChange={(event) => { setDueFrom(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-          <input aria-label="Vencimento até" type="date" value={dueTo} onChange={(event) => { setDueTo(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">Data inicial<input aria-label="Data inicial" type="date" value={issueFrom} onChange={(event) => { setIssueFrom(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">Data final<input aria-label="Data final" type="date" value={issueTo} onChange={(event) => { setIssueTo(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label>
           <select aria-label="Registros por página" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
             <option value={10}>10 por página</option>
             <option value={20}>20 por página</option>

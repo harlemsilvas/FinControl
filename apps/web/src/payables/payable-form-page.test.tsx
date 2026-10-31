@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api/http-client';
 import { PayableFormPage } from './payable-form-page';
 
 const mocks = vi.hoisted(() => ({
@@ -40,7 +41,10 @@ const mocks = vi.hoisted(() => ({
           recurrenceSequenceNumber: 2,
           recurrenceStatusCode: 'ACTIVE',
           notes: '',
-          installments: [{ id: 'inst-1', installmentNumber: 1, installmentCount: 1, amount: '2500.00', dueDate: '2026-08-05', paymentMethodId: 'payment-method-1' }],
+          installments: [
+            { id: 'inst-1', installmentNumber: 1, installmentCount: 2, amount: '1000.00', openBalance: '0.00', dueDate: '2026-08-05', paymentMethodId: 'payment-method-1', statusCode: 'PAID' },
+            { id: 'inst-2', installmentNumber: 2, installmentCount: 2, amount: '1500.00', openBalance: '1500.00', dueDate: '2026-09-05', paymentMethodId: 'payment-method-1', statusCode: 'OPEN' },
+          ],
           approvals: [],
           attachments: [],
           tags: [],
@@ -66,7 +70,10 @@ afterEach(() => {
 
 vi.mock('../api/http-client', () => ({
   ApiError: class ApiError extends Error {
-    code?: string;
+    constructor(readonly status: number, readonly code: string, message: string) {
+      super(message);
+      this.name = 'ApiError';
+    }
   },
   httpClient: {
     get: mocks.get,
@@ -168,5 +175,127 @@ describe('PayableFormPage new title', () => {
     expect(screen.getByTitle('Altere o vencimento pela aba Parcelas.')).toBeDisabled();
     expect(screen.getByTitle('Altere o valor pela aba Parcelas.')).toBeDisabled();
     expect(screen.getByText(/ajuste esses dados diretamente na aba Parcelas/i)).toBeTruthy();
+  });
+
+  it('translates paid title immutable errors while explaining the safe path', async () => {
+    mocks.patch.mockRejectedValueOnce(new ApiError(409, 'PAID_TITLE_IMMUTABLE', 'Financial fields cannot change while effective payments exist'));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/payables/payable-1']}>
+          <Routes>
+            <Route path="/payables/:id" element={<PayableFormPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Editar Conta a Pagar' })).toBeTruthy();
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+
+    expect(await screen.findByText(/Este título já possui pagamento efetivo/i)).toBeTruthy();
+    expect(screen.getByText(/estorne o pagamento primeiro/i)).toBeTruthy();
+  });
+
+  it('locks paid installments visually and skips their update request', async () => {
+    mocks.patch.mockResolvedValue({ data: { id: 'updated' } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/payables/payable-1']}>
+          <Routes>
+            <Route path="/payables/:id" element={<PayableFormPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Editar Conta a Pagar' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Parcelas' }));
+    expect(await screen.findByText('Parcela paga - edição bloqueada')).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue('1.500,00'), { target: { value: '150300' } });
+    fireEvent.change(screen.getByDisplayValue('2026-09-05'), { target: { value: '2026-09-15' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalledWith('/api/v1/payables/payable-1', expect.objectContaining({ originalAmount: 2503 })));
+    expect(mocks.patch).toHaveBeenCalledWith('/api/v1/payables/payable-1/installments', {
+      installments: [
+        expect.objectContaining({ id: 'inst-1', amount: 1000, dueDate: '2026-08-05' }),
+        expect.objectContaining({ id: 'inst-2', amount: 1503, dueDate: '2026-09-15' }),
+      ],
+    });
+  });
+});
+
+describe('Payable cancellation', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function renderEdit(client: QueryClient): void {
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/payables/payable-1']}><Routes>
+      <Route path="/payables/:id" element={<PayableFormPage />} />
+      <Route path="/payables" element={<div>Lista atualizada</div>} />
+    </Routes></MemoryRouter></QueryClientProvider>);
+  }
+
+  it('invalidates a still fresh agenda and financial summaries after cancellation', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30000 }, mutations: { retry: false } } });
+    const keys = ['agenda', 'agenda-dashboard', 'dashboard', 'payables-forecast', 'payment-eligible-installments', 'planned-vs-paid', 'payables', 'payable', 'recurrences'];
+    for (const key of keys) client.setQueryData([key, 'cached-period'], { count: 2 });
+    client.setQueryData(['suppliers'], { count: 1 });
+    vi.spyOn(window, 'prompt').mockReturnValue('  Lançamento duplicado  ');
+    renderEdit(client);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar título' }));
+    await screen.findByText('Lista atualizada');
+    expect(mocks.post).toHaveBeenCalledWith('/api/v1/payables/payable-1/cancel', { reason: 'Lançamento duplicado' });
+    for (const key of keys) expect(client.getQueryState([key, 'cached-period'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['suppliers'])?.isInvalidated).toBe(false);
+  });
+
+  it('keeps the form open and explains rejection when effective payments exist', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    mocks.post.mockRejectedValueOnce(new ApiError(409, 'TITLE_HAS_PAYMENTS', 'Reverse effective payments before cancellation'));
+    vi.spyOn(window, 'prompt').mockReturnValue('Duplicado');
+    renderEdit(client);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar título' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Estorne o pagamento antes de cancelar');
+    expect(screen.queryByText('Lista atualizada')).toBeNull();
+  });
+
+  it('does not submit when the justification prompt is dismissed', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.spyOn(window, 'prompt').mockReturnValue(null);
+    renderEdit(client);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar título' }));
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('Return after editing a payable', () => {
+  it('returns to the supplied origin after a successful save', async () => {
+    mocks.patch.mockResolvedValue({ data: { id: 'payable-1' } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[{
+      pathname: '/payables/payable-1', state: { returnTo: '/reports?period=month' },
+    }]}><Routes>
+      <Route path="/payables/:id" element={<PayableFormPage />} />
+      <Route path="/reports" element={<div>Relatório de origem</div>} />
+    </Routes></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole('heading', { name: 'Editar Conta a Pagar' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+    await screen.findByText('Relatório de origem');
+  });
+
+  it('returns to the accounts list when a direct edit has no origin', async () => {
+    mocks.patch.mockResolvedValue({ data: { id: 'payable-1' } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/payables/payable-1']}><Routes>
+      <Route path="/payables/:id" element={<PayableFormPage />} />
+      <Route path="/payables" element={<div>Contas de origem</div>} />
+    </Routes></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole('heading', { name: 'Editar Conta a Pagar' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+    await screen.findByText('Contas de origem');
   });
 });

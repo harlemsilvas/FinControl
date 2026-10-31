@@ -94,6 +94,30 @@ Os arquivos `FUTURE-*`, backlog, checklist e planos detalhados devem continuar
 existindo como apoio documental e nao devem ser descartados durante a
 reorganizacao da continuidade.
 
+## Encerramento de sessão
+
+Ao final de uma rodada importante, registrar pelo menos:
+
+- data do encerramento;
+- branch ativa;
+- último commit funcional;
+- último commit documental;
+- status do CI;
+- status do deploy, quando houver;
+- branches remotas sincronizadas, quando houver;
+- arquivos locais não versionados que devem ficar fora do pacote;
+- próxima tarefa executável em `NEXT_TASK.md`.
+
+Em 11/08/2026, o encerramento oficial ficou registrado assim:
+
+- deploy funcional validado na VPS: `d107d1d`;
+- documentação atualizada na branch de trabalho: `85a131a`;
+- branches remotas `main` e `agent/phases-5-11` sincronizadas por merge não
+  destrutivo;
+- workflows de `main`, `agent/phases-5-11` e `feature/matriz-filial-xml`
+  concluídos com sucesso;
+- arquivos locais não versionados preservados fora do pacote.
+
 ## Benefícios
 
 -   Continuidade entre sessões.

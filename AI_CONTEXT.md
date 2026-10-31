@@ -1,7 +1,7 @@
 # FinControl — AI Context
 
 **Status deste contexto:** ativo  
-**Última atualização:** 29/07/2026
+**Última atualização:** 20/10/2026
 
 ## 1. Objetivo
 
@@ -41,7 +41,7 @@ uma entrega específica.
 - Frontend: React + Vite + TypeScript
 - Backend: Node.js 22 + Fastify + TypeScript
 - Banco: PostgreSQL 17
-- Infra local: Docker Desktop no Windows
+- Infra local: Debian nativo, com PostgreSQL 17 em Docker Engine/Compose
 - Deploy atual: PostgreSQL em Docker na VPS, API Node.js nativa com PM2 e
   frontend estático em Nginx
 
@@ -68,8 +68,23 @@ uma entrega específica.
 - Não alterar migrations já aplicadas; toda correção estrutural deve ser nova
   migration.
 - Não criar objetos de aplicação no schema PostgreSQL `public`.
-- Usar o Docker Desktop do Windows para o PostgreSQL local.
+- Manter código e ferramentas no Debian nativo; usar Docker Engine/Compose
+  para o PostgreSQL local. A migração substitui a exigência anterior de WSL e
+  Docker Desktop, preservando a arquitetura híbrida.
+- O workspace Debian oficial fica em `/home/harlem/projetos/FinControl`.
 - Documentar validações, decisões e desvios relevantes.
+
+### Calendário financeiro e instantes
+
+- Fuso oficial de negócio: `America/Sao_Paulo`, igual no Debian e na VPS.
+- API valida `TZ` e fixa o fuso de cada conexão PostgreSQL; Compose e PM2
+  versionados declaram o mesmo fuso. Não depender do padrão do host/navegador.
+- Datas de emissão, vencimento e pagamento são datas civis (`date`), com
+  limites de período inclusivos; não convertê-las em instantes para filtrar.
+- Auditoria/importação preservam `timestamptz` e transporte ISO com UTC;
+  exibição e conversão em dia de negócio usam explicitamente o fuso oficial.
+- O sufixo `Z` de backups indica o instante UTC; não renomear para simular
+  horário local nem reinterpretar dados históricos para corrigir consultas.
 
 ## 7. Regras funcionais permanentes já aprovadas
 
@@ -108,6 +123,18 @@ uma entrega específica.
   adoção por filtro explícito, sem seletor global de empresa ativa.
 - Os dados de fundação multiempresa já existentes não devem ser reinterpretados
   como escopo global invisível.
+
+### Relatório e exportação de notas importadas
+
+- O escopo atual inclui exclusivamente XMLs importados manualmente, com
+  origem MANUAL explícita; integração automática DFe/Sintegra é futura.
+- Relatório e pacotes usam a emissão, empresa proprietária e permissões atuais,
+  sem inferir situação fiscal a partir do status interno de importação.
+- Pacotes ZIP são pessoais, autenticados, auditados e temporários. Nesta
+  primeira versão limitada, conteúdo/hash/estado ficam atomicamente no banco,
+  em financeiro.xml_export_packages; retenção e volume são configuráveis.
+- Download não significa envio ao contador. O fluxo aprovado é baixar ZIP e
+  enviar manualmente. Documentos fiscais não são reconstruídos financeiramente.
 
 ## 8. Estado estrutural já consolidado até 23/07/2026
 

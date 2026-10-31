@@ -113,6 +113,9 @@ baseline_existing_migrations() {
   if [[ "$(psql_app -Atc "SELECT to_regclass('administracao.schema_versions') IS NOT NULL")" != "t" ]]; then
     return 0
   fi
+  if [[ "$(psql_app -Atc "SELECT to_regclass('administracao.permissions') IS NOT NULL AND to_regclass('cadastros.supplier_categories') IS NOT NULL")" != "t" ]]; then
+    return 0
+  fi
 
   register_existing_migration_if_needed "202607162000" "core_enable_extensions" "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto')"
   register_existing_migration_if_needed "202607162010" "core_create_schemas" "SELECT to_regnamespace('financeiro') IS NOT NULL"
@@ -142,6 +145,13 @@ baseline_existing_migrations() {
   register_existing_migration_if_needed "202607162290" "administracao_create_auth_sessions" "SELECT to_regclass('administracao.auth_sessions') IS NOT NULL"
   register_existing_migration_if_needed "202607162300" "administracao_seed_master_data_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'MASTER_DATA_VIEW')"
   register_existing_migration_if_needed "202607162310" "financeiro_phase_7_permissions_and_title_balance" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'PAYABLE_TITLE_VIEW')"
+  register_existing_migration_if_needed "202607231000" "financeiro_create_payable_recurrences" "SELECT to_regclass('financeiro.payable_recurrence_statuses') IS NOT NULL AND to_regclass('financeiro.payable_recurrences') IS NOT NULL AND to_regclass('financeiro.payable_recurrence_titles') IS NOT NULL"
+  register_existing_migration_if_needed "202607231010" "administracao_seed_recurrence_permissions" "SELECT count(*) = 5 FROM administracao.permissions WHERE code IN ('RECURRENCE_VIEW','RECURRENCE_CREATE','RECURRENCE_UPDATE','RECURRENCE_CANCEL','RECURRENCE_GENERATE')"
+  register_existing_migration_if_needed "202607291000" "administracao_seed_user_management_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'USER_MANAGE')"
+  register_existing_migration_if_needed "202607291010" "administracao_create_password_reset_outbox" "SELECT to_regclass('administracao.password_reset_tokens') IS NOT NULL AND to_regclass('administracao.email_outbox') IS NOT NULL"
+  register_existing_migration_if_needed "202607311130" "cadastros_seed_supplier_category_particular" "SELECT EXISTS (SELECT 1 FROM cadastros.supplier_categories WHERE code = 'PARTICULAR')"
+  register_existing_migration_if_needed "202608011400" "administracao_seed_backup_permissions" "SELECT EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'BACKUP_MANAGE')"
+  register_existing_migration_if_needed "202609201500" "integracoes_create_company_digital_certificates" "SELECT to_regclass('integracoes.company_digital_certificates') IS NOT NULL AND EXISTS (SELECT 1 FROM administracao.permissions WHERE code = 'DIGITAL_CERTIFICATE_MANAGE')"
 }
 
 apply_migrations() {
@@ -161,7 +171,8 @@ apply_migrations() {
     description="${filename%.sql}"
     description="${description#${version}_}"
     checksum="$(sha256sum "$migration" | awk '{print $1}')"
-    applied="$(psql_app -Atc "SELECT checksum FROM administracao.schema_versions WHERE version = '$version'")"
+    # docker exec -i must not inherit the migration-list stream from this loop.
+    applied="$(psql_app -Atc "SELECT checksum FROM administracao.schema_versions WHERE version = '$version'" </dev/null)"
 
     if [[ -n "$applied" ]]; then
       if [[ "$applied" != "$checksum" && "$applied" != "baseline-existing" ]]; then
@@ -174,12 +185,13 @@ apply_migrations() {
 
     echo "Applying migration $filename"
     psql_app < "$migration"
-    psql_app -c "INSERT INTO administracao.schema_versions(version, description, checksum) VALUES ('$version', '$description', '$checksum');"
+    psql_app -c "INSERT INTO administracao.schema_versions(version, description, checksum) VALUES ('$version', '$description', '$checksum');" </dev/null
   done < <(find "$release_dir/database/migrations" -maxdepth 1 -type f -name '*.sql' -print0 | sort -z)
 }
 
 require_root
 load_app_env
+export TZ=America/Sao_Paulo
 validate_toolchain
 
 mkdir -p "$APP_ROOT/releases" "$WEB_ROOT/releases" "$APP_ROOT/storage/attachments/payments"
@@ -211,6 +223,9 @@ else
   chown -R fincontrol:fincontrol "$release_dir"
 fi
 
+# Keep the installed control plane aligned for the next deployment.
+install -o root -g root -m 755 "$release_dir/deploy/vps/bin/deploy" "$APP_ROOT/bin/deploy"
+
 echo "Installing dependencies"
 cd "$release_dir"
 as_fincontrol "$NPM_BIN" ci
@@ -238,6 +253,19 @@ EOF_VERSION
 echo "Applying database migrations"
 "$release_dir/deploy/vps/bin/backup-db" "pre-deploy-$short_sha"
 apply_migrations
+
+echo "Configuring business timezone"
+docker exec -i "$POSTGRES_CONTAINER" sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL_TIMEZONE'
+ALTER SYSTEM SET timezone = 'America/Sao_Paulo';
+SELECT pg_reload_conf();
+SQL_TIMEZONE
+if [[ "$(psql_app -Atc 'SHOW TimeZone')" != "America/Sao_Paulo" ]]; then
+  echo "PostgreSQL business timezone was not applied." >&2
+  exit 1
+fi
+install -o fincontrol -g fincontrol -m 644 "$release_dir/deploy/vps/pm2/ecosystem.config.cjs" "$APP_ROOT/shared/ecosystem.config.cjs"
+install -d -o fincontrol -g fincontrol -m 750 "$APP_ROOT/infra/postgres"
+install -o fincontrol -g fincontrol -m 644 "$release_dir/deploy/vps/postgres/compose.yaml" "$APP_ROOT/infra/postgres/compose.yaml"
 
 echo "Verifying database"
 psql_app < "$release_dir/database/scripts/verify_database.sql"
@@ -277,4 +305,8 @@ if ! wait_for_url "$WEB_HEALTH_URL" "Frontend"; then
 fi
 
 echo "$short_sha" > "$APP_ROOT/shared/current-release"
+install -o root -g root -m 755 "$release_dir/deploy/vps/bin/monitor-api.py" "$APP_ROOT/bin/monitor-api.py"
+install -o root -g root -m 644 "$release_dir/deploy/vps/systemd/fincontrol-api-monitor.service" "/etc/systemd/system/fincontrol-api-monitor.service"
+install -o root -g root -m 644 "$release_dir/deploy/vps/systemd/fincontrol-api-monitor.timer" "/etc/systemd/system/fincontrol-api-monitor.timer"
+systemctl daemon-reload
 echo "Deploy completed: $short_sha"

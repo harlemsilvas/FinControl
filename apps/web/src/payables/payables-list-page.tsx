@@ -1,18 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState, type ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { httpClient } from '../api/http-client';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { useToast } from '../components/ui/toast-context';
 import type { OptionResponse } from '../intelligence/contracts';
 import { currency, isTerminalRecurrence, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
 import { RecurrenceActionsLauncher } from './recurrence-actions';
 import { XmlImportDialog } from './xml-import-dialog';
 
-const statuses = ['OPEN', 'OVERDUE', 'IN_APPROVAL', 'APPROVED', 'PARTIALLY_PAID', 'PAID', 'CANCELLED'] as const;
-type PeriodPreset = 'day' | 'week' | 'month' | 'year' | 'custom';
+const statuses = ['OPEN', 'OVERDUE', 'IN_APPROVAL', 'APPROVED', 'PARTIALLY_PAID', 'PAID'] as const;
+type PeriodPreset = 'day' | 'week' | 'month' | 'year' | 'all' | 'custom';
 type RecurrenceListFilter = 'OPERATIONAL' | 'TERMINAL' | 'ALL';
+
+interface ListFiltersState {
+  page: number; pageSize: number; search: string; status: string; archived: boolean;
+  period: PeriodPreset; dueFrom: string; dueTo: string; supplierId: string;
+  categoryId: string; companyId: string; recurrenceStatus: RecurrenceListFilter;
+}
 
 const statusStyle: Record<string, string> = {
   DRAFT: 'border-slate-200 bg-slate-50 text-slate-700',
@@ -38,6 +45,7 @@ function addDays(date: Date, days: number): Date {
 }
 
 function rangeForPreset(preset: PeriodPreset, reference = new Date()): { from: string; to: string } {
+  if (preset === 'all') return { from: '', to: '' };
   if (preset === 'day') return { from: iso(reference), to: iso(reference) };
   if (preset === 'week') {
     const day = reference.getDay();
@@ -73,35 +81,44 @@ function optionLabel(item: { name?: string; legalName?: string; id: string }): s
   return item.legalName ?? item.name ?? item.id;
 }
 function recurrenceStatusLabel(status?: string | null): string {
-  return status === 'FINISHED' ? 'Série finalizada' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
+  return status === 'FINISHED' ? 'Geração da série concluída' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
 }
 
 export function PayablesListPage(): ReactElement {
+  const { showToast } = useToast();
+  const location = useLocation();
+  const restored = (location.state as { payablesFilters?: Partial<ListFiltersState> } | null)?.payablesFilters;
   const initialRange = rangeForPreset('month');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('OPEN');
-  const [period, setPeriod] = useState<PeriodPreset>('month');
-  const [dueFrom, setDueFrom] = useState(initialRange.from);
-  const [dueTo, setDueTo] = useState(initialRange.to);
-  const [supplierId, setSupplierId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [companyId, setCompanyId] = useState('');
-  const [recurrenceStatus, setRecurrenceStatus] = useState<RecurrenceListFilter>('OPERATIONAL');
+  const [page, setPage] = useState(restored?.page ?? 1);
+  const [pageSize, setPageSize] = useState(restored?.pageSize ?? 20);
+  const [search, setSearch] = useState(restored?.search ?? '');
+  const [status, setStatus] = useState(restored?.status ?? 'OPEN');
+  const [archived, setArchived] = useState(restored?.archived ?? false);
+  const effectiveStatus = archived ? 'CANCELLED' : status;
+  const [period, setPeriod] = useState<PeriodPreset>(restored?.period ?? 'month');
+  const [dueFrom, setDueFrom] = useState(restored?.dueFrom ?? initialRange.from);
+  const [dueTo, setDueTo] = useState(restored?.dueTo ?? initialRange.to);
+  const [supplierId, setSupplierId] = useState(restored?.supplierId ?? '');
+  const [categoryId, setCategoryId] = useState(restored?.categoryId ?? '');
+  const [companyId, setCompanyId] = useState(restored?.companyId ?? '');
+  const [recurrenceStatus, setRecurrenceStatus] = useState<RecurrenceListFilter>(restored?.recurrenceStatus ?? 'OPERATIONAL');
   const [xmlImportOpen, setXmlImportOpen] = useState(false);
-  const [feedback, setFeedback] = useState('');
   const [totalsVisible, setTotalsVisible] = useState(true);
 
+  const editOrigin = {
+    returnTo: location.pathname + location.search + location.hash,
+    returnState: { payablesFilters: { page, pageSize, search, status, archived, period, dueFrom, dueTo, supplierId, categoryId, companyId, recurrenceStatus } satisfies ListFiltersState },
+  };
+
   const query = useQuery({
-    queryKey: ['payables', page, pageSize, search, status, dueFrom, dueTo, supplierId, categoryId, companyId, recurrenceStatus],
+    queryKey: ['payables', page, pageSize, search, effectiveStatus, dueFrom, dueTo, supplierId, categoryId, companyId, recurrenceStatus],
     queryFn: async () => {
       const response = await httpClient.get<ListResponse<PayableListItem>>('/api/v1/payables', {
         params: {
           page,
           pageSize,
           search: search || undefined,
-          status: status || undefined,
+          status: effectiveStatus || undefined,
           dueFrom: dueFrom || undefined,
           dueTo: dueTo || undefined,
           supplierId: supplierId || undefined,
@@ -167,18 +184,46 @@ export function PayablesListPage(): ReactElement {
   }
 
   function clearFilters(): void {
-    const nextRange = rangeForPreset('month');
+    const nextRange = archived ? { from: '', to: '' } : rangeForPreset('month');
     setSearch('');
     setStatus('OPEN');
     setSupplierId('');
     setCategoryId('');
     setCompanyId('');
-    setRecurrenceStatus('OPERATIONAL');
-    setPeriod('month');
+    setRecurrenceStatus(archived ? 'ALL' : 'OPERATIONAL');
+    setPeriod(archived ? 'all' : 'month');
     setDueFrom(nextRange.from);
     setDueTo(nextRange.to);
     setPage(1);
     setPageSize(20);
+  }
+
+  function selectArchive(next: boolean): void {
+    clearFilters();
+    setArchived(next);
+    setStatus(next ? '' : 'OPEN');
+    setRecurrenceStatus(next ? 'ALL' : 'OPERATIONAL');
+    setPeriod(next ? 'all' : 'month');
+    const dates = next ? { from: '', to: '' } : rangeForPreset('month');
+    setDueFrom(dates.from);
+    setDueTo(dates.to);
+  }
+
+  function applySearch(value: string): void {
+    const nextSearch = value;
+    const isStartingBroadSearch = search.trim() === '' && nextSearch.trim() !== '';
+    setSearch(nextSearch);
+    setPage(1);
+    if (!isStartingBroadSearch) return;
+    setStatus('');
+    setRecurrenceStatus('ALL');
+    setPeriod('all');
+    setDueFrom('');
+    setDueTo('');
+  }
+
+  function showSuccessFeedback(message: string): void {
+    showToast({ type: 'success', title: 'Ação concluída', description: message });
   }
 
   const metricCards = [
@@ -207,9 +252,13 @@ export function PayablesListPage(): ReactElement {
         </div>
       </header>
 
-      {feedback && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</div>}
+      <div role="tablist" aria-label="Situação das contas" className="flex gap-2 border-b border-slate-200 pb-3">
+        <Button role="tab" aria-selected={!archived} variant={!archived ? 'primary' : 'secondary'} onClick={() => selectArchive(false)}>Contas</Button>
+        <Button role="tab" aria-selected={archived} variant={archived ? 'primary' : 'secondary'} onClick={() => selectArchive(true)}>Cancelados</Button>
+      </div>
+      {archived ? <p className="text-sm text-slate-600">Histórico de contas canceladas. Estes registros não compõem os compromissos financeiros ativos.</p> : null}
 
-      <section className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+      {!archived && <section className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-base font-black text-slate-950">Painel de totais</h2>
@@ -243,7 +292,7 @@ export function PayablesListPage(): ReactElement {
             ))}
           </div>
         ) : null}
-      </section>
+      </section>}
 
       <Card>
         <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -273,7 +322,7 @@ export function PayablesListPage(): ReactElement {
             <input
               aria-label="Pesquisar notas fiscais e contas"
               value={search}
-              onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+              onChange={(event) => applySearch(event.target.value)}
               placeholder="Buscar fornecedor, documento ou descrição…"
               className="min-h-11 w-full rounded-xl border border-slate-300 px-9 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
@@ -283,10 +332,11 @@ export function PayablesListPage(): ReactElement {
             <option value="week">Semana atual</option>
             <option value="month">Mês atual</option>
             <option value="year">Ano atual</option>
+            <option value="all">Todos os períodos</option>
             <option value="custom">Período personalizado</option>
           </select>
-          <input aria-label="Vencimento inicial" type="date" value={dueFrom} onChange={(event) => { setDueFrom(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-          <input aria-label="Vencimento final" type="date" value={dueTo} onChange={(event) => { setDueTo(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <input aria-label="Vencimento inicial" type="date" value={dueFrom} disabled={period === 'all'} onChange={(event) => { setDueFrom(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed" />
+          <input aria-label="Vencimento final" type="date" value={dueTo} disabled={period === 'all'} onChange={(event) => { setDueTo(event.target.value); setPeriod('custom'); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed" />
         </div>
 
         <div className="mt-3 grid gap-3 xl:grid-cols-[220px_220px_220px_180px_190px_150px_auto]">
@@ -302,8 +352,9 @@ export function PayablesListPage(): ReactElement {
             <option value="">Todas as categorias</option>
             {categories.data?.map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
           </select>
-          <select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-            <option value="">Todos</option>
+          <select aria-label="Filtrar por status" value={effectiveStatus} disabled={archived} onChange={(event) => { setStatus(event.target.value); setPage(1); }} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+            {archived ? <option value="CANCELLED">Cancelados</option> : null}
+            <option value="">Todos (exceto cancelados)</option>
             <option value="OPEN">Notas ativas</option>
             {statuses.filter((item) => item !== 'OPEN').map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}
           </select>
@@ -320,6 +371,11 @@ export function PayablesListPage(): ReactElement {
           </select>
           <Button variant="secondary" disabled={!hasFilters} onClick={clearFilters}>Limpar filtros</Button>
         </div>
+        {search.trim() ? (
+          <p className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">
+            Busca ampla ativa: pesquisando nos status desta aba, em todas as recorrências e sem limitar ao mês atual.
+          </p>
+        ) : null}
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
           {query.isLoading ? <p className="py-12 text-center text-slate-500">Carregando…</p> : query.isError ? <p role="alert" className="py-12 text-center text-red-700">Não foi possível carregar as notas fiscais e contas.</p> : <>
@@ -330,12 +386,12 @@ export function PayablesListPage(): ReactElement {
               {rows.map((item) => (
                 <div key={item.id} className="grid gap-3 px-4 py-3 text-sm hover:bg-slate-50 xl:grid-cols-[116px_1.4fr_120px_150px_130px_120px_160px] xl:items-center">
                   <span className="font-semibold text-slate-700">{datePtBr(item.firstDueDate ?? item.issueDate)}</span>
-                  <span className="min-w-0"><Link to={`/payables/${item.id}`} className="block truncate font-bold text-slate-950 hover:text-blue-700 hover:underline">{item.supplierName}</Link><span className="block truncate text-xs text-slate-500">{item.companyName ?? 'Empresa não informada'} • {item.description}</span>{item.recurrenceId ? <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${isTerminalRecurrence(item.recurrenceStatusCode) ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{recurrenceStatusLabel(item.recurrenceStatusCode)}</span> : null}</span>
+                  <span className="min-w-0"><Link to={`/payables/${item.id}`} state={editOrigin} className="block truncate font-bold text-slate-950 hover:text-blue-700 hover:underline">{item.supplierName}</Link><span className="block truncate text-xs text-slate-500">{item.companyName ?? 'Empresa não informada'} • {item.description}</span>{item.recurrenceId ? <span title={item.recurrenceStatusCode === 'FINISHED' ? 'Todas as ocorrências previstas foram geradas. Os títulos permanecem sujeitos a vencimento e pagamento.' : undefined} className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${isTerminalRecurrence(item.recurrenceStatusCode) ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>{recurrenceStatusLabel(item.recurrenceStatusCode)}</span> : null}</span>
                   <span className="font-semibold text-slate-700">{documentLabel(item)}</span>
                   <span className="truncate text-slate-600">{item.categoryName}</span>
                   <span className="truncate text-slate-600">{item.paymentMethodName ?? '—'}</span>
                   <span className="font-black text-slate-950 xl:text-right">{currency(item.openBalance)}</span>
-                  <span className="flex items-center gap-3 xl:justify-end"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyle[item.statusCode] ?? statusStyle.OPEN}`}>{statusLabel(item.statusCode)}</span>{item.recurrenceId && !isTerminalRecurrence(item.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={item} onFeedback={setFeedback} /> : null}<Link className="font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`}>Ver</Link></span>
+                  <span className="flex items-center gap-3 xl:justify-end"><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyle[item.statusCode] ?? statusStyle.OPEN}`}>{statusLabel(item.statusCode)}</span>{item.recurrenceId && !isTerminalRecurrence(item.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={item} onFeedback={showSuccessFeedback} /> : null}<Link className="font-bold text-blue-700 hover:underline" to={`/payables/${item.id}`} state={editOrigin}>Ver</Link></span>
                 </div>
               ))}
               {rows.length === 0 && <p className="py-12 text-center text-slate-500">Nenhuma nota fiscal ou conta encontrada.</p>}

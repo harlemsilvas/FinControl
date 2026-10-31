@@ -12,6 +12,19 @@ function database(executor: QueryExecutor): Database {
 }
 
 describe('TreasuryRepository bank account movements', () => {
+  it('lists bank balances as of a specific movement date', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ total: '1' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ bank_account_id: 'bank-account-id', account_name: 'Conta Matriz', bank_name: 'Banco Teste', official_balance: '143.18' }], rowCount: 1 });
+    const repo = new TreasuryRepository(database({ query }));
+
+    await repo.listBalances(1, 20, 'company-id', '2026-08-13');
+
+    expect(query.mock.calls[0]?.[0]).toContain('m.movement_date <= $2::date');
+    expect(query.mock.calls[0]?.[1]).toEqual(['company-id', '2026-08-13']);
+    expect(query.mock.calls[1]?.[1]).toEqual(['company-id', '2026-08-13', 20, 0]);
+  });
+
   it('creates a marketplace repass manual entry linked to cost center and bank account company', async () => {
     const query = vi.fn()
       .mockResolvedValueOnce({ rows: [{ id: 'bank-account-id', company_id: 'company-id', account_name: 'Conta Matriz' }], rowCount: 1 })

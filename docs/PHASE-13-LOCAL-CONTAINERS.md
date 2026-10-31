@@ -4,7 +4,12 @@
 **Status:** concluída
 **Próxima fase:** Fase 14 — CI/CD
 
-## Decisão de implantação
+> Atualização em 29/09/2026: a infraestrutura local passou para Debian nativo
+> com Docker Engine/Compose. As referências a WSL/Docker Desktop abaixo
+> registram a decisão original desta fase. Para uso atual, siga
+> [DEVELOPMENT-SETUP.md](DEVELOPMENT-SETUP.md).
+
+## Decisão de implantação original (16/07/2026)
 
 Foi adotado um modelo híbrido:
 

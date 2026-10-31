@@ -1,9 +1,11 @@
 services:
   postgres:
     image: postgres:17-alpine
+    command: ["postgres", "-c", "timezone=America/Sao_Paulo"]
     container_name: fincontrol-postgres
     restart: unless-stopped
     environment:
+      TZ: America/Sao_Paulo
       POSTGRES_DB: ${DB_NAME:-fincontrol}
       POSTGRES_USER: ${DB_USER:-fincontrol}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-fincontrol_local}
@@ -27,6 +29,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      TZ: America/Sao_Paulo
       API_HOST: 0.0.0.0
       API_PORT: 3000
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -38,6 +41,9 @@ services:
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-30000}
       DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-5000}
+      XML_EXPORT_MAX_NOTES: ${XML_EXPORT_MAX_NOTES:-500}
+      XML_EXPORT_MAX_BYTES: ${XML_EXPORT_MAX_BYTES:-20971520}
+      XML_EXPORT_RETENTION_HOURS: ${XML_EXPORT_RETENTION_HOURS:-48}
       AUTH_ACCESS_TOKEN_SECRET: ${AUTH_ACCESS_TOKEN_SECRET:?AUTH_ACCESS_TOKEN_SECRET is required}
       AUTH_ACCESS_TOKEN_TTL_SECONDS: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
       AUTH_REFRESH_TOKEN_TTL_DAYS: ${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
