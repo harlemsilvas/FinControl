@@ -6,7 +6,7 @@ import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
-import { currency, statusLabel, type ListResponse } from './payables-types';
+import { currency, datePtBr, statusLabel, today, type ListResponse } from './payables-types';
 
 type EligibleStatus = 'OPEN' | 'OVERDUE' | 'PARTIALLY_PAID';
 type PaymentQueueFilter = 'OPEN' | 'OVERDUE' | 'PAID' | 'ALL';
@@ -114,16 +114,6 @@ const statusStyle: Record<string, string> = {
   OVERDUE: 'border-red-200 bg-red-50 text-red-700',
   PARTIALLY_PAID: 'border-amber-200 bg-amber-50 text-amber-700',
 };
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function datePtBr(value?: string | null): string {
-  if (!value) return '-';
-  const [year, month, day] = value.slice(0, 10).split('-');
-  return year && month && day ? `${day}/${month}/${year}` : '-';
-}
 
 function documentLabel(item: EligibleInstallment): string {
   return `${item.documentNumber}${item.documentSeries ? ` / ${item.documentSeries}` : ''}`;

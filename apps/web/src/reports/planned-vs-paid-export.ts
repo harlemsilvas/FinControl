@@ -1,7 +1,6 @@
 import type { PlannedVsPaidResponse } from '../intelligence/contracts';
+import { date, safe } from './export-text';
 
-function safe(value: string): string { return /^[=+\-@]/.test(value) ? `'${value}` : value; }
-function date(value: string): string { return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)); }
 
 export async function buildPlannedVsPaidWorkbook(input: {
   from: string; to: string; generatedAt: Date; company: string; supplier: string; category: string;

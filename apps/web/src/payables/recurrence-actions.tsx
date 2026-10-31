@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
 import { MAX_ISO_DATE, MIN_ISO_DATE, coerceIsoDateInput } from './date-input-utils';
-import { currency, isTerminalRecurrence, type PayableListItem } from './payables-types';
+import { addDays, currency, isTerminalRecurrence, recurrenceStatusLabel, type PayableListItem } from './payables-types';
 
 interface RecurrenceDetail {
   id: string;
@@ -79,12 +79,6 @@ function isIsoDate(value?: string | null): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value ?? '');
 }
 
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
 function datePtBr(value?: string | null): string {
   if (!value) return '—';
   const [year, month, day] = value.slice(0, 10).split('-');
@@ -97,10 +91,6 @@ function nextBusinessActionDate(candidate?: string | null): string {
   const tomorrowIso = iso(tomorrow);
   const candidateDate = dateOnly(candidate);
   return candidateDate && candidateDate > tomorrowIso ? candidateDate : tomorrowIso;
-}
-
-function recurrenceStatusLabel(status?: string | null): string {
-  return status === 'FINISHED' ? 'Geração da série concluída' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
 }
 
 function detailText(value: unknown): string | null {

@@ -7,8 +7,8 @@ import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
 import { useToast } from '../components/ui/toast-context';
+import { digitsOnly, formatCnpj, formatCpf, formatPhone, formatPostalCode, toActiveParam, type ActiveFilter } from './input-format';
 
-type ActiveFilter = 'active' | 'inactive' | 'all';
 type SupplierType = 'INDIVIDUAL' | 'COMPANY' | 'FOREIGN';
 type SupplierStatusCode = 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
 type PreferredContactChannel = 'PHONE' | 'WHATSAPP' | 'EMAIL' | 'IN_PERSON';
@@ -165,44 +165,10 @@ const freightModes = [
   { value: 'NOT_APPLICABLE', label: 'Não se aplica' },
 ] as const;
 
-function toActiveParam(filter: ActiveFilter): boolean | undefined {
-  if (filter === 'active') return true;
-  if (filter === 'inactive') return false;
-  return undefined;
-}
-
-function digitsOnly(value: string): string {
-  return value.replace(/\D+/g, '');
-}
-
-function formatCpf(value: string): string {
-  const digits = digitsOnly(value).slice(0, 11);
-  return digits.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-}
-
-function formatCnpj(value: string): string {
-  const digits = digitsOnly(value).slice(0, 14);
-  return digits.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-}
-
 function formatDocument(value: string, type: SupplierType): string {
   if (type === 'INDIVIDUAL') return formatCpf(value);
   if (type === 'COMPANY') return formatCnpj(value);
   return value;
-}
-
-function formatPhone(value: string): string {
-  const digits = digitsOnly(value).slice(0, 11);
-  if (digits.length <= 2) return digits.length ? `(${digits}` : '';
-  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-}
-
-function formatPostalCode(value: string): string {
-  const digits = digitsOnly(value).slice(0, 8);
-  if (digits.length <= 5) return digits;
-  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
 function formatDateForInput(value: string | null | undefined): string {

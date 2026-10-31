@@ -6,10 +6,10 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import type { FieldConfig, ResourceColumnConfig, ResourceConfig } from './resources';
+import { digitsOnly, formatCnpj, formatCpf, formatPhone, formatPostalCode, toActiveParam, type ActiveFilter } from './input-format';
 
 type Entity = Record<string, unknown>;
 type FormValues = Record<string, string | number | boolean | null | undefined>;
-type ActiveFilter = 'active' | 'inactive' | 'all';
 type SupplierType = 'INDIVIDUAL' | 'COMPANY' | 'FOREIGN';
 
 interface ListResponse {
@@ -17,12 +17,6 @@ interface ListResponse {
   page: number;
   pageSize: number;
   total: number;
-}
-
-function toActiveParam(filter: ActiveFilter): boolean | undefined {
-  if (filter === 'active') return true;
-  if (filter === 'inactive') return false;
-  return undefined;
 }
 
 async function list(config: ResourceConfig, page: number, search: string, activeFilter: ActiveFilter): Promise<ListResponse> {
@@ -35,33 +29,6 @@ async function list(config: ResourceConfig, page: number, search: string, active
     },
   });
   return response.data;
-}
-
-function digitsOnly(value: string): string {
-  return value.replace(/\D+/g, '');
-}
-
-function formatCpf(value: string): string {
-  const digits = digitsOnly(value).slice(0, 11);
-  return digits.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-}
-
-function formatCnpj(value: string): string {
-  const digits = digitsOnly(value).slice(0, 14);
-  return digits.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-}
-
-function formatPhone(value: string): string {
-  const digits = digitsOnly(value).slice(0, 11);
-  if (digits.length <= 2) return digits.length ? '(' + digits : '';
-  if (digits.length <= 6) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2);
-  if (digits.length <= 10) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 6) + '-' + digits.slice(6);
-  return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 7) + '-' + digits.slice(7);
-}
-
-function formatPostalCode(value: string): string {
-  const digits = digitsOnly(value).slice(0, 8);
-  return digits.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
 }
 
 function supplierTypeLabel(value: unknown): string {

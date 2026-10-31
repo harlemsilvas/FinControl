@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { useToast } from '../components/ui/toast-context';
 import type { OptionResponse } from '../intelligence/contracts';
-import { currency, isTerminalRecurrence, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
+import { addDays, currency, isTerminalRecurrence, recurrenceStatusLabel, statusLabel, type ListResponse, type PayableListItem } from './payables-types';
 import { RecurrenceActionsLauncher } from './recurrence-actions';
 import { XmlImportDialog } from './xml-import-dialog';
 
@@ -36,12 +36,6 @@ const statusStyle: Record<string, string> = {
 
 function iso(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
 }
 
 function rangeForPreset(preset: PeriodPreset, reference = new Date()): { from: string; to: string } {
@@ -80,10 +74,6 @@ function documentLabel(item: PayableListItem): string {
 function optionLabel(item: { name?: string; legalName?: string; id: string }): string {
   return item.legalName ?? item.name ?? item.id;
 }
-function recurrenceStatusLabel(status?: string | null): string {
-  return status === 'FINISHED' ? 'Geração da série concluída' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
-}
-
 export function PayablesListPage(): ReactElement {
   const { showToast } = useToast();
   const location = useLocation();
