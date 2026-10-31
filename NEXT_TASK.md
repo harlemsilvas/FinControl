@@ -10,8 +10,9 @@ Pacote de 31/10 publicado em produção; aguardando aceite visual do usuário.
   `8c4ac7473f27aa7f00751f2ad954bef41d2fb075`; sem migration nova (59 já aplicadas).
   Health da API e do frontend OK; `/fincontrol/`, `/health/ready` e `/docs/` = 200.
 - Rollback se necessário: `sudo /opt/fincontrol/bin/rollback 478bcb735c41`.
-- Backup `pre-deploy-8c4ac74` gerado pelo script de deploy; conferir em
-  `/opt/fincontrol/shared/backups`.
+- Backup pré-deploy confirmado na VPS (18:06 UTC):
+  `fincontrol_20261031T180635Z_478bcb735c41_pre-deploy-8c4ac7473f27.dump`
+  (com `.dump.json` e `.sha256`) em `/opt/fincontrol/shared/backups`.
 - Conferir em produção: abas Contas/Cancelados, Agenda após cancelar, série
   concluída, retorno após salvar edição.
 - Banco local recuperado: `fincontrol-postgres-recovered-20261031`, porta 55435
