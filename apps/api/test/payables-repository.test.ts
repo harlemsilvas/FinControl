@@ -392,6 +392,17 @@ describe('PayablesRepository business safeguards',()=>{
     expect(allParams?.[0]).toBe(20);
   });
 
+  it('excludes cancelled titles from broad searches unless explicitly requested', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const repo = new PayablesRepository(database({ query }));
+    await repo.list(1, 20, { search: 'REC-20261022', recurrenceStatus: 'ALL' });
+    expect(query.mock.calls[0]?.[0]).toContain("ts.code <> 'CANCELLED'");
+    query.mockClear();
+    await repo.list(1, 20, { status: 'CANCELLED', recurrenceStatus: 'ALL' });
+    expect(query.mock.calls[0]?.[0]).not.toContain("ts.code <> 'CANCELLED'");
+    expect(query.mock.calls[0]?.[1]).toEqual(['CANCELLED', 20, 0]);
+  });
+
   it('hides terminal recurrence titles by default and exposes them through an explicit filter', async()=>{
     const defaultQuery=vi.fn()
       .mockResolvedValueOnce({rows:[{total:'0'}],rowCount:1})

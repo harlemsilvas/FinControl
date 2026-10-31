@@ -487,6 +487,7 @@ export class PayablesRepository {
       conditions.push(`(t.document_number ILIKE $${values.length} OR t.description ILIKE $${values.length} OR s.legal_name ILIKE $${values.length})`);
     }
     if (filters.status) { values.push(filters.status); conditions.push(`ts.code=$${values.length}`); }
+    else conditions.push("ts.code <> 'CANCELLED'");
     if (filters.supplierId) { values.push(filters.supplierId); conditions.push(`t.supplier_id=$${values.length}`); }
     if (filters.categoryId) { values.push(filters.categoryId); conditions.push(`t.category_id=$${values.length}`); }
     if (filters.companyId) { values.push(filters.companyId); conditions.push(`t.company_id=$${values.length}`); }

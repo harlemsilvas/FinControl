@@ -93,6 +93,28 @@ afterEach(() => {
 });
 
 describe('PayablesListPage', () => {
+  it('restores the filters and page returned by an edit', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[{ pathname: '/payables', state: { payablesFilters: {
+      search: 'REC-20261120', status: '', period: 'all', dueFrom: '', dueTo: '', recurrenceStatus: 'ALL', page: 3, pageSize: 10, companyId: 'company-abc',
+    } } }]}><PayablesListPage /></MemoryRouter></QueryClientProvider>);
+    await waitFor(() => expect(getLastPayablesParams()).toMatchObject({ search: 'REC-20261120', status: undefined, page: 3, pageSize: 10, companyId: 'company-abc', recurrenceStatus: 'ALL' }));
+  });
+
+  it('separates cancelled titles and keeps search inside the selected tab', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><PayablesListPage /></MemoryRouter></QueryClientProvider>);
+    await screen.findByText('ABC Distribuidora Ltda');
+    fireEvent.click(screen.getByRole('tab', { name: 'Cancelados' }));
+    await waitFor(() => expect(getLastPayablesParams()).toMatchObject({ status: 'CANCELLED', dueFrom: undefined, dueTo: undefined, recurrenceStatus: 'ALL' }));
+    expect(screen.queryByText('Painel de totais')).toBeNull();
+    const search = screen.getByPlaceholderText(/Buscar fornecedor/);
+    fireEvent.change(search, { target: { value: 'Duplicado' } });
+    await waitFor(() => expect(getLastPayablesParams()).toMatchObject({ status: 'CANCELLED', search: 'Duplicado' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Contas' }));
+    await waitFor(() => expect(getLastPayablesParams()?.status).toBe('OPEN'));
+  });
+
   it('renders redesigned payable list data', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -114,7 +136,7 @@ describe('PayablesListPage', () => {
     expect(screen.getByText('ABC Center • Compra de peças')).toBeTruthy();
     expect(screen.getByLabelText('Filtrar por status')).toHaveProperty('value', 'OPEN');
     expect(screen.getByLabelText('Filtrar por recorrência')).toHaveProperty('value', 'OPERATIONAL');
-    expect(screen.getByRole('option', { name: 'Todos' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Todos (exceto cancelados)' })).toBeTruthy();
     expect(screen.queryByLabelText(/Selecionar/)).toBeNull();
     expect(screen.getByText('Recorrente')).toBeTruthy();
     await waitFor(() => expect(getPayablesParams()).toMatchObject({ status: 'OPEN', recurrenceStatus: 'OPERATIONAL' }));
@@ -195,7 +217,7 @@ describe('PayablesListPage', () => {
     expect(screen.getByLabelText('Vencimento inicial')).toBeDisabled();
     expect(screen.getByLabelText('Vencimento final')).toHaveProperty('value', '');
     expect(screen.getByLabelText('Vencimento final')).toBeDisabled();
-    expect(screen.getByText('Busca ampla ativa: pesquisando em todos os status, todas as recorrências e sem limitar ao mês atual.')).toBeTruthy();
+    expect(screen.getByText('Busca ampla ativa: pesquisando nos status desta aba, em todas as recorrências e sem limitar ao mês atual.')).toBeTruthy();
   });
 
   it('allows the totals panel to be hidden and shown again', async () => {
@@ -313,7 +335,7 @@ describe('PayablesListPage', () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText('Série finalizada')).toBeTruthy();
+    expect(await screen.findByText('Geração da série concluída')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Ações da recorrência' })).toBeNull();
   });
 });

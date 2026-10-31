@@ -1,6 +1,6 @@
 import { useDeferredValue, useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { httpClient } from "../api/http-client";
 import { useAuth } from "../auth/auth-context";
 import { Breadcrumb } from "../components/ui/breadcrumb";
@@ -41,6 +41,7 @@ const statusStyle = {
 } as const;
 
 export function PayablesForecastPage(): ReactElement {
+  const location = useLocation();
   const auth = useAuth();
   const { showToast } = useToast();
   const initialRange = rangeForForecastPreset("NEXT_7_DAYS");
@@ -643,7 +644,7 @@ export function PayablesForecastPage(): ReactElement {
                       </td>
                       <td className="px-4 py-3 text-right print:hidden">
                         <Link
-                          to={`/payables/${item.payableTitleId}`}
+                          to={`/payables/${item.payableTitleId}`} state={{ returnTo: location.pathname + location.search + location.hash }}
                           className="font-bold text-teal-700 hover:underline"
                         >
                           Ver título

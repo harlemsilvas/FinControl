@@ -1,3 +1,4 @@
+import { invalidatePayableQueries } from './invalidate-payable-queries';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactElement } from 'react';
 import { ApiError, httpClient } from '../api/http-client';
@@ -99,7 +100,7 @@ function nextBusinessActionDate(candidate?: string | null): string {
 }
 
 function recurrenceStatusLabel(status?: string | null): string {
-  return status === 'FINISHED' ? 'Série finalizada' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
+  return status === 'FINISHED' ? 'Geração da série concluída' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
 }
 
 function detailText(value: unknown): string | null {
@@ -220,11 +221,7 @@ export function RecurrenceActionsLauncher({
     onMutate: () => setSeriesError(''),
     onSuccess: async (result) => {
       setOpen(false);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['payables'] }),
-        queryClient.invalidateQueries({ queryKey: ['recurrences'] }),
-        queryClient.invalidateQueries({ queryKey: ['payable', item.id] }),
-      ]);
+      await invalidatePayableQueries(queryClient);
       const base = result.cancelledFutureTitlesRequested ? `${result.cancelledFutureTitles} próximo(s) título(s) também cancelado(s).` : 'Os próximos títulos permanecem no fluxo atual.';
       onFeedback?.(`Série recorrente cancelada. ${base}`);
     },
@@ -259,11 +256,7 @@ export function RecurrenceActionsLauncher({
     onMutate: () => setSeriesError(''),
     onSuccess: async (result) => {
       setOpen(false);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['payables'] }),
-        queryClient.invalidateQueries({ queryKey: ['recurrences'] }),
-        queryClient.invalidateQueries({ queryKey: ['payable', item.id] }),
-      ]);
+      await invalidatePayableQueries(queryClient);
       onFeedback?.(`Série revisada a partir de ${datePtBr(result.effectiveDate)}.`);
     },
     onError: (error) => {

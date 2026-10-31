@@ -228,3 +228,74 @@ describe('PayableFormPage new title', () => {
     });
   });
 });
+
+describe('Payable cancellation', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function renderEdit(client: QueryClient): void {
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/payables/payable-1']}><Routes>
+      <Route path="/payables/:id" element={<PayableFormPage />} />
+      <Route path="/payables" element={<div>Lista atualizada</div>} />
+    </Routes></MemoryRouter></QueryClientProvider>);
+  }
+
+  it('invalidates a still fresh agenda and financial summaries after cancellation', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30000 }, mutations: { retry: false } } });
+    const keys = ['agenda', 'agenda-dashboard', 'dashboard', 'payables-forecast', 'payment-eligible-installments', 'planned-vs-paid', 'payables', 'payable', 'recurrences'];
+    for (const key of keys) client.setQueryData([key, 'cached-period'], { count: 2 });
+    client.setQueryData(['suppliers'], { count: 1 });
+    vi.spyOn(window, 'prompt').mockReturnValue('  Lançamento duplicado  ');
+    renderEdit(client);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar título' }));
+    await screen.findByText('Lista atualizada');
+    expect(mocks.post).toHaveBeenCalledWith('/api/v1/payables/payable-1/cancel', { reason: 'Lançamento duplicado' });
+    for (const key of keys) expect(client.getQueryState([key, 'cached-period'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['suppliers'])?.isInvalidated).toBe(false);
+  });
+
+  it('keeps the form open and explains rejection when effective payments exist', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    mocks.post.mockRejectedValueOnce(new ApiError(409, 'TITLE_HAS_PAYMENTS', 'Reverse effective payments before cancellation'));
+    vi.spyOn(window, 'prompt').mockReturnValue('Duplicado');
+    renderEdit(client);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar título' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Estorne o pagamento antes de cancelar');
+    expect(screen.queryByText('Lista atualizada')).toBeNull();
+  });
+
+  it('does not submit when the justification prompt is dismissed', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.spyOn(window, 'prompt').mockReturnValue(null);
+    renderEdit(client);
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar título' }));
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('Return after editing a payable', () => {
+  it('returns to the supplied origin after a successful save', async () => {
+    mocks.patch.mockResolvedValue({ data: { id: 'payable-1' } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[{
+      pathname: '/payables/payable-1', state: { returnTo: '/reports?period=month' },
+    }]}><Routes>
+      <Route path="/payables/:id" element={<PayableFormPage />} />
+      <Route path="/reports" element={<div>Relatório de origem</div>} />
+    </Routes></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole('heading', { name: 'Editar Conta a Pagar' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+    await screen.findByText('Relatório de origem');
+  });
+
+  it('returns to the accounts list when a direct edit has no origin', async () => {
+    mocks.patch.mockResolvedValue({ data: { id: 'payable-1' } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/payables/payable-1']}><Routes>
+      <Route path="/payables/:id" element={<PayableFormPage />} />
+      <Route path="/payables" element={<div>Contas de origem</div>} />
+    </Routes></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole('heading', { name: 'Editar Conta a Pagar' });
+    fireEvent.submit(screen.getByRole('button', { name: 'Salvar' }).closest('form')!);
+    await screen.findByText('Contas de origem');
+  });
+});

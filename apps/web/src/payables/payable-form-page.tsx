@@ -1,9 +1,10 @@
+import { invalidatePayableQueries } from './invalidate-payable-queries';
 /* eslint-disable @typescript-eslint/no-base-to-string */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactElement } from 'react';
 import { Controller, useFieldArray, useForm, type UseFormRegisterReturn } from 'react-hook-form';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiError, httpClient } from '../api/http-client';
 import { Button } from '../components/ui/button';
 import { Breadcrumb } from '../components/ui/breadcrumb';
@@ -243,6 +244,12 @@ export function PayableFormPage(): ReactElement {
   const { id } = useParams();
   const editing = Boolean(id);
   const navigate = useNavigate();
+  const location = useLocation();
+  const origin = location.state as { returnTo?: string; returnState?: unknown } | null;
+  const returnTo = origin?.returnTo?.startsWith('/') && !origin.returnTo.startsWith('//') && origin.returnTo !== location.pathname
+    ? origin.returnTo : '/payables';
+  const returnOptions = { replace: true, state: origin?.returnState };
+
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('Dados da Conta');
   const [duplicatePayload, setDuplicatePayload] = useState<Values>();
@@ -423,7 +430,7 @@ export function PayableFormPage(): ReactElement {
     },
     onSuccess: async savedId => {
       setDuplicatePayload(undefined);
-      await queryClient.invalidateQueries({ queryKey: ['payables'] });
+      await invalidatePayableQueries(queryClient);
 
       if (saveMode === 'new') {
         reset(defaultValues());
@@ -432,7 +439,8 @@ export function PayableFormPage(): ReactElement {
         return;
       }
 
-      await navigate(`/payables/${savedId}`, { replace: true });
+      if (editing) await navigate(returnTo, returnOptions);
+      else await navigate(`/payables/${savedId}`, { replace: true });
     },
     onError: (error, variables) => {
       if (error instanceof ApiError && error.code === 'POSSIBLE_DUPLICATE') setDuplicatePayload(variables.values);
@@ -460,15 +468,25 @@ export function PayableFormPage(): ReactElement {
     await mutation.mutateAsync({ values: normalizedValues }).catch(() => undefined);
   });
 
-  const cancelTitle = async (): Promise<void> => {
-    if (!id) return;
+  const cancellation = useMutation({
+    mutationFn: async (reason: string) => {
+      await httpClient.post(`/api/v1/payables/${id}/cancel`, { reason });
+    },
+    onSuccess: async () => {
+      await invalidatePayableQueries(queryClient);
+      await navigate(returnTo, returnOptions);
+    },
+  });
 
-    const reason = window.prompt('Informe a justificativa do cancelamento:');
-    if (!reason) return;
-
-    await httpClient.post(`/api/v1/payables/${id}/cancel`, { reason });
-    await queryClient.invalidateQueries({ queryKey: ['payables'] });
-    await navigate('/payables');
+  const cancelTitle = (): void => {
+    if (!id || cancellation.isPending) return;
+    const reason = window.prompt('Informe a justificativa do cancelamento deste título:');
+    if (reason === null) return;
+    if (reason.trim().length < 3) {
+      window.alert('Informe uma justificativa com pelo menos 3 caracteres.');
+      return;
+    }
+    cancellation.mutate(reason.trim());
   };
 
   const replaceInstallments = (items: Installment[]): void => {
@@ -518,11 +536,11 @@ export function PayableFormPage(): ReactElement {
         <div className="flex flex-wrap gap-2">
           {editing && detail.data?.recurrenceId && !isTerminalRecurrence(detail.data.recurrenceStatusCode) ? <RecurrenceActionsLauncher item={detail.data} onFeedback={setFeedback} /> : null}
           {editing && detail.data?.statusCode !== 'CANCELLED' && (
-            <Button type="button" variant="danger" onClick={() => void cancelTitle()}>
-              Cancelar título
+            <Button type="button" variant="danger" disabled={cancellation.isPending} onClick={cancelTitle}>
+              {cancellation.isPending ? 'Cancelando…' : 'Cancelar título'}
             </Button>
           )}
-          <Button type="button" variant="secondary" onClick={() => void navigate('/payables')}>
+          <Button type="button" variant="secondary" onClick={() => void navigate(returnTo, returnOptions)}>
             Cancelar
           </Button>
           <Button type="submit" variant="secondary" disabled={mutation.isPending} onClick={() => setSaveMode('new')}>
@@ -534,6 +552,13 @@ export function PayableFormPage(): ReactElement {
         </div>
       </header>
 
+      {cancellation.error ? (
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {cancellation.error instanceof ApiError && cancellation.error.code === 'TITLE_HAS_PAYMENTS'
+            ? 'Este título possui pagamento efetivo. Estorne o pagamento antes de cancelar.'
+            : cancellation.error instanceof Error ? cancellation.error.message : 'Não foi possível cancelar o título.'}
+        </div>
+      ) : null}
       {feedback ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{feedback}</div> : null}
 
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200">

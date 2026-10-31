@@ -1,3 +1,4 @@
+import { invalidatePayableQueries } from './invalidate-payable-queries';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import { httpClient } from '../api/http-client';
@@ -305,10 +306,7 @@ export function RecurrencesPage(): ReactElement {
       setStatusMessage('');
       setGenerateFor(null);
       setPreview(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['recurrences'] }),
-        queryClient.invalidateQueries({ queryKey: ['payables'] }),
-      ]);
+      await invalidatePayableQueries(queryClient);
     },
   });
 
@@ -345,10 +343,7 @@ export function RecurrencesPage(): ReactElement {
         : 'Os títulos já gerados seguem no fluxo normal de contas a pagar.';
       setMessage(`Recorrência cancelada. ${titlesMessage}`);
       setCancelDialog(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['recurrences'] }),
-        queryClient.invalidateQueries({ queryKey: ['payables'] }),
-      ]);
+      await invalidatePayableQueries(queryClient);
     },
     onError: (error) => {
       setCancelError(errorMessage(error, 'Não foi possível cancelar a recorrência com as opções informadas.'));
