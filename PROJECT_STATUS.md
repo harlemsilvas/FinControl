@@ -4,12 +4,12 @@ Atualizado em 31/10/2026. Memória estrutural: [AI_CONTEXT.md](AI_CONTEXT.md).
 
 ## Produção
 
-- Release funcional `478bcb735c415d26d1c2e04cacde229f50ad4aec` (20/10).
-- Deploy `39453420210` aprovado; relatório de notas importadas e ZIP manual
-  aceitos pelo usuário. Automação DFe/Sintegra permanece futura.
-- Não houve deploy das correções de 31/10.
+- Release `8c4ac7473f27aa7f00751f2ad954bef41d2fb075` (31/10), deploy
+  `41227331581`; anterior `478bcb735c41` (20/10, deploy `39453420210`).
+- Health e frontend OK após o deploy; aceite visual do usuário pendente.
+- Automação DFe/Sintegra permanece futura.
 
-## Pacote local de 31/10 — pronto nas checagens
+## Pacote de 31/10 — publicado
 
 - Abas Contas/Cancelados; busca normal exclui cancelados, histórico preservado.
 - Cancelamento atualiza Agenda/resumos e apresenta recusas da API.
@@ -18,7 +18,7 @@ Atualizado em 31/10/2026. Memória estrutural: [AI_CONTEXT.md](AI_CONTEXT.md).
 - Checagem completa STATUS OK: `checar_alteracao_20261031_121151.log`.
 - Teste PostgreSQL isolado de cancelamento/Agenda/histórico passou com rollback.
   Base temporária encerrada; dados reais não foram alterados.
-- Sem commit/push deste pacote. Alterações pessoais do usuário preservadas.
+- Commits `b5765bf` e `8c4ac74` na branch feature/matriz-filial-xml.
 
 ## Ambiente local recuperado
 

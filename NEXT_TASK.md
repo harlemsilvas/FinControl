@@ -4,22 +4,19 @@ Atualizado em 31/10/2026.
 
 ## Tarefa ativa
 
-Deploy controlado do pacote funcional de 31/10 (sem migration nova), após
-ambiente local recuperado e validado.
+Pacote de 31/10 publicado em produção; aguardando aceite visual do usuário.
 
-- Banco local recuperado: container `fincontrol-postgres-recovered-20261031`,
-  porta 55435, volume isolado `fincontrol_recovered_20261031`;
-  `fincontrol_validation_20261019` com 201 títulos, 192 pagamentos, 59 migrations
-  e fuso America/Sao_Paulo. Origem em `/home/docker-data-old` intacta.
-  `.env` deve usar `DB_PORT=55435`.
-- Checagem completa STATUS OK com banco real: `checar_alteracao_20261031_142951.log`.
-- Pacote: abas Contas/Cancelados, cancelamento que atualiza Agenda/resumos,
-  “geração da série concluída” e retorno após salvar edição.
-- Deploy: workflow `Deploy VPS Native` com SHA imutável e `DEPLOY`; backup antes;
-  health e rollback conforme [PHASE-16](docs/PHASE-16-CONTROLLED-DEPLOY.md).
-  Produção anterior aceita: `478bcb7`, deploy `39453420210` (20/10).
-- Evidências da recuperação: [localização](docs/LOCAL-DOCKER-RECOVERY-2026-10-31.md).
-- Code Review Graph: `.local/code-review-graph`; atualizar após código.
+- Deploy `41227331581` (31/10, 18:06 UTC) do SHA
+  `8c4ac7473f27aa7f00751f2ad954bef41d2fb075`; sem migration nova (59 já aplicadas).
+  Health da API e do frontend OK; `/fincontrol/`, `/health/ready` e `/docs/` = 200.
+- Rollback se necessário: `sudo /opt/fincontrol/bin/rollback 478bcb735c41`.
+- Backup `pre-deploy-8c4ac74` gerado pelo script de deploy; conferir em
+  `/opt/fincontrol/shared/backups`.
+- Conferir em produção: abas Contas/Cancelados, Agenda após cancelar, série
+  concluída, retorno após salvar edição.
+- Banco local recuperado: `fincontrol-postgres-recovered-20261031`, porta 55435
+  (`.env` deve usar `DB_PORT=55435`). Evidências em
+  [localização](docs/LOCAL-DOCKER-RECOVERY-2026-10-31.md).
 
 ## Backlog que permanece
 
