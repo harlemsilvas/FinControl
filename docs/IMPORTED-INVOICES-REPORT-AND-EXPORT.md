@@ -300,3 +300,8 @@ CI 39453405475 aprovado. Backup pré-deploy concluído antes da migration
 relatório HTTP 200 e health API/PostgreSQL ok. Log privado em
 .local/deploy-39453420210.log. Conferência autenticada do ZIP na VPS pelo
 usuário é o próximo passo; validação completa anterior foi local.
+## Aceite do usuário em produção — 20/10/2026
+
+Usuário confirmou após o deploy: "Testado. Tudo funcionando."
+Entrega encerrada e pendência de conferência em produção concluída.
+Escopo preservado: importação manual e download ZIP para envio manual.
