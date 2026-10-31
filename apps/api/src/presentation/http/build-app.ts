@@ -26,6 +26,7 @@ import { DigitalCertificateService } from '../../domains/integrations/digital-ce
 import { digitalCertificateRoutes } from '../../domains/integrations/digital-certificate-routes.js';
 import { ImportedInvoicesService } from '../../domains/intelligence/imported-invoices-service.js';
 import { importedInvoicesRoutes } from '../../domains/intelligence/imported-invoices-routes.js';
+import { registerDfeSync } from '../../domains/integrations/dfe-sync-scheduler.js';
 import { registerOpenApi } from './openapi.js';
 
 export interface BuildAppOptions {
@@ -91,9 +92,11 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     repository: new MasterDataRepository(options.database),
     cnpjLookupService: new CnpjLookupService(options.environment.CNPJ_LOOKUP_BASE_URL),
   });
+  const payablesRepository = new PayablesRepository(options.database);
+  registerDfeSync(app, options.database, payablesRepository, options.environment);
   void app.register(payablesRoutes, {
     prefix: '/api/v1', authRepository, tokenService,
-    repository: new PayablesRepository(options.database),
+    repository: payablesRepository,
     attachmentStorageRoot: options.environment.ATTACHMENT_STORAGE_ROOT,
   });
   void app.register(treasuryRoutes, {

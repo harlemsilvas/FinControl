@@ -875,7 +875,7 @@ export class PayablesRepository {
     const reversedMovements=await this.reversePaymentBankMovements(tx,id,reason,userId);
     const row=result.rows[0]!; await this.audit(tx,'PAYMENT',id,'REVERSED',userId,api(current),{reason,reversedMovements}); return {...api(row),reversedMovements};});}
 
-  async createXmlImport(input: XmlImportInput, userId: string): Promise<object> {
+  async createXmlImport(input: XmlImportInput, userId: string, options: { importSource?: 'MANUAL' | 'DFE_API' } = {}): Promise<object> {
     return this.database.transaction(async (tx) => {
       if (input.accessKey) {
         const duplicate = await tx.query(`SELECT id FROM financeiro.xml_imports WHERE access_key=$1 LIMIT 1`, [input.accessKey]);
@@ -896,17 +896,17 @@ export class PayablesRepository {
         recipient_legal_name,recipient_document_number,recipient_state_registration,recipient_city_name,recipient_state_code,recipient_kind,main_company_document_number,
         document_model,document_number,document_series,issue_date,operation_date,due_date,
         products_amount,freight_amount,insurance_amount,discount_amount,other_amount,invoice_total_amount,payment_amount,currency_code,parsed_data,
-        status_id,imported_by
+        status_id,imported_by,import_source
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,
-        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$38
+        (SELECT id FROM financeiro.xml_import_statuses WHERE code='RECEIVED'),$38,$39
       ) RETURNING *`, [
         input.accessKey ?? null,supplier?.id ?? null,company?.id ?? null,input.attachmentId ?? null,input.rawXml ?? null,input.sourceFileName ?? null,input.sourceMimeType ?? null,input.sourceSizeBytes ?? null,input.sourceFileHash ?? null,
         input.supplierLegalName ?? null,input.supplierTradeName ?? null,input.supplierDocumentNumber ?? null,input.supplierStateRegistration ?? null,input.supplierCityName ?? null,input.supplierStateCode ?? null,
         input.recipientLegalName ?? null,input.recipientDocumentNumber ?? null,input.recipientStateRegistration ?? null,input.recipientCityName ?? null,input.recipientStateCode ?? null,company?.companyType ?? 'UNKNOWN',input.mainCompanyDocumentNumber ?? null,
         input.documentModel ?? null,input.documentNumber ?? null,input.documentSeries ?? null,input.issueDate ?? null,input.operationDate ?? null,input.dueDate ?? null,
         input.productsAmount ?? null,input.freightAmount ?? null,input.insuranceAmount ?? null,input.discountAmount ?? null,input.otherAmount ?? null,input.invoiceTotalAmount ?? null,input.paymentAmount ?? null,input.currencyCode ?? 'BRL',JSON.stringify(input.parsedData ?? {}),
-        userId
+        userId,options.importSource ?? 'MANUAL'
       ]);
       const row = result.rows[0]!;
       const installments: object[] = [];

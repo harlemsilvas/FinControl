@@ -8,7 +8,7 @@ Atualizado em 31/10/2026. Memória estrutural: [AI_CONTEXT.md](AI_CONTEXT.md).
   `41232755286`; anteriores `8c4ac7473f27` (deploy `41227331581`) e
   `478bcb735c41` (deploy `39453420210`, 20/10).
 - Health e frontend OK; `main` e branch com CI verde. Aceite visual pendente.
-- Automação DFe/Sintegra permanece futura.
+- Conector DFe → FinControl em desenvolvimento na branch `feature/conector-dfe-nfe-entrada`; nada disso está em produção.
 
 ## Pacote de 31/10 — publicado
 
@@ -20,6 +20,13 @@ Atualizado em 31/10/2026. Memória estrutural: [AI_CONTEXT.md](AI_CONTEXT.md).
 - Teste PostgreSQL isolado de cancelamento/Agenda/histórico passou com rollback.
   Base temporária encerrada; dados reais não foram alterados.
 - Commits `b5765bf` e `8c4ac74` na branch feature/matriz-filial-xml.
+
+## Conector DFe (31/10, branch, não publicado)
+
+- Decisão do usuário: pull pela rede interna (mesma VPS), chave estática por consumidor,
+  somente `procNFe`. Lado DFe: API `/api/integracao/v1` (repositório dfe-sefa-enhaced).
+- Lado FinControl: `apps/api/src/domains/integrations/` (cliente, parser, sync, agendador).
+- Pendente: PR, migration e ativação em produção (autorização explícita).
 
 ## Ambiente local recuperado
 
