@@ -4,9 +4,10 @@ Atualizado em 31/10/2026. Memória estrutural: [AI_CONTEXT.md](AI_CONTEXT.md).
 
 ## Produção
 
-- Release `8c4ac7473f27aa7f00751f2ad954bef41d2fb075` (31/10), deploy
-  `41227331581`; anterior `478bcb735c41` (20/10, deploy `39453420210`).
-- Health e frontend OK após o deploy; aceite visual do usuário pendente.
+- Release `0ace2b65a1b1c680ad0d0ad877a7a3c1e5215627` (31/10), deploy
+  `41232755286`; anteriores `8c4ac7473f27` (deploy `41227331581`) e
+  `478bcb735c41` (deploy `39453420210`, 20/10).
+- Health e frontend OK; `main` e branch com CI verde. Aceite visual pendente.
 - Automação DFe/Sintegra permanece futura.
 
 ## Pacote de 31/10 — publicado

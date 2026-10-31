@@ -4,25 +4,25 @@ Atualizado em 31/10/2026.
 
 ## Tarefa ativa
 
-Pacote de 31/10 publicado em produção; aguardando aceite visual do usuário.
+Release `0ace2b65a1b1c680ad0d0ad877a7a3c1e5215627` publicada em produção
+(deploy `41232755286`, 31/10, 19:12 UTC); aguardando aceite visual em produção.
 
-- Deploy `41227331581` (31/10, 18:06 UTC) do SHA
-  `8c4ac7473f27aa7f00751f2ad954bef41d2fb075`; sem migration nova (59 já aplicadas).
-  Health da API e do frontend OK; `/fincontrol/`, `/health/ready` e `/docs/` = 200.
-- Rollback se necessário: `sudo /opt/fincontrol/bin/rollback 478bcb735c41`.
-- Backup pré-deploy confirmado na VPS (18:06 UTC):
-  `fincontrol_20261031T180635Z_478bcb735c41_pre-deploy-8c4ac7473f27.dump`
-  (com `.dump.json` e `.sha256`) em `/opt/fincontrol/shared/backups`.
-- Conferir em produção: abas Contas/Cancelados, Agenda após cancelar, série
-  concluída, retorno após salvar edição.
-- Banco local recuperado: `fincontrol-postgres-recovered-20261031`, porta 55435
-  (`.env` deve usar `DB_PORT=55435`). Evidências em
-  [localização](docs/LOCAL-DOCKER-RECOVERY-2026-10-31.md).
+- Inclui: remoção do `src/` legado, consolidação de helpers do web
+  (master-data, payables, reports) e testes de integração em série. Sem migration.
+- Health, frontend e `/docs/` = 200 após o deploy. CI verde na branch e na main.
+- Rollback se necessário: `sudo /opt/fincontrol/bin/rollback 8c4ac7473f27`
+  (release anterior, deploy `41227331581`).
+- Conferir em produção: telas de fornecedores e payables (tocadas pela refatoração).
+- Banco local: `fincontrol-postgres-recovered-20261031`, porta 55435
+  ([recuperação](docs/LOCAL-DOCKER-RECOVERY-2026-10-31.md)).
 
 ## Backlog que permanece
 
 - Validar relatórios Pagamentos realizados e Previsto x pago com dados reais.
 - Revisar alertas preexistentes de dependências @fastify/busboy e node-forge.
+- `today()` em payables-types.ts usa UTC; após 21h em São Paulo devolve o dia
+  seguinte. Corrigir à parte, com fuso America/Sao_Paulo.
+- Método `updateAccess` de session-store.ts sem chamadores (candidato a remoção).
 - DFe/Sintegra e demais documentos FUTURE permanecem como evolução futura.
 
 Preservar .env, backups e dados originais. Não usar down -v, prune ou troca do
