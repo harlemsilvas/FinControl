@@ -6,7 +6,7 @@ import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import type { ListResponse } from './payables-types';
-import { currency } from './payables-types';
+import { currency, datePtBr } from './payables-types';
 import { XmlImportDialog } from './xml-import-dialog';
 
 type RecipientKind = 'MAIN' | 'BRANCH' | 'UNKNOWN';
@@ -107,12 +107,6 @@ function statusLabel(value: string): string {
 
 function kindLabel(value: RecipientKind): string {
   return { MAIN: 'Matriz', BRANCH: 'Filial', UNKNOWN: 'Não classificado' }[value];
-}
-
-function datePtBr(value?: string | null): string {
-  if (!value) return '-';
-  const [year, month, day] = value.slice(0, 10).split('-');
-  return year && month && day ? `${day}/${month}/${year}` : '-';
 }
 
 function dateTimePtBr(value?: string | null): string {

@@ -6,7 +6,7 @@ import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { MAX_ISO_DATE, MIN_ISO_DATE, coerceIsoDateInput, isFourDigitIsoDate } from './date-input-utils';
-import { currency, type ListResponse } from './payables-types';
+import { currency, datePtBr, type ListResponse } from './payables-types';
 
 type FrequencyCode = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'ANNUAL';
 type RecurrenceStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'FINISHED';
@@ -99,12 +99,6 @@ const emptyForm: RecurrenceFormState = {
 
 function optionLabel(item: LookupItem): string {
   return item.tradeName || item.legalName || item.name || item.accountName || item.id;
-}
-
-function datePtBr(value?: string | null): string {
-  if (!value) return '-';
-  const [year, month, day] = value.slice(0, 10).split('-');
-  return year && month && day ? `${day}/${month}/${year}` : '-';
 }
 
 function isoFromPtBrDate(value: string): string | null {

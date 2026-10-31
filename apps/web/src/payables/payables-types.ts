@@ -5,3 +5,23 @@ export interface ListResponse<T>{data:T[];page:number;pageSize:number;total:numb
 export function currency(value:string|number):string{return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value));}
 export function statusLabel(code:string):string{return {DRAFT:'Rascunho',OPEN:'Em aberto',IN_APPROVAL:'Em aprovação',APPROVED:'Aprovado',SCHEDULED:'Programado',PARTIALLY_PAID:'Parcialmente pago',PAID:'Pago',OVERDUE:'Atrasado',REJECTED:'Reprovado',CANCELLED:'Cancelado',EFFECTIVE:'Pago',REVERSED:'Estornado'}[code]??code;}
 export function isTerminalRecurrence(status?:string|null):boolean{return status==='CANCELLED'||status==='FINISHED';}
+
+export function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+export function datePtBr(value?: string | null): string {
+  if (!value) return '-';
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return year && month && day ? `${day}/${month}/${year}` : '-';
+}
+
+export function recurrenceStatusLabel(status?: string | null): string {
+  return status === 'FINISHED' ? 'Geração da série concluída' : status === 'CANCELLED' ? 'Série cancelada' : 'Recorrente';
+}
+
+export function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}

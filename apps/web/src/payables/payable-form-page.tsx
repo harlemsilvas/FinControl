@@ -10,7 +10,7 @@ import { Button } from '../components/ui/button';
 import { Breadcrumb } from '../components/ui/breadcrumb';
 import { Card } from '../components/ui/card';
 import { CurrencyInput } from '../components/ui/currency-input';
-import { currency, isTerminalRecurrence, statusLabel, type Installment, type ListResponse, type PayableDetail } from './payables-types';
+import { currency, isTerminalRecurrence, statusLabel, today, type Installment, type ListResponse, type PayableDetail } from './payables-types';
 import { payableTabs } from './payable-form-contract';
 import { RecurrenceActionsLauncher } from './recurrence-actions';
 
@@ -65,10 +65,6 @@ function payableFormErrorMessage(error: unknown): string {
     return 'Esta parcela já possui pagamento efetivo. Estorne o pagamento antes de alterar vencimento, valor ou forma de pagamento.';
   }
   return error.message || 'Não foi possível salvar o título.';
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function optionLabel(item: Lookup): string {
