@@ -8,7 +8,7 @@ Atualizado em 31/10/2026. Memória estrutural: [AI_CONTEXT.md](AI_CONTEXT.md).
   `41232755286`; anteriores `8c4ac7473f27` (deploy `41227331581`) e
   `478bcb735c41` (deploy `39453420210`, 20/10).
 - Health e frontend OK; `main` e branch com CI verde. Aceite visual pendente.
-- Conector DFe → FinControl em desenvolvimento na branch `feature/conector-dfe-nfe-entrada`; nada disso está em produção.
+- Conector DFe → FinControl **em produção desde 01/11/2026** (PR #3, release `aa3bf7236dbb`); ver seção abaixo.
 
 ## Pacote de 31/10 — publicado
 
@@ -21,12 +21,18 @@ Atualizado em 31/10/2026. Memória estrutural: [AI_CONTEXT.md](AI_CONTEXT.md).
   Base temporária encerrada; dados reais não foram alterados.
 - Commits `b5765bf` e `8c4ac74` na branch feature/matriz-filial-xml.
 
-## Conector DFe (31/10, branch, não publicado)
+## Conector DFe (em produção desde 01/11/2026)
 
 - Decisão do usuário: pull pela rede interna (mesma VPS), chave estática por consumidor,
   somente `procNFe`. Lado DFe: API `/api/integracao/v1` (repositório dfe-sefa-enhaced).
 - Lado FinControl: `apps/api/src/domains/integrations/` (cliente, parser, sync, agendador).
-- Pendente: PR, migration e ativação em produção (autorização explícita).
+- Produção: migration `202610311900` aplicada pelo deploy; `.env` com `DFE_API_BASE_URL=http://127.0.0.1:18003`,
+  chave e usuário autor; `DFE_SYNC_ENABLED=true`. Duas empresas (CNPJ 19330326000105 e 51309435000153).
+- Primeira carga (01/11): empresa 19330326000105 importou 7 notas novas; 51309435000153 tratou todas como
+  duplicatas (já importadas manualmente). Nenhuma conta a pagar gerada automaticamente.
+- Travou no 1º NSU até o DFe aceitar o caminho dos XMLs (`DFE_INTEGRACAO_XML_ROOTS` e caminho relativo a `backend/`):
+  era problema de leitura no DFe, não XML ausente. A ressalva (XML que nunca aparece) não se confirmou até agora.
+- Agenda por horário (branch `feature/dfe-sync-agenda-horario`): seg-sex 7h-18h a cada 5 min; fora disso, 30 min.
 
 ## Ambiente local recuperado
 

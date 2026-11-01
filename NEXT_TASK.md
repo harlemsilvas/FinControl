@@ -16,18 +16,19 @@ Release `0ace2b65a1b1c680ad0d0ad877a7a3c1e5215627` publicada em produção
 - Banco local: `fincontrol-postgres-recovered-20261031`, porta 55435
   ([recuperação](docs/LOCAL-DOCKER-RECOVERY-2026-10-31.md)).
 
-## Pacote em andamento — conector DFe → FinControl (branch feature/conector-dfe-nfe-entrada)
+## Conector DFe → FinControl — em produção desde 01/11/2026 (PR #3); agenda por horário em PR próprio
 
 - Conector pull das NF-e de entrada (`procNFe`) da API do DFe para `xml_imports`
   com `import_source='DFE_API'`, status RECEIVED e **sem gerar conta a pagar**.
   Desligado por padrão (`DFE_SYNC_ENABLED=false`). Detalhes: [docs/DFE-API-CONNECTOR.md](docs/DFE-API-CONNECTOR.md).
-- Migration nova `202610311900` (não aplicada em produção): libera `DFE_API` e cria
-  `integracoes.dfe_sync_cursors`. Exige backup antes; o CD não cobre banco.
-- Validado: typecheck, lint, 144 testes unitários, 14 de integração em PostgreSQL 16
-  descartável (60 migrations) e contrato real contra a API do DFe local.
-- Pendente: PR/revisão; aplicar migration e ligar o conector em produção só com autorização;
-  XML ainda indisponível no DFe: o conector aguarda e repete (decisão do usuário). Ressalva: validar na VPS
-  se todo procNFe ganha XML; se não, definir prazo máximo antes de pular e registrar.
+- Migration `202610311900` aplicada em produção pelo deploy (libera `DFE_API`, cria `integracoes.dfe_sync_cursors`).
+- Validado: typecheck, lint, testes unitários (147), 14 de integração em PostgreSQL 16 descartável e contrato real
+  contra a API do DFe.
+- Agenda por horário: `DFE_SYNC_INTERVAL_SECONDS` (5 min) vale seg-sex entre `DFE_SYNC_BUSINESS_START_HOUR` (7) e
+  `DFE_SYNC_BUSINESS_END_HOUR` (18), fuso America/Sao_Paulo; fora disso `DFE_SYNC_OFFPEAK_INTERVAL_SECONDS` (30 min).
+  Feriados não são tratados. Após o merge, fazer deploy (a API relê o `.env` no restart).
+- Acompanhar: `integracoes.dfe_sync_cursors` (`last_error`). XML ainda indisponível no DFe: o conector aguarda e
+  repete (decisão do usuário). Se um NSU travar por dias, definir prazo máximo antes de pular e registrar.
 - Tela de revisão: as notas aparecem na lista de XML importados (status RECEIVED); não há
   filtro por origem na tela.
 
