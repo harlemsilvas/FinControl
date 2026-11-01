@@ -27,6 +27,9 @@ Release `0ace2b65a1b1c680ad0d0ad877a7a3c1e5215627` publicada em produção
 - Agenda por horário: `DFE_SYNC_INTERVAL_SECONDS` (5 min) vale seg-sex entre `DFE_SYNC_BUSINESS_START_HOUR` (7) e
   `DFE_SYNC_BUSINESS_END_HOUR` (18), fuso America/Sao_Paulo; fora disso `DFE_SYNC_OFFPEAK_INTERVAL_SECONDS` (30 min).
   Feriados não são tratados. Após o merge, fazer deploy (a API relê o `.env` no restart).
+- **Pendente de checagem (01/11/2026):** confirmar na segunda-feira (02/11), das 7h às 18h, que o log
+  `DFe sync concluido` aparece a cada 5 min (fora do horário, a cada 30 min); só o intervalo de 30 min foi visto (domingo).
+  Também validar se todo `procNFe` acaba com XML no DFe; até agora nenhum NSU ficou sem arquivo.
 - Acompanhar: `integracoes.dfe_sync_cursors` (`last_error`). XML ainda indisponível no DFe: o conector aguarda e
   repete (decisão do usuário). Se um NSU travar por dias, definir prazo máximo antes de pular e registrar.
 - Tela de revisão: as notas aparecem na lista de XML importados (status RECEIVED); não há
