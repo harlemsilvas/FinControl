@@ -34,6 +34,10 @@ const environment: Environment = {
   BACKUP_SCRIPT_PATH: '/tmp/fincontrol-test-backup-db',
   BACKUP_SCRIPT_USE_SUDO: false,
   CNPJ_LOOKUP_BASE_URL: 'https://brasilapi.com.br/api/cnpj/v1',
+  DFE_SYNC_ENABLED: false,
+  DFE_SYNC_INTERVAL_SECONDS: 300,
+  DFE_SYNC_PAGE_SIZE: 100,
+  DFE_API_TIMEOUT_MS: 15_000,
 };
 
 const apps: ReturnType<typeof buildApp>[] = [];

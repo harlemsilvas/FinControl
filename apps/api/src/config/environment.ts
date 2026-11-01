@@ -49,7 +49,20 @@ const environmentSchema = z.object({
   BACKUP_SCRIPT_USE_SUDO: envBoolean,
   CNPJ_LOOKUP_BASE_URL: z.url().default('https://brasilapi.com.br/api/cnpj/v1'),
   CERTIFICATE_ENCRYPTION_KEY: optionalText,
+  // Conector de NF-e de entrada: consulta a API do DFe-SEFAZ Enhanced (pull, somente leitura).
+  DFE_SYNC_ENABLED: envBoolean,
+  DFE_API_BASE_URL: z.preprocess((value) => value === '' ? undefined : value, z.url().optional()),
+  DFE_API_KEY: z.preprocess((value) => value === '' ? undefined : value, z.string().min(32).optional()),
+  DFE_SYNC_USER_ID: z.preprocess((value) => value === '' ? undefined : value, z.uuid().optional()),
+  DFE_SYNC_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(300),
+  DFE_SYNC_PAGE_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  DFE_API_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(15_000),
 }).superRefine((environment, context) => {
+  if (environment.DFE_SYNC_ENABLED) {
+    for (const key of ['DFE_API_BASE_URL', 'DFE_API_KEY', 'DFE_SYNC_USER_ID'] as const) {
+      if (!environment[key]) context.addIssue({ code: 'custom', path: [key], message: 'Required when DFE_SYNC_ENABLED is true' });
+    }
+  }
   if (!environment.SMTP_ENABLED) return;
   if (!environment.SMTP_HOST) {
     context.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'Required when SMTP_ENABLED is true' });
