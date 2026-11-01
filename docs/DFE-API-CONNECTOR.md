@@ -14,12 +14,23 @@ DFe-SEFAZ Enhanced (outro repositório) e o FinControl só lê o resultado.
 
 ## Fluxo
 
-1. A cada `DFE_SYNC_INTERVAL_SECONDS` (padrão 300 s) uma rodada serializada lista as empresas autorizadas à chave
+1. Uma rodada serializada, no intervalo da agenda (abaixo), lista as empresas autorizadas à chave
    e processa só as cadastradas e ativas em `cadastros.companies`.
 2. Por empresa, lê o cursor em `integracoes.dfe_sync_cursors`, pagina `nfe-entrada?apos_nsu=` e baixa o XML de cada nota.
 3. Parser no servidor (`nfe-xml-parser.ts`, mesmas regras do parser do web) → `PayablesRepository.createXmlImport`
    com `importSource: 'DFE_API'`.
 4. O cursor avança nota a nota; ao fim da página confirma o NSU ao DFe (melhor esforço).
+
+## Agenda por horário
+
+As notas chegam em dias úteis, das 7h às 18h; fora disso a demanda é pequena. Cada rodada reagenda a próxima:
+
+| Quando (fuso America/Sao_Paulo) | Intervalo | Variável |
+|---|---|---|
+| Segunda a sexta, de `DFE_SYNC_BUSINESS_START_HOUR` (7) até `DFE_SYNC_BUSINESS_END_HOUR` (18, exclusive) | 300 s | `DFE_SYNC_INTERVAL_SECONDS` |
+| Demais horários e fins de semana | 1800 s | `DFE_SYNC_OFFPEAK_INTERVAL_SECONDS` |
+
+Feriados não são tratados (valem como dia útil). A regra está em `dfe-sync-schedule.ts`, com testes.
 
 ## Regras de segurança e consistência
 
@@ -36,7 +47,7 @@ DFe-SEFAZ Enhanced (outro repositório) e o FinControl só lê o resultado.
 - `DOCTYPE`/`ENTITY` são rejeitados e o XML é limitado a 5 MB.
 - Relatórios e exportação de notas importadas continuam só com `MANUAL`.
 
-## Ativar (nada disso foi feito em produção)
+## Ativar (feito em produção em 01/11/2026; passos mantidos como referência)
 
 1. Backup do banco; aplicar `database/migrations/202610311900_integracoes_create_dfe_sync_cursors.sql`.
 2. No DFe: aplicar a migration 006 e criar a chave (`backend/scripts/criar_cliente_integracao.py NOME CNPJ...`).
@@ -48,3 +59,13 @@ DFe-SEFAZ Enhanced (outro repositório) e o FinControl só lê o resultado.
 
 typecheck e lint limpos; 144 testes unitários; 14 de integração em PostgreSQL 16 descartável com as 60 migrations;
 cliente e parser contra a API real do DFe local (listagem, XML real, confirmação, 401 com chave errada).
+
+## Operação em produção (01/11/2026)
+
+- DFe e FinControl rodam no mesmo host: o FinControl (PM2, nativo) acessa o DFe em `http://127.0.0.1:18003`;
+  o Nginx público nega `/api/integracao` (403).
+- Uma chave por consumidor, com todas as empresas do consumidor no mesmo cliente
+  (`criar_cliente_integracao.py fincontrol CNPJ1 CNPJ2`). Cada execução do script cria um cliente novo; o nome é único.
+- Se o sync parar no 1º NSU com "XML ainda indisponivel": verificar no DFe se o arquivo existe e se a API o enxerga
+  (`DFE_INTEGRACAO_XML_ROOTS`; caminhos relativos são resolvidos a partir da raiz do release e de `backend/`).
+- O `.env` é carregado com `source` pelo deploy: valores sem `< >`, sem espaços em volta do `=`.

@@ -55,6 +55,9 @@ const environmentSchema = z.object({
   DFE_API_KEY: z.preprocess((value) => value === '' ? undefined : value, z.string().min(32).optional()),
   DFE_SYNC_USER_ID: z.preprocess((value) => value === '' ? undefined : value, z.uuid().optional()),
   DFE_SYNC_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(300),
+  DFE_SYNC_OFFPEAK_INTERVAL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(1800),
+  DFE_SYNC_BUSINESS_START_HOUR: z.coerce.number().int().min(0).max(23).default(7),
+  DFE_SYNC_BUSINESS_END_HOUR: z.coerce.number().int().min(1).max(24).default(18),
   DFE_SYNC_PAGE_SIZE: z.coerce.number().int().min(1).max(500).default(100),
   DFE_API_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(15_000),
 }).superRefine((environment, context) => {
